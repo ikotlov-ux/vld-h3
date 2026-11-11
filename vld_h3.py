@@ -43,7 +43,7 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 APP_NAME = "VLD-H3"
 APP_TITLE = "VLD-H3: Ценность – Нагрузка – Нарушенность"
 HERE = Path(__file__).resolve().parent
@@ -482,7 +482,8 @@ FRAG_CLASS_NAMES = {1: "лес", 2: "луг", 3: "кустарник", 4: "бо�
 @dataclass
 class EcoCfg:
     """Экосистемы (D2) и перенос площадных слоёв на сетку"""
-    path: str = P("", "Слой экосистем D2", "Полигоны типологии 2026 г. (GPKG/SHP): зональность, ёмкость, насекомые, фрагментация, водоёмы.", "file", filetypes=VEC_TYPES)
+    path: list = P([], "Слои экосистем D2", "Полигоны типологии 2026 г. (GPKG/SHP): зональность, ёмкость, насекомые, фрагментация, водоёмы. "
+                   "Если ООПТ есть в нескольких файлах, используются выделы последнего из них (например, общий слой и уточнённый слой одной ООПТ).", "files", filetypes=VEC_TYPES)
     layer: str = P("", "Слой в GPKG", "Пусто — первый слой файла.", "layer", source="path")
     code_field: str = P("", "Поле кода типа", "Пусто — автоподбор (class_value, eco_code, code, Индекс). 4‑значные коды приводятся к младшим трём разрядам.", "text")
     zon_fix_field: str = P("zon_fix", "Поле поправки зональности", "Значения 1–3 заменяют балл по типу (п. 8.9.4).", "text")
@@ -647,6 +648,124 @@ class FragCfg:
     ready_field: str = P("metrics_avg", "Поле индекса готового слоя", "", "text")
 
 
+# Палитры карт (прил. Б ТЗ). Порядок цветов линейных палитр — классы 1 → 3 (1 → 5).
+PAL3 = {
+    "Светофор": ["#e31a1c", "#ffd700", "#1a9641"],
+    "RdYlGn": ["#fc8d59", "#ffffbf", "#91cf60"],
+    "RdYlBu": ["#fc8d59", "#ffffbf", "#91bfdb"],
+    "YlOrRd": ["#ffeda0", "#feb24c", "#f03b20"],
+    "YlGn (обращённая)": ["#31a354", "#addd8e", "#f7fcb9"],
+    "Greens": ["#e5f5e0", "#a1d99b", "#31a354"],
+    "Reds": ["#fee0d2", "#fc9272", "#de2d26"],
+    "Blues": ["#deebf7", "#9ecae1", "#3182bd"],
+    "PuOr": ["#f1a340", "#f7f7f7", "#998ec3"],
+    "BrBG": ["#d8b365", "#f5f5f5", "#5ab4ac"],
+    "viridis": ["#440154", "#21918c", "#fde725"],
+    "cividis": ["#00224e", "#7d7c78", "#fee838"],
+}
+PAL5 = {
+    "YlOrRd": ["#ffffb2", "#fecc5c", "#fd8d3c", "#f03b20", "#bd0026"],
+    "Светофор": ["#1a9641", "#a6d96a", "#ffffbf", "#fdae61", "#d7191c"],
+    "viridis": ["#440154", "#3b528b", "#21918c", "#5ec962", "#fde725"],
+    "cividis": ["#00224e", "#434e6c", "#7d7c78", "#bcaf6f", "#fee838"],
+}
+# Двумерные палитры: 9 цветов в порядке индекса (x − 1) + 3 (y − 1), x — первый параметр карты
+PAL9 = {
+    "2025 «ЦВЕТА»": ["#375623", "#548235", "#A9D08E", "#663300", "#CC6600", "#FFFF66", "#FF0000", "#FF7171", "#FFBEBE"],
+    "Stevens pink–blue": ["#e8e8e8", "#ace4e4", "#5ac8c8", "#dfb0d6", "#a5add3", "#5698b9", "#be64ac", "#8c62aa", "#3b4994"],
+    "Stevens green–blue": ["#e8e8e8", "#b5c0da", "#6c83b5", "#b8d6be", "#90b2b3", "#567994", "#73ae80", "#5a9178", "#2a5a5b"],
+    "Stevens blue–red": ["#e8e8e8", "#e4acac", "#c85a5a", "#b0d5df", "#ad9ea5", "#985356", "#64acbe", "#627f8c", "#574249"],
+    "Stevens purple–gold": ["#e8e8e8", "#e4d9ac", "#c8b35a", "#cbb8d7", "#c8ada0", "#af8e53", "#9972af", "#976b82", "#804d36"],
+    "seq–seq 2": ["#f3f3f3", "#b4d3e1", "#509dc2", "#f3e6b3", "#b3b3b3", "#376387", "#f3b300", "#b36600", "#000000"],
+}
+CUBE_CORNERS = {"1-1-1": "#1b7837", "1-3-1": "#b35806", "1-1-3": "#542788", "1-3-3": "#b2182b",
+                "3-1-1": "#eef3e6", "3-3-1": "#fde0b6", "3-1-3": "#dcd9ec", "3-3-3": "#f6c4c0"}
+NA_COLOR = "#d9d9d9"
+TILE_UA = "VLD-H3 (+https://github.com/ikotlov-ux/vld-h3)"
+# Матрицы решений (рис. 3 и 4 рукописи): код «a_b», a — V, b — D (V × D) или L (V × L)
+ZONE_COLORS = {"1_1": "#007b38", "1_2": "#92431c", "1_3": "#f33529", "2_1": "#00ad44", "2_2": "#f38226",
+               "2_3": "#fc8392", "3_1": "#dbeeda", "3_2": "#ffe888", "3_3": "#fbe2e5"}
+ZONE_TEMPLATES = {
+    "VxD": {"1_1": "ядро строгой охраны", "1_2": "охранная зона", "1_3": "зона экологического восстановления",
+            "2_1": "зона природно-ориентированной рекреации", "2_2": "зона регулируемого использования",
+            "2_3": "зона реабилитации", "3_1": "зона благоустройства", "3_2": "прогулочная зона",
+            "3_3": "административно-хозяйственная зона"},
+    "VxL": {"1_1": "зона покоя", "1_2": "зона экотуризма", "1_3": "зона снижения рекреационной нагрузки",
+            "2_1": "прогулочная зона", "2_2": "зона контроля рекреации", "2_3": "зона временного ограничения нагрузки",
+            "3_1": "резервная территория", "3_2": "зона активного отдыха", "3_3": "инфраструктурная зона"},
+}
+MAP_MAIN = {"V": "V — ценность", "L": "L — нагрузка", "D": "D — нарушенность", "VxL": "V × L", "VxD": "V × D",
+            "LxD": "L × D", "VLD": "V × L × D (куб CIELAB)", "VxD_zones": "V × D — матрица решений",
+            "VxL_zones": "V × L — матрица решений", "LxD_zones": "L × D — матрица решений",
+            "VLD_zones": "V × L × D — матрица решений"}
+MAP_COMP = {"v_ins": "насекомые", "v_mam": "млекопитающие (число ФГ)", "v_anam": "низшие позвоночные (число ФГ)",
+            "v_bird": "птицы", "v_aqua": "гидробионты", "v_phyt": "фитопланктон", "v_zpl": "зоопланктон",
+            "v_zbn": "зообентос", "v_rare": "редкие виды растений", "v_cap": "ёмкость выдела",
+            "v_zon": "зональность экосистем", "v_qbs": "QBS почв", "d_inv": "инвазивные растения",
+            "d_frag": "фрагментация", "photo_cat": "фотографии (5 категорий)", "infra_cat": "рекреационные объекты (5 категорий)"}
+PAIR_PAL_CHOICES = {"cube": "срез куба CIELAB", **{k: k for k in PAL9}, "custom": "пользовательская (поле «Пользовательские 9 цветов»)"}
+BASEMAPS = {"OpenStreetMap.Mapnik": "OpenStreetMap (осветлённая)", "Esri.WorldGrayCanvas": "Esri World Gray Canvas (светло-серая)",
+            "OpenStreetMap.HOT": "OpenStreetMap HOT", "CartoDB.Positron": "CartoDB Positron (требует ключ API)", "none": "без подложки"}
+IMG_TYPES = [("CSV", "*.csv"), ("Все файлы", "*.*")]
+
+
+@dataclass
+class MapCfg:
+    """Состав и охват карт"""
+    build: bool = P(False, "Строить карты при расчёте", "Карты строятся после выгрузки по тем же данным (п. 13.1.1).", "bool")
+    maps: list = P(["V", "L", "D", "VxD", "VLD"], "Интегральные карты", "", "checks", choices=MAP_MAIN)
+    components: list = P([], "Карты частных показателей", "Строятся только для показателей, имеющихся в результате.", "checks", choices=MAP_COMP)
+    oopt: list = P([], "ООПТ карт", "Идентификаторы или названия; пусто — все ООПТ результата.", "list")
+    per_oopt: bool = P(True, "Отдельная карта для каждой ООПТ", "Охват — границы ООПТ с полем 5 %.", "bool")
+    overview: bool = P(False, "Обзорная карта всех выбранных ООПТ", "", "bool")
+    formats: list = P(["png"], "Форматы", "Пусто — только слой карт.", "checks", choices={"png": "PNG", "tif": "TIFF (LZW)", "pdf": "PDF"})
+    layer: bool = P(True, "Сохранять карты в слой GPKG", "Файл «‹имя›_karty.gpkg»: по слою на карту с полями cls, label, color и стилем QGIS.", "bool")
+    subdir: str = P("karty", "Подпапка изображений", "Внутри папки результатов.", "text")
+    name_template: str = P("{map}_{oopt}_{calc_year}", "Шаблон имени файла", "Поля: {map}, {oopt}, {oopt_id}, {calc_year}.", "text")
+
+
+@dataclass
+class MapStyleCfg:
+    """Оформление карт"""
+    paper: str = P("A4", "Формат листа", "", "choice", choices={"A4": "A4", "A3": "A3"})
+    orientation: str = P("auto", "Ориентация", "", "choice", choices={"auto": "по пропорциям охвата", "portrait": "книжная", "landscape": "альбомная"})
+    dpi: int = P(300, "Разрешение, dpi", "300 или 600.", "int", min=72, max=600)
+    basemap: str = P("OpenStreetMap.Mapnik", "Подложка", "Без интернета или при тайлах-заглушках карта строится без подложки (п. 13.1.4).", "choice", choices=BASEMAPS)
+    fade: float = P(0.45, "Осветление подложки", "0 — без осветления, 1 — белый фон.", "float")
+    tiles_cache: str = P("", "Кэш тайлов", "Пусто — папка tiles_cache в папке результатов.", "dir")
+    alpha: float = P(1.0, "Непрозрачность заливки", "0–1.", "float")
+    outline: str = P("grey", "Контур гексагонов", "", "choice", choices={"grey": "тонкий серый", "none": "без контура"})
+    title: bool = P(True, "Заголовок", "", "bool")
+    titles: dict = P({}, "Свои заголовки", "Формат: V=Ценность экосистем, VxD=Ценность и нарушенность.", "dict")
+    labels: dict = P({}, "Свои подписи легенд", "Формат: V.1=очень высокая, v_cap.3=мелкие выделы.", "dict")
+    counts: bool = P(True, "Число и доля гексагонов в легенде", "", "bool")
+    year_note: bool = P(True, "Год расчёта в примечании", "На обзорной карте — сводка годов.", "bool")
+    logos: bool = P(False, "Полоса с логотипами", "Файлы resources/logos (в репозиторий не входят).", "bool")
+    pair_swap: bool = P(False, "Поменять оси пар местами", "Например, D × V вместо V × D.", "bool")
+
+
+@dataclass
+class MapPalCfg:
+    """Палитры и матрицы решений"""
+    pal_V: str = P("Светофор", "Палитра V", "", "choice", choices={k: k for k in PAL3})
+    rev_V: bool = P(False, "Обратить палитру V", "", "bool")
+    pal_L: str = P("Светофор", "Палитра L", "", "choice", choices={k: k for k in PAL3})
+    rev_L: bool = P(False, "Обратить палитру L", "1 — зелёный, 3 — красный.", "bool")
+    pal_D: str = P("Светофор", "Палитра D", "", "choice", choices={k: k for k in PAL3})
+    rev_D: bool = P(False, "Обратить палитру D", "1 — зелёный, 3 — красный.", "bool")
+    pal_comp: str = P("Светофор", "Палитра частных показателей (3 класса)", "", "choice", choices={k: k for k in PAL3})
+    rev_comp: bool = P(False, "Обратить палитру частных показателей", "", "bool")
+    pal5: str = P("YlOrRd", "Палитра 5 категорий нагрузки", "photo_cat, infra_cat.", "choice", choices={k: k for k in PAL5})
+    custom3: dict = P({}, "Пользовательские 3 цвета", "Формат: V=#e31a1c #ffd700 #1a9641; заменяют палитру показателя.", "dict")
+    pal_VxL: str = P("2025 «ЦВЕТА»", "Палитра V × L", "", "choice", choices=PAIR_PAL_CHOICES)
+    pal_VxD: str = P("cube", "Палитра V × D", "Срез куба при L = уровню среза.", "choice", choices=PAIR_PAL_CHOICES)
+    pal_LxD: str = P("cube", "Палитра L × D", "Срез куба при V = уровню среза.", "choice", choices=PAIR_PAL_CHOICES)
+    cube_level: int = P(1, "Уровень третьего параметра в срезе куба", "", "int", min=1, max=3)
+    custom9: dict = P({}, "Пользовательские 9 цветов", "Формат: VxL=#… ×9 через пробел, в порядке (x − 1) + 3 (y − 1).", "dict")
+    cube_corners: dict = P(dict(CUBE_CORNERS), "Угловые цвета куба CIELAB", "Код V-L-D = #цвет; 27 цветов пересчитываются (п. 13.4.3).", "dict")
+    zones_file: str = P("", "Матрицы решений (CSV)", "Столбцы matrix, code, zone, color; пусто — встроенные шаблоны V × D и V × L. Шаблон: команда zones-template.", "file", filetypes=IMG_TYPES)
+
+
 def _anam():
     return FgCfg(a_t1=1.0, a_t2=2.0, b_t1=1.0, b_t2=2.0, b_closed="right")
 
@@ -689,6 +808,9 @@ class Config:
     recload: LoadCfg = field(default_factory=LoadCfg)
     inv: InvCfg = field(default_factory=InvCfg)
     frag: FragCfg = field(default_factory=FragCfg)
+    maps: MapCfg = field(default_factory=MapCfg)
+    mapstyle: MapStyleCfg = field(default_factory=MapStyleCfg)
+    mappal: MapPalCfg = field(default_factory=MapPalCfg)
 
     # -- сериализация -------------------------------------------------------
     def to_dict(self) -> dict:
@@ -735,7 +857,9 @@ SECTION_TITLES = {
     "agg_V": ("Агрегация V", 5), "quant_V": ("Квантование V", 5),
     "quant_L": ("Квантование L", 5), "agg_D": ("Агрегация D", 5), "quant_D": ("Квантование D", 5),
     "output": ("Выходные данные", 6), "archive": ("Архив годичных результатов", 6),
-    "assembly": ("Сборка разнолетней выгрузки", 6), "check": ("Проверка", 8),
+    "assembly": ("Сборка разнолетней выгрузки", 6),
+    "maps": ("Состав и охват карт", 7), "mapstyle": ("Оформление карт", 7), "mappal": ("Палитры и матрицы решений", 7),
+    "check": ("Проверка", 8),
 }
 
 
@@ -2163,21 +2287,39 @@ def read_zonality(cfg_z, ctx: Ctx):
     return out, f"{p.name}, лист «{cfg_z.sheet}»"
 
 
+def eco_paths(e) -> list[str]:
+    """Пути слоёв D2 (строка из конфигураций до 0.3.0 или список)."""
+    v = e.path
+    if isinstance(v, str):
+        v = [x.strip() for x in re.split(r"[;\n]", v) if x.strip()]
+    return [str(x) for x in v if str(x).strip()]
+
+
 def read_ecosystems(ctx: Ctx):
     """Слой D2: коды типов, площади выделов, структурные классы, отнесение к ООПТ."""
     g = geo()
     e = ctx.cfg.ecosys
-    p = Path(e.path)
-    ctx.inputs.append(str(p))
-    d = g["gpd"].read_file(p, layer=e.layer or None, engine="pyogrio") if e.layer else g["gpd"].read_file(p, engine="pyogrio")
-    if d.crs is None:
-        d = d.set_crs(GEO_CRS)
-    d = d.to_crs(METRIC_CRS)
-    d["geometry"] = d.geometry.make_valid()
-    d = d[d.geometry.notna() & ~d.geometry.is_empty].reset_index(drop=True)
-    cf = pick_field(d.columns, ["class_value", "eco_code", "code", "индекс", "код", "type_code", "gridcode"], e.code_field,
-                    required_label="код типа экосистемы (D2)")
-    d["code"] = [_parse_code(v) for v in d[cf]]
+    parts, cfs = [], []
+    for i, p in enumerate(eco_paths(e)):
+        p = Path(p)
+        ctx.inputs.append(str(p))
+        lay = e.layer if e.layer and e.layer in list_layers(p) else None
+        d = g["gpd"].read_file(p, layer=lay, engine="pyogrio") if lay else g["gpd"].read_file(p, engine="pyogrio")
+        if d.crs is None:
+            d = d.set_crs(GEO_CRS)
+        d = d.to_crs(METRIC_CRS)
+        d["geometry"] = d.geometry.make_valid()
+        d = d[d.geometry.notna() & ~d.geometry.is_empty].reset_index(drop=True)
+        cf = pick_field(d.columns, ["class_value", "eco_code", "code", "индекс", "код", "type_code", "gridcode"], e.code_field,
+                        required_label=f"код типа экосистемы (D2, {p.name})")
+        zf = e.zon_fix_field if e.zon_fix_field in d.columns else None
+        parts.append(g["gpd"].GeoDataFrame({"code": [_parse_code(v) for v in d[cf]],
+                                            "zon_fix": pd.to_numeric(d[zf], errors="coerce") if zf else np.nan,
+                                            "src": i, "src_name": p.name}, geometry=d.geometry.values, crs=METRIC_CRS))
+        cfs.append(cf)
+    d = pd.concat(parts, ignore_index=True)
+    d = g["gpd"].GeoDataFrame(d, geometry="geometry", crs=METRIC_CRS)
+    cf = ", ".join(dict.fromkeys(cfs))
     n_bad = int(d.code.isna().sum())
     if n_bad:
         log.warning("D2: выделов без числового кода типа: %d; исключены", n_bad)
@@ -2185,8 +2327,6 @@ def read_ecosystems(ctx: Ctx):
     d["code"] = d.code.astype(int)
     d["area_ha"] = d.geometry.area / 1e4
     d["sclass"] = [struct_class(c, ctx.cfg.frag.class_map) for c in d.code]
-    zf = e.zon_fix_field if e.zon_fix_field in d.columns else None
-    d["zon_fix"] = pd.to_numeric(d[zf], errors="coerce") if zf else np.nan
     rp = d.geometry.representative_point()
     d["oopt_id"] = ctx.assign_oopt(rp.x.values, rp.y.values)
     ctxd = max(float(e.context), float(e.oopt_buffer))
@@ -2207,8 +2347,17 @@ def read_ecosystems(ctx: Ctx):
     if len(out):
         log.warning("D2: выделов вне ООПТ расчёта и их окрестности: %d (%.1f га); не используются", len(out), out.area_ha.sum())
     d = d[pd.notna(d.oopt_id)].reset_index(drop=True)
+    src_of = {}
+    if d.src.nunique() > 1:
+        last = d.groupby("oopt_id").src.max()
+        keep = d.src.values == last.reindex(d.oopt_id).values
+        n_drop = int((~keep).sum())
+        d = d[keep].reset_index(drop=True)
+        src_of = {str(o): str(d.loc[d.oopt_id == o, "src_name"].iloc[0]) for o in last.index}
+        log.info("D2: несколько файлов; по ООПТ используются: %s; заменено выделов прежних файлов: %d",
+                 ", ".join(f"{o} — {n}" for o, n in src_of.items()), n_drop)
     d["fid"] = np.arange(1, len(d) + 1)
-    ctx.report("ecosys", features=int(len(d)), outside=int(len(out)), code_field=cf,
+    ctx.report("ecosys", features=int(len(d)), outside=int(len(out)), code_field=cf, files_by_oopt=src_of,
                by_oopt={str(k): int(v) for k, v in d.oopt_id.value_counts().items()},
                struct_area_ha={FRAG_CLASS_NAMES.get(int(k), str(k)): round(float(v), 1) for k, v in d.groupby("sclass").area_ha.sum().items()})
     return d
@@ -3153,7 +3302,7 @@ def builtin_ref(key: str, default):
 def validate_primary(cfg: Config) -> list[tuple[str, str]]:
     """Наличие файлов первичных данных и согласованность параметров этапа 2."""
     msgs = []
-    files = {"слой экосистем D2": [cfg.ecosys.path], "типология D3": [cfg.zon.typology],
+    files = {"слой экосистем D2": eco_paths(cfg.ecosys), "типология D3": [cfg.zon.typology],
              "насекомые": cfg.ins.ratings + [cfg.ins.coords], "млекопитающие": cfg.mam.files + cfg.mam.ref_files,
              "низшие позвоночные": cfg.anam.files + cfg.anam.ref_files, "птицы": cfg.bird.files,
              "гидробионты": cfg.aqua.files, "редкие растения": cfg.rare.files, "QBS": cfg.qbs.files,
@@ -3222,6 +3371,8 @@ def validate(cfg: Config) -> list[tuple[str, str]]:
         msgs.append(("сведения", "Shapefile: имена полей не длиннее 10 знаков (прил. В)"))
     if cfg.check.transitions and not (cfg.check.tr_oopt and cfg.check.tr_y1 and cfg.check.tr_y2):
         msgs.append(("ошибка", "межгодовое сопоставление: задайте ООПТ и два года"))
+    if cfg.maps.build:
+        msgs += validate_maps(cfg)
     if not msgs:
         msgs.append(("сведения", "ошибок не найдено"))
     return msgs
@@ -3391,8 +3542,11 @@ def run_pipeline(cfg: Config, progress_cb=None, confirm_replace: Callable[[list]
         sel, choice, rep2 = assemble(current, cfg.archive.path or None, cfg, odict, h3_res)
         reports_all = {**reports, **{f"{k} (сборка)": v for k, v in rep2.items()}}
         out_df = output_frame(sel, cfg.output)
+        if cfg.maps.build and cfg.output.extended:
+            for k, v in zone_fields(sel, cfg).items():
+                out_df.insert(len(out_df.columns) - 1, k, v.values)
         result.update(result=sel, output=out_df, reports=reports_all, choice=choice,
-                      digest=attr_digest(out_df))
+                      digest=attr_digest(out_df), bounds=bounds)
         vp = write_vector(out_df, cfg.output, out_dir)
         if vp:
             result["files"].append(str(vp))
@@ -3443,12 +3597,926 @@ def run_pipeline(cfg: Config, progress_cb=None, confirm_replace: Callable[[list]
                    "attributes_sha256": result["digest"], "log": collector.lines}
             pj.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
             result["files"].append(str(pj))
+        result["sel"], result["bounds"], result["out_dir"] = sel, bounds, out_dir
+        if cfg.maps.build:
+            prog(0.95, "карты")
+            mr = build_maps(sel, cfg, out_dir, bounds, lambda f, m: prog(0.95 + 0.05 * f, m), odict)
+            result["maps"] = mr
+            result["files"] += mr["files"]
         prog(1.0, "готово")
         return result
     finally:
         log.removeHandler(collector)
         log.removeHandler(fh)
         fh.close()
+
+
+# ---------------------------------------------------------------------------
+# Карты (разд. 13 ТЗ, прил. Б)
+# ---------------------------------------------------------------------------
+_XYZ_M = np.array([[0.4124564, 0.3575761, 0.1804375], [0.2126729, 0.7151522, 0.0721750],
+                   [0.0193339, 0.1191920, 0.9503041]])
+_XYZ_WP = np.array([0.95047, 1.0, 1.08883])
+MAP_SINGLE_LABELS = {"V": {1: "высокая", 2: "средняя", 3: "низкая"}, "L": {1: "низкая", 2: "средняя", 3: "высокая"},
+                     "D": {1: "низкая", 2: "средняя", 3: "высокая"}}
+MAP_VAR_NAMES = {"V": "Ценность", "L": "Нагрузка", "D": "Нарушенность"}
+
+
+def hex_to_rgb(h: str) -> np.ndarray:
+    h = str(h).strip().lstrip("#")
+    if not re.fullmatch(r"[0-9a-fA-F]{6}", h):
+        raise VLDError(f"неверный цвет «{h}»: ожидается #RRGGBB")
+    return np.array([int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)])
+
+
+def rgb_to_hex(c) -> str:
+    c = np.clip(np.round(np.asarray(c, float) * 255), 0, 255).astype(int)
+    return "#%02x%02x%02x" % tuple(c)
+
+
+def rgb_to_lab(rgb) -> np.ndarray:
+    c = np.asarray(rgb, float)
+    lin = np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+    xyz = _XYZ_M @ lin / _XYZ_WP
+    f = np.where(xyz > (6 / 29) ** 3, np.cbrt(xyz), xyz / (3 * (6 / 29) ** 2) + 4 / 29)
+    return np.array([116 * f[1] - 16, 500 * (f[0] - f[1]), 200 * (f[1] - f[2])])
+
+
+def lab_to_rgb(lab) -> np.ndarray:
+    L, a, b = lab
+    fy = (L + 16) / 116
+    f = np.array([fy + a / 500, fy, fy - b / 200])
+    xyz = np.where(f > 6 / 29, f ** 3, 3 * (6 / 29) ** 2 * (f - 4 / 29)) * _XYZ_WP
+    lin = np.clip(np.linalg.solve(_XYZ_M, xyz), 0, 1)
+    return np.where(lin <= 0.0031308, 12.92 * lin, 1.055 * lin ** (1 / 2.4) - 0.055)
+
+
+def cube_colors(corners: dict) -> dict[str, str]:
+    """27 цветов «V-L-D» — трилинейная интерполяция угловых цветов в CIELAB (п. 13.4.1)."""
+    lab = {}
+    for k in CUBE_CORNERS:
+        lab[k] = rgb_to_lab(hex_to_rgb((corners or {}).get(k, CUBE_CORNERS[k])))
+    out = {}
+    for v in (1, 2, 3):
+        for l_ in (1, 2, 3):
+            for d in (1, 2, 3):
+                t = ((v - 1) / 2, (l_ - 1) / 2, (d - 1) / 2)
+                acc = np.zeros(3)
+                for cv in (1, 3):
+                    for cl in (1, 3):
+                        for cd in (1, 3):
+                            w = 1.0
+                            for ti, ci in zip(t, (cv, cl, cd)):
+                                w *= ti if ci == 3 else 1 - ti
+                            acc += w * lab[f"{cv}-{cl}-{cd}"]
+                out[f"{v}-{l_}-{d}"] = rgb_to_hex(lab_to_rgb(acc))
+    return out
+
+
+def min_delta_e(colors) -> float:
+    labs = [rgb_to_lab(hex_to_rgb(c)) for c in colors]
+    return float(min(np.linalg.norm(a - b) for i, a in enumerate(labs) for b in labs[i + 1:]))
+
+
+def _ru_num(x) -> str:
+    if x is None or (isinstance(x, float) and not np.isfinite(x)):
+        return "?"
+    s = f"{float(x):.2f}".rstrip("0").rstrip(".")
+    return s.replace(".", ",")
+
+
+def _fg_labels(t1, t2, start=1):
+    """Подписи классов числа ФГ по правилу n ≤ t1 → 3; t1 < n ≤ t2 → 2; n > t2 → 1."""
+    def rng(a, b):
+        if b < a:
+            return "—"
+        return f"{a}" if a == b else f"{a}–{b}"
+    t1i, t2i = int(np.floor(t1)), int(np.floor(t2))
+    return {3: rng(start, t1i) + " ФГ", 2: rng(t1i + 1, t2i) + " ФГ", 1: f"{t2i + 1} и более ФГ"}
+
+
+def _bin_labels(bins, unit):
+    out, lo = {}, 0
+    for i, b in enumerate(bins):
+        b = int(b)
+        out[i + 1] = f"{lo} {unit}" if lo == b else f"{lo}–{b} {unit}"
+        lo = b + 1
+    out[len(bins) + 1] = f"{lo} и более {unit}"
+    return out
+
+
+def map_legend_spec(name: str, cfg: Config) -> tuple[str, dict[int, str]]:
+    """Заголовок и подписи классов карты одного показателя (в ориентации «1 — лучше»)."""
+    if name in MAP_SINGLE_LABELS:
+        title = f"{MAP_VAR_NAMES[name]} ({name})"
+        lab = dict(MAP_SINGLE_LABELS[name])
+    elif name == "v_ins":
+        title = "Насекомые: рейтинг площадок"
+        lab = {1: "высокий", 2: "средний", 3: "низкий"}
+        if cfg.ins.method == "A":
+            lab = {1: "высокий (SCORE_NORM > 2/3)", 2: "средний (1/3 < SCORE_NORM ≤ 2/3)", 3: "низкий (SCORE_NORM ≤ 1/3)"}
+    elif name in ("v_mam", "v_anam"):
+        fc = getattr(cfg, name[2:])
+        title = "Млекопитающие: число ФГ" if name == "v_mam" else "Низшие позвоночные: число ФГ"
+        lab = _fg_labels(fc.a_t1, fc.a_t2) if fc.rule == "thresholds" else {1: "высокое (терцили)", 2: "среднее", 3: "низкое"}
+    elif name == "v_bird":
+        title = "Птицы: число ФГ"
+        b = cfg.bird
+        lab = _fg_labels(b.t1, b.t2) if b.rule == "thresholds" and b.t2 > b.t1 else {1: "высокое", 2: "среднее", 3: "низкое"}
+    elif name in ("v_aqua", "v_phyt", "v_zpl", "v_zbn"):
+        title = "Гидробионты: число ФГ" if name == "v_aqua" else f"{MAP_COMP[name].capitalize()}: число ФГ"
+        lab = _fg_labels(cfg.aqua.t1, cfg.aqua.t2, start=0)
+    elif name == "v_rare":
+        title = "Редкие виды сосудистых растений"
+        grp: dict[int, list] = {}
+        for k, v in (cfg.rare.recode or {}).items():
+            grp.setdefault(int(v), []).append(str(k))
+        lab = {s: "категории КК " + (f"{min(c, key=int)}–{max(c, key=int)}" if len(c) > 1 else c[0])
+               for s, c in grp.items() if s in (1, 2)}
+        lab[3] = "нет находок"
+    elif name == "v_cap":
+        title = "Ёмкость выдела"
+        c = cfg.cap
+        gt, le = ("≥", "<") if c.inclusive else (">", "≤")
+        if c.mode == "2026":
+            lab = {1: f"S {gt} {_ru_num(c.t2)} га", 2: f"{_ru_num(c.t1)}–{_ru_num(c.t2)} га", 3: f"S {le} {_ru_num(c.t1)} га"}
+        else:
+            lab = {1: f"S {gt} {_ru_num(c.t1)} га", 3: f"S {le} {_ru_num(c.t1)} га"}
+    elif name == "v_zon":
+        title = "Зональность экосистем"
+        lab = {1: "высокое соответствие зональному типу", 2: "промежуточное, условное", 3: "низкое (интразональные, антропогенные)"}
+    elif name == "v_qbs":
+        title = "QBS почв"
+        q = cfg.qbs
+        lab = {1: f"QBS > {_ru_num(q.t2)}", 2: f"{_ru_num(q.t1)} < QBS ≤ {_ru_num(q.t2)}", 3: f"QBS ≤ {_ru_num(q.t1)}"}
+    elif name == "d_inv":
+        title = "Инвазивные растения в гексагоне"
+        lab = {1: "нет", 2: "1 растение", 3: "2 и более"} if cfg.inputs.inv_rule == "v4" else {1: "нет", 2: "1–2 растения", 3: "3 и более"}
+    elif name == "d_frag":
+        title = "Фрагментация"
+        lab = {1: "низкая", 2: "средняя", 3: "высокая"}
+    elif name == "photo_cat":
+        title = "Нагрузка: фотографии с геотегами"
+        lab = _bin_labels(cfg.recload.photo_bins, "фото")
+    elif name == "infra_cat":
+        title = "Нагрузка: рекреационные объекты"
+        lab = _bin_labels(cfg.recload.infra_bins, "объектов")
+    else:
+        title, lab = name, {1: "1", 2: "2", 3: "3"}
+    st = cfg.mapstyle
+    if name in st.titles:
+        title = str(st.titles[name])
+    for k, v in (st.labels or {}).items():
+        if "." in str(k):
+            a, b = str(k).rsplit(".", 1)
+            if a == name and b.isdigit():
+                lab[int(b)] = str(v)
+    return title, lab
+
+
+def _pal_list(name: str, cfg: Config, n=3) -> list[str]:
+    p = cfg.mappal
+    cust = (p.custom3 or {}).get(name)
+    if cust:
+        cols = str(cust).split()
+        if len(cols) != n:
+            raise VLDError(f"пользовательская палитра {name}: нужно {n} цветов")
+        return [rgb_to_hex(hex_to_rgb(c)) for c in cols]
+    if n == 5:
+        return list(PAL5.get(p.pal5, PAL5["YlOrRd"]))
+    if name in ("V", "L", "D"):
+        cols, rev = PAL3.get(getattr(p, f"pal_{name}"), PAL3["Светофор"]), getattr(p, f"rev_{name}")
+    else:
+        cols, rev = PAL3.get(p.pal_comp, PAL3["Светофор"]), p.rev_comp
+    return list(cols[::-1] if rev else cols)
+
+
+def load_zone_matrices(cfg: Config) -> dict[str, dict[str, tuple[str, str]]]:
+    """{матрица: {код: (зона, цвет)}}; встроенные шаблоны V × D, V × L и файл CSV."""
+    mats = {m: {c: (z, ZONE_COLORS[c]) for c, z in t.items()} for m, t in ZONE_TEMPLATES.items()}
+    zf = cfg.mappal.zones_file
+    if zf:
+        p = Path(zf)
+        if not p.exists():
+            raise VLDError(f"не найден файл матриц решений: {p}")
+        t = read_any_table(p)
+        t.columns = [str(c).strip().lower() for c in t.columns]
+        need = {"matrix", "code", "zone", "color"}
+        if not need <= set(t.columns):
+            raise VLDError(f"в файле матриц решений нет столбцов {sorted(need - set(t.columns))}")
+        user: dict[str, dict] = {}
+        for r in t.itertuples(index=False):
+            m = str(r.matrix).strip()
+            code = re.sub(r"[-\s]", "_", str(r.code).strip())
+            if not str(r.zone).strip() or str(r.zone) == "nan":
+                continue
+            user.setdefault(m, {})[code] = (str(r.zone).strip(), rgb_to_hex(hex_to_rgb(str(r.color))))
+        mats.update(user)
+    return mats
+
+
+def zones_template_table() -> pd.DataFrame:
+    rows = []
+    for m, t in ZONE_TEMPLATES.items():
+        rows += [{"matrix": m, "code": c, "zone": z, "color": ZONE_COLORS[c]} for c, z in t.items()]
+    rows += [{"matrix": "LxD", "code": f"{a}_{b}", "zone": "", "color": ZONE_COLORS[f"{a}_{b}"]} for a in (1, 2, 3) for b in (1, 2, 3)]
+    for v in (1, 2, 3):
+        for l_ in (1, 2, 3):
+            for d in (1, 2, 3):
+                c = f"{v}_{d}"
+                rows.append({"matrix": "VLD", "code": f"{v}_{l_}_{d}", "zone": ZONE_TEMPLATES["VxD"][c], "color": ZONE_COLORS[c]})
+    return pd.DataFrame(rows)
+
+
+def _pair_vars(mid: str, swap: bool):
+    a, b = mid.split("_")[0].split("x")
+    return (b, a) if swap else (a, b)
+
+
+def classify_map(df: pd.DataFrame, mid: str, cfg: Config, mats=None) -> dict:
+    """Классы карты: cls (строка), label, color и описание легенды."""
+    p, st = cfg.mappal, cfg.mapstyle
+    n = len(df)
+    na = pd.Series(True, index=df.index)
+
+    def iv(c):
+        return pd.to_numeric(df[c], errors="coerce").astype("Int64") if c in df else pd.Series(pd.NA, index=df.index, dtype="Int64")
+    spec: dict[str, Any] = {"id": mid}
+    if mid in MAP_SINGLE_LABELS or mid in MAP_COMP:
+        k = 5 if mid in ("photo_cat", "infra_cat") else 3
+        title, labs = map_legend_spec(mid, cfg)
+        cols = _pal_list(mid, cfg, k)
+        x = iv(mid)
+        items = [(str(i), f"{i} — {labs.get(i, str(i))}", cols[i - 1]) for i in range(1, k + 1) if i in labs]
+        cls = x.astype(str).replace({"<NA>": ""})
+        spec.update(kind="single", title=title, items=items, var=mid)
+        na = x.isna()
+    elif mid in ("VxL", "VxD", "LxD"):
+        xv, yv = _pair_vars(mid, st.pair_swap)
+        pal = getattr(p, f"pal_{mid}")
+        if pal == "cube":
+            cube = cube_colors(p.cube_corners)
+            lev = int(p.cube_level)
+
+            def col(vals):
+                d = {"V": lev, "L": lev, "D": lev, **vals}
+                return cube[f"{d['V']}-{d['L']}-{d['D']}"]
+            pal_name = f"срез куба CIELAB ({'VLD'.replace(xv, '').replace(yv, '')} = {lev})"
+        else:
+            if pal == "custom":
+                lst = str((p.custom9 or {}).get(mid, "")).split()
+                if len(lst) != 9:
+                    raise VLDError(f"пользовательская палитра {mid}: нужно 9 цветов")
+                lst = [rgb_to_hex(hex_to_rgb(c)) for c in lst]
+            else:
+                lst = PAL9[pal]
+
+            def col(vals):
+                return lst[(vals[xv] - 1) + 3 * (vals[yv] - 1)]
+            pal_name = pal
+        X, Y = iv(xv), iv(yv)
+        na = X.isna() | Y.isna()
+        cls = (X.astype(str) + "_" + Y.astype(str)).where(~na, "")
+        items = []
+        for y in (1, 2, 3):
+            for x in (1, 2, 3):
+                items.append((f"{x}_{y}", f"{xv} = {x}, {yv} = {y}", col({xv: x, yv: y})))
+        spec.update(kind="pair", title=f"{MAP_VAR_NAMES[xv]} × {MAP_VAR_NAMES[yv].lower()} ({xv} × {yv})",
+                    items=items, xv=xv, yv=yv, palette=pal_name)
+    elif mid == "VLD":
+        cube = cube_colors(p.cube_corners)
+        V, L, D = iv("V"), iv("L"), iv("D")
+        na = V.isna() | L.isna() | D.isna()
+        cls = (V.astype(str) + "_" + L.astype(str) + "_" + D.astype(str)).where(~na, "")
+        items = [(f"{v}_{l_}_{d}", f"{v}-{l_}-{d}", cube[f"{v}-{l_}-{d}"]) for v in (1, 2, 3) for l_ in (1, 2, 3) for d in (1, 2, 3)]
+        spec.update(kind="cube", title="Ценность, нагрузка и нарушенность (V × L × D)", items=items,
+                    min_de=min_delta_e([c for _, _, c in items]))
+    elif mid.endswith("_zones"):
+        base = mid[:-6]
+        mats = mats if mats is not None else load_zone_matrices(cfg)
+        key = "VLD" if base == "VLD" else base
+        if key not in mats:
+            raise VLDError(f"нет матрицы решений {key}: задайте файл CSV (команда zones-template)")
+        mt = mats[key]
+        if base == "VLD":
+            V, L, D = iv("V"), iv("L"), iv("D")
+            na = V.isna() | L.isna() | D.isna()
+            code = (V.astype(str) + "_" + L.astype(str) + "_" + D.astype(str)).where(~na, "")
+            codes = [f"{v}_{l_}_{d}" for v in (1, 2, 3) for l_ in (1, 2, 3) for d in (1, 2, 3)]
+            vars_ = ("V", "L", "D")
+        else:
+            a, b = base.split("x")
+            A, B = iv(a), iv(b)
+            na = A.isna() | B.isna()
+            code = (A.astype(str) + "_" + B.astype(str)).where(~na, "")
+            codes = [f"{x}_{y}" for x in (1, 2, 3) for y in (1, 2, 3)]
+            vars_ = (a, b)
+        miss = [c for c in codes if c not in mt]
+        if miss:
+            raise VLDError(f"матрица решений {key}: нет сочетаний {', '.join(miss)}")
+        zones: dict[str, dict] = {}
+        for c in codes:
+            z, colr = mt[c]
+            zones.setdefault(z, {"color": colr, "codes": []})["codes"].append(c)
+        zid = {z: f"z{i + 1}" for i, z in enumerate(zones)}
+        cmap = {c: zid[mt[c][0]] for c in codes}
+        cls = code.map(cmap).fillna("")
+        items = [(zid[z], z, v["color"]) for z, v in zones.items()]
+        spec.update(kind="zones", title=f"Матрица решений {' × '.join(vars_)}", items=items, vars=vars_,
+                    codes={zid[z]: v["codes"] for z, v in zones.items()}, cell=dict(mt),
+                    present=sorted(set(code[code != ""])))
+        df = df.assign(_code=code)
+    else:
+        raise VLDError(f"неизвестная карта «{mid}»")
+    col_of = {k: c for k, _, c in spec["items"]}
+    lab_of = {k: lab for k, lab, _ in spec["items"]}
+    cls = cls.astype(str).where(~na, "")
+    counts = cls[cls != ""].value_counts().to_dict()
+    spec.update(n=n, n_na=int(na.sum()), counts={k: int(counts.get(k, 0)) for k in col_of})
+    if spec["kind"] == "zones":
+        spec["code_counts"] = df["_code"][df["_code"] != ""].value_counts().to_dict()
+    color = cls.map(col_of).fillna(NA_COLOR)
+    label = cls.map(lab_of).fillna("н/д")
+    unknown = (cls != "") & ~cls.isin(list(col_of))
+    if unknown.any():
+        log.warning("карта %s: %d гексагонов вне легенды (значения %s)", mid, int(unknown.sum()),
+                    sorted(set(cls[unknown]))[:5])
+    return {"cls": cls.where(cls != "", "na"), "label": label, "color": color, "spec": spec}
+
+
+def _contrast(hexc: str) -> str:
+    r, g, b = hex_to_rgb(hexc)
+    return "#000000" if 0.299 * r + 0.587 * g + 0.114 * b > 0.55 else "#ffffff"
+
+
+def _nice_scale(width_m: float) -> float:
+    for v in (5000, 2000, 1000, 500, 250, 100, 50):
+        if v <= width_m * 0.25:
+            return float(v)
+    return 50.0
+
+
+def _safe_name(s: str) -> str:
+    s = re.sub(r"[\\/:*?\"<>|]+", "", str(s)).strip()
+    return re.sub(r"\s+", "_", s)
+
+
+def _map_boundaries(df, bounds):
+    """Контуры ООПТ (EPSG:3857): из слоя границ или объединением гексагонов."""
+    g = geo()
+    shp = g["shapely"]
+    if bounds is not None and len(bounds) and "oopt_id" in bounds:
+        b = bounds[["oopt_id", "geometry"]].to_crs("EPSG:3857")
+        have = set(b.oopt_id)
+    else:
+        b, have = None, set()
+    rest = [o for o in df.oopt_id.dropna().unique() if o not in have]
+    parts = []
+    if rest:
+        h = df[df.oopt_id.isin(rest)][["oopt_id", "geometry"]].to_crs("EPSG:3857")
+        for oid, grp in h.groupby("oopt_id"):
+            u = shp.union_all(shp.set_precision(grp.geometry.values, 0.01))
+            parts.append({"oopt_id": oid, "geometry": u})
+    if parts:
+        extra = g["gpd"].GeoDataFrame(parts, geometry="geometry", crs="EPSG:3857")
+        b = extra if b is None else pd.concat([b, extra], ignore_index=True)
+    return b
+
+
+def _basemap(ax, cfg: Config, out_dir: Path, warn_once: dict):
+    st = cfg.mapstyle
+    if st.basemap == "none" or warn_once.get("off"):
+        return ""
+    try:
+        import contextily as cx
+        import xyzservices.providers as xp
+    except ImportError:
+        warn_once["off"] = True
+        log.warning("карты: не установлен contextily — подложка не используется")
+        return ""
+    prov = xp
+    for part in st.basemap.split("."):
+        prov = getattr(prov, part)
+    cache = Path(st.tiles_cache) if st.tiles_cache else out_dir / "tiles_cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    try:
+        if "probe" not in warn_once:
+            warn_once["probe"] = _tiles_stub(prov, ax)
+        if warn_once["probe"]:
+            raise VLDError("провайдер возвращает одинаковые тайлы-заглушки (вероятно, требуется ключ API)")
+        cx.set_cache_dir(str(cache))
+        try:
+            cx.add_basemap(ax, source=prov, crs="EPSG:3857", attribution=False, reset_extent=True, zoom="auto", zorder=0,
+                           headers={"user-agent": TILE_UA})
+        except TypeError:  # contextily < 1.6
+            cx.tile.USER_AGENT = TILE_UA
+            cx.add_basemap(ax, source=prov, crs="EPSG:3857", attribution=False, reset_extent=True, zoom="auto", zorder=0)
+    except Exception as e:  # noqa: BLE001
+        warn_once["off"] = True
+        log.warning("карты: подложка %s недоступна (%s) — карты строятся без подложки", st.basemap, str(e).splitlines()[0][:160])
+        return ""
+    if st.fade > 0:
+        from matplotlib.patches import Rectangle
+        ax.add_patch(Rectangle((0, 0), 1, 1, transform=ax.transAxes, fc="white", ec="none",
+                               alpha=min(1.0, float(st.fade)), zorder=1))
+    return str(getattr(prov, "attribution", "") or "")
+
+
+def _tiles_stub(prov, ax) -> bool:
+    """Два соседних тайла с одинаковым содержимым — признак заглушки провайдера."""
+    import urllib.request
+    from pyproj import Transformer
+    x0, x1 = ax.get_xlim()
+    y0, y1 = ax.get_ylim()
+    lon, lat = Transformer.from_crs("EPSG:3857", GEO_CRS, always_xy=True).transform((x0 + x1) / 2, (y0 + y1) / 2)
+    z = 13
+    n = 2 ** z
+    tx = int((lon + 180) / 360 * n)
+    ty = int((1 - np.log(np.tan(np.radians(lat)) + 1 / np.cos(np.radians(lat))) / np.pi) / 2 * n)
+    hs = []
+    for dx in (0, 1):
+        req = urllib.request.Request(prov.build_url(x=tx + dx, y=ty, z=z), headers={"User-Agent": TILE_UA})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            hs.append(hashlib.md5(r.read()).hexdigest())
+    return hs[0] == hs[1]
+
+
+def _draw_legend(lax, spec, cfg: Config, W, H):
+    """Легенда в полосе под картой (координаты в мм)."""
+    from matplotlib.patches import FancyArrowPatch, Rectangle
+    st = cfg.mapstyle
+    fs = 7.5
+    kind, items, counts, n = spec["kind"], spec["items"], spec["counts"], max(spec["n"], 1)
+    lax.text(0, H - 1, spec.get("legend_title", spec["title"]), fontsize=fs + 1, weight="bold", va="top")
+    top = H - 7
+
+    def cnt(k):
+        c = counts.get(k, 0)
+        return f"{c} ({100 * c / n:.1f} %)".replace(".", ",")
+    drawn = 0
+    if kind in ("single", "zones") and kind == "single":
+        rh = min(5.0, (top - 1) / (len(items) + 1.3))
+        for i, (k, lab, colr) in enumerate(items + ([("na", "н/д", NA_COLOR)] if spec["n_na"] else [])):
+            y = top - (i + 1) * rh
+            lax.add_patch(Rectangle((0, y), 9, rh * 0.8, fc=colr, ec="#555555", lw=0.4))
+            txt = lab + (f" — {cnt(k)}" if st.counts and k != "na" else "") + (f" — {spec['n_na']}" if k == "na" and st.counts else "")
+            lax.text(11, y + rh * 0.4, txt, fontsize=fs, va="center")
+            drawn += 1
+    elif kind in ("pair", "zones") and (kind == "pair" or len(spec["vars"]) == 2):
+        xv, yv = (spec["xv"], spec["yv"]) if kind == "pair" else spec["vars"]
+        cs = min(10.0, (top - 14) / 3)
+        x0, y0 = 16, top - 12 - 3 * cs
+        cell = {}
+        if kind == "pair":
+            for k, _, colr in items:
+                cell[k] = colr
+        for x in (1, 2, 3):
+            for y in (1, 2, 3):
+                k = f"{x}_{y}"
+                if kind == "pair":
+                    colr = cell[k]
+                    txt = (f"{counts.get(k, 0)}\n{100 * counts.get(k, 0) / n:.0f} %".replace(".", ",")) if st.counts else k.replace("_", "-")
+                else:
+                    colr = spec["cell"][k][1]
+                    present = k in spec["present"]
+                    txt = k.replace("_", "-") if present else "x"
+                lax.add_patch(Rectangle((x0 + (x - 1) * cs, y0 + (3 - y) * cs), cs, cs, fc=colr, ec="white", lw=0.8))
+                lax.text(x0 + (x - 0.5) * cs, y0 + (3.5 - y) * cs, txt, fontsize=fs - 1.5, ha="center", va="center",
+                         color=_contrast(colr))
+                drawn += 1
+        for i in (1, 2, 3):
+            lax.text(x0 + (i - 0.5) * cs, y0 + 3 * cs + 1, str(i), fontsize=fs - 1, ha="center", va="bottom")
+            lax.text(x0 - 1, y0 + (3.5 - i) * cs, str(i), fontsize=fs - 1, ha="right", va="center")
+        lax.add_patch(FancyArrowPatch((x0, y0 + 3 * cs + 6), (x0 + 3 * cs, y0 + 3 * cs + 6), arrowstyle="-|>", mutation_scale=7, lw=0.7))
+        lax.text(x0 + 3 * cs + 2, y0 + 3 * cs + 6, f"{xv} — {MAP_VAR_NAMES[xv].lower()}", fontsize=fs - 0.5, ha="left", va="center")
+        lax.add_patch(FancyArrowPatch((x0 - 6, y0 + 3 * cs), (x0 - 6, y0), arrowstyle="-|>", mutation_scale=7, lw=0.7))
+        lax.text(x0 - 8, y0 + 1.5 * cs, f"{yv} — {MAP_VAR_NAMES[yv].lower()}", fontsize=fs - 0.5, ha="right", va="center", rotation=90)
+        xt = x0 + 3 * cs + 6
+        if kind == "pair":
+            lax.text(xt + 14, y0 + 3 * cs, f"{xv}: 1 — {MAP_SINGLE_LABELS[xv][1]}, 3 — {MAP_SINGLE_LABELS[xv][3]}\n"
+                     f"{yv}: 1 — {MAP_SINGLE_LABELS[yv][1]}, 3 — {MAP_SINGLE_LABELS[yv][3]}\n"
+                     + ("В ячейках — число и доля гексагонов\n" if st.counts else "") +
+                     f"Палитра: {spec['palette']}" + (f"\nн/д: {spec['n_na']}" if spec["n_na"] else ""),
+                     fontsize=fs - 1, va="top", linespacing=1.5)
+        else:
+            _zone_list(lax, spec, xt + 14, y0 + 3 * cs, fs, W - xt)
+    elif kind == "cube":
+        cs = min(6.5, (top - 10) / 3)
+        for v in (1, 2, 3):
+            x0 = 8 + (v - 1) * (3 * cs + 10)
+            y0 = top - 3 * cs - 4
+            lax.text(x0 + 1.5 * cs, top - 1, f"V = {v} ({MAP_SINGLE_LABELS['V'][v]})", fontsize=fs - 1, ha="center", va="top")
+            for l_ in (1, 2, 3):
+                for d in (1, 2, 3):
+                    k = f"{v}_{l_}_{d}"
+                    colr = next(c for kk, _, c in items if kk == k)
+                    lax.add_patch(Rectangle((x0 + (l_ - 1) * cs, y0 + (3 - d) * cs), cs, cs, fc=colr, ec="white", lw=0.6))
+                    t = f"{v}-{l_}-{d}" if not st.counts else f"{v}-{l_}-{d}\n{counts.get(k, 0)}"
+                    lax.text(x0 + (l_ - 0.5) * cs, y0 + (3.5 - d) * cs, t, fontsize=4.2, ha="center", va="center", color=_contrast(colr))
+                    drawn += 1
+            lax.text(x0 + 1.5 * cs, y0 - 1, "L →", fontsize=fs - 1.5, ha="center", va="top")
+            lax.text(x0 - 1, y0 + 1.5 * cs, "D\n↓", fontsize=fs - 1.5, ha="right", va="center")
+        xt = 8 + 3 * (3 * cs + 10)
+        lax.text(xt, top - 1, "Светлота — V (темнее — ценнее);\nоттенок — воздействие: зелёный — мало,\nоранжевый — нагрузка, фиолетовый —\n"
+                 f"нарушенность, красный — оба.\nМинимальное ΔE76 = {spec['min_de']:.1f}".replace(".", ",") +
+                 (f"\nн/д: {spec['n_na']}" if spec["n_na"] else ""), fontsize=fs - 1, va="top")
+    else:  # список зон V × L × D
+        _zone_list(lax, spec, 0, top, fs, W)
+        drawn = len(items)
+    return drawn
+
+
+def _zone_list(lax, spec, x0, ytop, fs, width):
+    from matplotlib.patches import Rectangle
+    items = spec["items"]
+    rh = min(4.6, (ytop - 1) / max(len(items), 1))
+    present = set(spec["present"])
+    for i, (k, z, colr) in enumerate(items):
+        y = ytop - (i + 1) * rh
+        lax.add_patch(Rectangle((x0, y), 7, rh * 0.8, fc=colr, ec="#555555", lw=0.4))
+        codes = [c for c in spec["codes"][k]]
+        shown = [c.replace("_", "-") for c in codes if c in present]
+        n = sum(spec["code_counts"].get(c, 0) for c in codes)
+        txt = f"{z}: " + (", ".join(shown) if shown else "x")
+        if len(spec["vars"]) == 2:
+            txt = f"{z} ({', '.join(c.replace('_', '-') for c in codes)})" + ("" if shown else " — x")
+        lax.text(x0 + 9, y + rh * 0.4, txt + (f" — {n}" if n else ""), fontsize=fs - 1, va="center")
+
+
+def _draw_map(sub, spec_res, cfg: Config, bnd, main_ids, meta: dict, out_dir: Path, warn_once: dict):
+    """Один лист карты; возвращает Figure и сведения о масштабной линейке."""
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.collections import PolyCollection
+    from matplotlib.figure import Figure
+    from matplotlib.patches import Rectangle
+    from pyproj import Geod, Transformer
+    g = geo()
+    shp = g["shapely"]
+    st = cfg.mapstyle
+    h = sub.to_crs("EPSG:3857")
+    x0, y0, x1, y1 = h.total_bounds
+    if bnd is not None:
+        bm = bnd[bnd.oopt_id.isin(main_ids)]
+        if len(bm):
+            bx = bm.total_bounds
+            x0, y0, x1, y1 = min(x0, bx[0]), min(y0, bx[1]), max(x1, bx[2]), max(y1, bx[3])
+    w, hh = (x1 - x0) * 1.10, (y1 - y0) * 1.10
+    cx_, cy_ = (x0 + x1) / 2, (y0 + y1) / 2
+    pw, ph = (210, 297) if st.paper == "A4" else (297, 420)
+    m = 10
+    title_h = 12 if st.title else 4
+    leg_h = 52 if spec_res["spec"]["kind"] in ("pair", "cube", "zones") else 38
+    if spec_res["spec"]["kind"] == "zones" and len(spec_res["spec"]["vars"]) == 3:
+        leg_h = max(leg_h, 5 * len(spec_res["spec"]["items"]) + 12)
+    logo_h = 14 if st.logos else 0
+
+    def window(a, b):
+        return a - 2 * m, b - 2 * m - title_h - leg_h - logo_h
+    if st.orientation == "auto":
+        sc_p = min(window(pw, ph)[0] / w, window(pw, ph)[1] / hh)
+        sc_l = min(window(ph, pw)[0] / w, window(ph, pw)[1] / hh)
+        land = sc_l > sc_p * 1.02
+    else:
+        land = st.orientation == "landscape"
+    if land:
+        pw, ph = ph, pw
+    mw, mh = window(pw, ph)
+    # охват под пропорции окна карты
+    if w / hh > mw / mh:
+        hh = w * mh / mw
+    else:
+        w = hh * mw / mh
+    fig = Figure(figsize=(pw / 25.4, ph / 25.4), dpi=st.dpi)
+    FigureCanvasAgg(fig)
+    ax = fig.add_axes([m / pw, (m + leg_h + logo_h) / ph, mw / pw, mh / ph])
+    ax.set_xlim(cx_ - w / 2, cx_ + w / 2)
+    ax.set_ylim(cy_ - hh / 2, cy_ + hh / 2)
+    ax.set_aspect("equal")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    attr = _basemap(ax, cfg, out_dir, warn_once)
+    geoms = h.geometry.values
+    ext = shp.get_exterior_ring(geoms)
+    coords, idx = shp.get_coordinates(ext, return_index=True)
+    splits = np.flatnonzero(np.diff(idx)) + 1
+    polys = np.split(coords, splits)
+    colors = spec_res["color"].loc[sub.index].values
+    ec = "#7f7f7f" if st.outline == "grey" else "none"
+    pc = PolyCollection(polys, facecolors=colors, edgecolors=ec, linewidths=0.08 if ec != "none" else 0,
+                        alpha=max(0.0, min(1.0, st.alpha)), zorder=3)
+    ax.add_collection(pc)
+    if bnd is not None:
+        for is_main in (False, True):
+            part = bnd[bnd.oopt_id.isin(main_ids) == is_main]
+            for geom in part.geometry:
+                for line in (shp.get_parts(shp.boundary(geom)) if geom is not None else []):
+                    xy = shp.get_coordinates(line)
+                    ax.plot(xy[:, 0], xy[:, 1], color="#e31a1c" if is_main else "#000000",
+                            lw=1.1 if is_main else 0.7, zorder=4)
+    # стрелка севера
+    ax.annotate("", xy=(0.955, 0.965), xytext=(0.955, 0.895), xycoords="axes fraction",
+                arrowprops=dict(arrowstyle="-|>", color="black", lw=1.2, mutation_scale=14), zorder=6)
+    ax.text(0.955, 0.875, "С", transform=ax.transAxes, ha="center", va="top", fontsize=10, weight="bold", zorder=6)
+    # масштабная линейка: поправка 1/cos φ на широте линейки, проверка по геодезической длине
+    to_geo = Transformer.from_crs("EPSG:3857", GEO_CRS, always_xy=True)
+    bx0, by = cx_ + w / 2 - w * 0.04, cy_ - hh / 2 + hh * 0.045
+    _, lat = to_geo.transform(bx0, by)
+    k = 1 / np.cos(np.radians(lat))
+    ground_w = w / k
+    L = _nice_scale(ground_w)
+    seg = L * k
+    xa = bx0 - seg
+    lo1, la1 = to_geo.transform(xa, by)
+    lo2, la2 = to_geo.transform(bx0, by)
+    true_len = Geod(ellps="WGS84").inv(lo1, la1, lo2, la2)[2]
+    err = abs(true_len - L) / L
+    ax.add_patch(Rectangle((xa - seg * 0.12, by - hh * 0.018), seg * 1.24, hh * 0.055, fc="white", ec="none", alpha=0.8, zorder=5))
+    for i in range(4):
+        ax.add_patch(Rectangle((xa + i * seg / 4, by), seg / 4, hh * 0.007, fc="black" if i % 2 == 0 else "white",
+                               ec="black", lw=0.5, zorder=6))
+    lab = (f"{L / 1000:g} км" if L >= 1000 else f"{L / 1000:g} км").replace(".", ",")
+    ax.text(xa + seg / 2, by + hh * 0.012, lab, ha="center", va="bottom", fontsize=7, zorder=6)
+    ax.text(xa, by - hh * 0.004, "0", ha="center", va="top", fontsize=6, zorder=6)
+    if attr:
+        ax.text(0.005, 0.004, attr, transform=ax.transAxes, fontsize=4.5, va="bottom", ha="left", color="#444444",
+                zorder=6, bbox=dict(fc="white", ec="none", alpha=0.6, pad=0.5))
+    for s in ax.spines.values():
+        s.set_linewidth(0.6)
+    if st.title:
+        fig.text(m / pw, 1 - (m + 2) / ph, meta["title"], fontsize=12, weight="bold", va="top")
+        if meta.get("subtitle"):
+            fig.text(m / pw, 1 - (m + 8) / ph, meta["subtitle"], fontsize=8.5, va="top", color="#333333")
+    lw_ = mw * (0.62 if land else 0.66)
+    lax = fig.add_axes([m / pw, (m + logo_h) / ph, lw_ / pw, (leg_h - 3) / ph])
+    lax.set_xlim(0, lw_)
+    lax.set_ylim(0, leg_h - 3)
+    lax.axis("off")
+    n_leg = _draw_legend(lax, spec_res["spec"], cfg, lw_, leg_h - 3)
+    note = [x for x in (meta.get("year_note"), f"Гексагонов: {spec_res['spec']['n']}", "Ориентация баллов: 1 — лучше",
+                        f"{APP_NAME} {__version__}, {dt.date.today():%d.%m.%Y}") if x]
+    fig.text(1 - m / pw, (m + logo_h + leg_h - 4) / ph, "\n".join(note), fontsize=6.5, ha="right", va="top", color="#333333")
+    if st.logos:
+        _logo_strip(fig, pw, ph, m, logo_h)
+    return fig, {"scale_m": L, "scale_err": err, "lat": lat, "n_legend": n_leg, "landscape": land}
+
+
+def _logo_strip(fig, pw, ph, m, logo_h):
+    try:
+        from PIL import Image
+    except ImportError:
+        return
+    x = m
+    for fn, _ in LOGOS:
+        p = RES_DIR / "logos" / fn
+        if not p.exists():
+            continue
+        im = Image.open(p).convert("RGBA")
+        hmm = logo_h - 3
+        wmm = hmm * im.width / im.height
+        a = fig.add_axes([x / pw, m / ph, wmm / pw, hmm / ph])
+        a.imshow(np.asarray(im))
+        a.axis("off")
+        x += wmm + 5
+
+
+def _save_fig(fig, base: Path, formats, dpi) -> list[str]:
+    files = []
+    base.parent.mkdir(parents=True, exist_ok=True)
+    for f in formats:
+        p = base.with_suffix(f".{f}")
+        if f == "png":
+            fig.savefig(p, dpi=dpi)
+        elif f == "pdf":
+            fig.savefig(p)
+        elif f == "tif":
+            from PIL import Image
+            buf = io.BytesIO()
+            fig.savefig(buf, format="png", dpi=dpi)
+            buf.seek(0)
+            Image.open(buf).convert("RGB").save(p, compression="tiff_lzw", dpi=(dpi, dpi))
+        else:
+            continue
+        files.append(str(p))
+    return files
+
+
+def qgis_qml(spec_items, outline=True) -> str:
+    """Стиль QGIS: категории по полю cls."""
+    from xml.sax.saxutils import quoteattr
+    cats, syms = [], []
+    for i, (k, lab, colr) in enumerate(spec_items):
+        r, g_, b = (np.round(hex_to_rgb(colr) * 255)).astype(int)
+        cats.append(f'<category symbol="{i}" value={quoteattr(str(k))} label={quoteattr(str(lab))} render="true"/>')
+        rgba = f"{r},{g_},{b},255"
+        oc, ow, os_ = ("128,128,128,255", "0.05", "solid") if outline else ("0,0,0,0", "0", "no")
+        opts = {"color": rgba, "outline_color": oc, "outline_style": os_, "outline_width": ow,
+                "outline_width_unit": "MM", "style": "solid", "joinstyle": "bevel"}
+        o1 = "".join(f'<Option type="QString" name="{a}" value="{v}"/>' for a, v in opts.items())
+        o2 = "".join(f'<prop k="{a}" v="{v}"/>' for a, v in opts.items())
+        syms.append(f'<symbol type="fill" name="{i}" alpha="1" clip_to_extent="1" force_rhr="0">'
+                    f'<layer class="SimpleFill" enabled="1" locked="0" pass="0"><Option type="Map">{o1}</Option>{o2}</layer></symbol>')
+    return ("<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>\n"
+            '<qgis version="3.28.0" styleCategories="Symbology">'
+            '<renderer-v2 type="categorizedSymbol" attr="cls" symbollevels="0" enableorderby="0" forceraster="0">'
+            f'<categories>{"".join(cats)}</categories><symbols>{"".join(syms)}</symbols></renderer-v2></qgis>')
+
+
+def write_map_layer(path: Path, layers: dict, crs: str, outline=True):
+    """GPKG со слоем на каждую карту и таблицей стилей layer_styles (QGIS)."""
+    g = geo()
+    tmp = path.with_name(f".{path.stem}.tmp.gpkg")
+    if tmp.exists():
+        tmp.unlink()
+    rows = []
+    for name, (gdf, items) in layers.items():
+        gdf = gdf.to_crs(crs) if crs != GEO_CRS else gdf
+        gdf.to_file(tmp, layer=name, driver="GPKG", engine="pyogrio")
+        rows.append({"f_table_catalog": "", "f_table_schema": "", "f_table_name": name, "f_geometry_column": "geom",
+                     "styleName": name, "styleQML": qgis_qml(items + [("na", "н/д", NA_COLOR)], outline), "styleSLD": "",
+                     "useAsDefault": True, "description": f"{APP_NAME} {__version__}", "owner": "", "ui": "",
+                     "update_time": dt.datetime.now().replace(microsecond=0)})
+    if rows:
+        g["pyogrio"].write_dataframe(pd.DataFrame(rows), tmp, layer="layer_styles", driver="GPKG")
+    os.replace(tmp, path)
+    return path
+
+
+def map_ids_of(cfg: Config) -> list[str]:
+    ids = [m for m in cfg.maps.maps if m in MAP_MAIN]
+    ids += [c for c in cfg.maps.components if c in MAP_COMP]
+    return ids
+
+
+def validate_maps(cfg: Config) -> list[tuple[str, str]]:
+    out = []
+    mc, mp = cfg.maps, cfg.mappal
+    bad = [m for m in mc.maps if m not in MAP_MAIN] + [c for c in mc.components if c not in MAP_COMP]
+    if bad:
+        out.append(("ошибка", f"неизвестные карты: {', '.join(map(str, bad))}"))
+    try:
+        cols = cube_colors(mp.cube_corners)
+        de = min_delta_e(cols.values())
+        if de < 5:
+            out.append(("предупреждение", f"куб CIELAB: минимальное ΔE76 = {de:.1f} < 5 — цвета плохо различимы"))
+    except VLDError as e:
+        out.append(("ошибка", f"угловые цвета куба: {e}"))
+    if mp.zones_file and not Path(mp.zones_file).exists():
+        out.append(("ошибка", f"не найден файл матриц решений: {mp.zones_file}"))
+    if "VLD_zones" in mc.maps and not mp.zones_file:
+        out.append(("предупреждение", "карта V × L × D (матрица решений) требует файла CSV; без него она пропускается"))
+    if "LxD_zones" in mc.maps and not mp.zones_file:
+        out.append(("предупреждение", "карта L × D (матрица решений) требует файла CSV; без него она пропускается"))
+    if mc.formats and any(f not in ("png", "tif", "pdf") for f in mc.formats):
+        out.append(("ошибка", f"форматы карт: {mc.formats}"))
+    return out
+
+
+def build_maps(sel, cfg: Config, out_dir: Path, bounds=None, progress=None, odict: OoptDict | None = None) -> dict:
+    """Пакетное построение карт и слоя карт по результату (ориентация «1 — лучше»)."""
+    g = geo()
+    import matplotlib
+    matplotlib.rcParams["font.family"] = "DejaVu Sans"
+    matplotlib.rcParams["pdf.fonttype"] = 42
+    odict = odict or make_odict()
+    mc, st = cfg.maps, cfg.mapstyle
+    df = sel if isinstance(sel, g["gpd"].GeoDataFrame) else g["gpd"].GeoDataFrame(sel, geometry="geometry", crs=GEO_CRS)
+    if df.crs is None:
+        df = df.set_crs(GEO_CRS)
+    df = df.to_crs(GEO_CRS).reset_index(drop=True)
+    if "oopt_id" not in df:
+        df["oopt_id"] = [odict.resolve_or_new(n) for n in df.oopt]
+    if mc.oopt:
+        want = {odict.resolve(x) or str(x).upper() for x in mc.oopt}
+        df = df[df.oopt_id.isin(want)].reset_index(drop=True)
+        if df.empty:
+            raise VLDError(f"карты: в результате нет ООПТ {', '.join(map(str, mc.oopt))}")
+    mats = None
+    try:
+        mats = load_zone_matrices(cfg)
+    except VLDError as e:
+        log.warning("карты: %s", e)
+        mats = {m: {c: (z, ZONE_COLORS[c]) for c, z in t.items()} for m, t in ZONE_TEMPLATES.items()}
+    ids = []
+    for mid in map_ids_of(cfg):
+        if mid in MAP_COMP and (mid not in df or df[mid].isna().all()):
+            log.warning("карты: показатель %s отсутствует в результате — карта пропущена", mid)
+            continue
+        if mid.endswith("_zones") and ("VLD" if mid == "VLD_zones" else mid[:-6]) not in mats:
+            log.warning("карты: нет матрицы решений для %s (задайте CSV, команда zones-template) — карта пропущена", mid)
+            continue
+        ids.append(mid)
+    bnd = _map_boundaries(df, bounds)
+    out_img = out_dir / (mc.subdir or ".")
+    res: dict[str, Any] = {"files": [], "maps": [], "layer": None}
+    layers = {}
+    warn_once: dict = {}
+    oopts = list(dict.fromkeys(df.oopt_id))
+    jobs = []
+    if mc.per_oopt:
+        jobs += [("one", [o]) for o in oopts]
+    if mc.overview and (len(oopts) > 1 or not mc.per_oopt):
+        jobs.append(("all", oopts))
+    total = max(1, len(ids) * len(jobs)) if mc.formats else 1
+    done = 0
+    for mid in ids:
+        check_stop()
+        cr = classify_map(df, mid, cfg, mats)
+        sp = cr["spec"]
+        if mid == "VLD":
+            log.info("карта VLD: минимальное ΔE76 = %.2f", sp["min_de"])
+        if mc.layer:
+            src = [c for c in ("V", "L", "D") if c in df] if mid in MAP_MAIN else [mid]
+            lay = df[["h3_id", "oopt_id", "oopt", "calc_year"] + src + ["geometry"]].copy()
+            lay["cls"], lay["label"], lay["color"] = cr["cls"].values, cr["label"].values, cr["color"].values
+            if sp["kind"] == "zones":
+                lay["code"] = _codes(df, sp["vars"]).fillna("").where(cr["cls"] != "na", "")
+            layers[f"map_{mid}"] = (lay, sp["items"])
+        if not mc.formats:
+            continue
+        for kind, oo in jobs:
+            check_stop()
+            sub = df[df.oopt_id.isin(oo)]
+            if sub.empty:
+                continue
+            crs_ = classify_map(sub, mid, cfg, mats) if kind == "one" or len(oo) != len(oopts) else cr
+            spec = crs_["spec"]
+            years = sub.groupby("oopt_id").calc_year.max()
+            ystr = "-".join(str(int(y)) for y in sorted(set(years.dropna())))
+            if kind == "one":
+                oname = odict.name(oo[0]) if odict.name(oo[0]) else str(sub.oopt.iloc[0])
+                oname = str(sub.oopt.iloc[0]) or oname
+                year_note = f"Расчёт: {ystr} г." if st.year_note and ystr else ""
+            else:
+                oname = "все ООПТ" if len(oo) == len(oopts) else ", ".join(odict.name(o) for o in oo)
+                cnt = years.value_counts().sort_index()
+                year_note = ("Расчёт: " + "; ".join(f"{int(y)} г. — {n} ООПТ" for y, n in cnt.items())) if st.year_note else ""
+            meta = {"title": spec["title"], "subtitle": oname, "year_note": year_note}
+            fig, info = _draw_map(sub, crs_, cfg, bnd, oo, meta, out_dir, warn_once)
+            fname = mc.name_template.format(map=mid, oopt=_safe_name(oname if kind == "one" else "обзор"),
+                                            oopt_id=oo[0] if kind == "one" else "ALL", calc_year=ystr)
+            files = _save_fig(fig, out_img / _safe_name(fname), mc.formats, st.dpi)
+            fig.clear()
+            res["files"] += files
+            res["maps"].append({"map": mid, "oopt": oname, "kind": kind, "files": files,
+                                "n_items": len(spec["items"]), "labels": [x[1] for x in spec["items"]], **info})
+            done += 1
+            if progress:
+                progress(done / total, f"карта {mid}: {oname}")
+    if mc.layer and layers:
+        lp = out_dir / f"{cfg.output.file_name}_karty.gpkg"
+        write_map_layer(lp, layers, cfg.output.crs, st.outline == "grey")
+        res["layer"] = str(lp)
+        res["files"].append(str(lp))
+        log.info("слой карт: %s (%d слоёв)", lp, len(layers))
+    log.info("карты: %d изображений по %d видам карт", len([x for m in res["maps"] for x in m["files"]]), len(ids))
+    return res
+
+
+def _codes(df: pd.DataFrame, vars_) -> pd.Series:
+    """Код ячейки матрицы «1_2_3»; NA, если хотя бы один балл не определён."""
+    parts = [pd.to_numeric(df[v], errors="coerce") for v in vars_]
+    na = pd.concat([x.isna() for x in parts], axis=1).any(axis=1)
+    code = None
+    for x in parts:
+        t = x.fillna(0).astype(int).astype(str)
+        code = t if code is None else code + "_" + t
+    return code.where(~na, None)
+
+
+def zone_fields(sel: pd.DataFrame, cfg: Config) -> dict[str, pd.Series]:
+    """Поля зон матриц решений для расширенного слоя (zone_VD, zone_VL, zone_LD, zone_VLD)."""
+    out = {}
+    try:
+        mats = load_zone_matrices(cfg)
+    except VLDError:
+        return out
+    for mid in cfg.maps.maps:
+        if not mid.endswith("_zones"):
+            continue
+        base = mid[:-6]
+        key = "VLD" if base == "VLD" else base
+        if key not in mats:
+            continue
+        vars_ = ("V", "L", "D") if base == "VLD" else tuple(base.split("x"))
+        code = _codes(sel, vars_)
+        out["zone_" + "".join(vars_)] = code.map({c: z for c, (z, _) in mats[key].items()})
+    return out
+
+
+def map_source_frame(path: str | Path, odict: OoptDict, worst1: bool = False):
+    """Чтение ранее выгруженного слоя (GPKG/SHP) для построения карт без пересчёта."""
+    g = geo()
+    d = g["gpd"].read_file(path, engine="pyogrio")
+    d = d.rename(columns={v: k for k, v in NAMES_2025.items() if v in d.columns})
+    if "oopt_id" not in d:
+        d["oopt_id"] = [odict.resolve_or_new(n) for n in d.oopt]
+    if "calc_year" not in d:
+        d["calc_year"] = pd.NA
+    if worst1:
+        for c in ["V", "L", "D"] + V_COMPONENTS + D_COMPONENTS:
+            if c in d:
+                d[c] = (4 - pd.to_numeric(d[c], errors="coerce")).astype("Int64")
+    return d.to_crs(GEO_CRS)
 
 
 # ---------------------------------------------------------------------------
@@ -3747,7 +4815,7 @@ def selftest2(config: str, work: str, v4: str | None = None) -> dict:
         e.to_file(f2, layer="eco", driver="GPKG", engine="pyogrio")
         c2 = copy.deepcopy(c)
         c2.mam.files = []
-        c2.ecosys.path = str(f2)
+        c2.ecosys.path = [str(f2)]
         _, ctx2 = compute_primary(g2, b2, 11, c2, odict, lambda f, m: None)
         er = ctx2.reports.get("ecosys", {})
         ok("П9 некорректная геометрия D2", er.get("features") == 1 and er.get("hex_with_eco", 0) > 0,
@@ -3779,6 +4847,153 @@ def selftest2(config: str, work: str, v4: str | None = None) -> dict:
     ok("П9 отсутствующие блоки", v5.V.notna().any() and not any(x in r5.get("indicators", {}) for x in ("v_mam", "v_ins")),
        f"V рассчитан по {sorted(k for k in r5.get('indicators', {}) if k.startswith('v_'))}; n_V: {v5.n_V.value_counts().sort_index().to_dict()}")
     (work_p / "selftest2_report.json").write_text(json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")
+    return res
+
+
+# ---------------------------------------------------------------------------
+# Автотесты приёмки этапа 3 (разд. 15 ТЗ: П8 — карты)
+# ---------------------------------------------------------------------------
+def selftest3(layer: str, work: str, bounds: str | None = None) -> dict:
+    """П8: палитры 3/5/9/27 цветов и подписи легенд, линейка, кириллица в именах, пакетное построение,
+    слой карт со стилем QGIS, шаблон матриц решений и карта V × L × D по CSV."""
+    import sqlite3
+    import xml.etree.ElementTree as ET
+    g = geo()
+    W = Path(work)
+    W.mkdir(parents=True, exist_ok=True)
+    res: dict[str, dict] = {}
+
+    def ok(name, cond, detail=""):
+        res[name] = {"ok": bool(cond), "detail": detail}
+        log.info("%s %s: %s", "OK" if cond else "ОШИБКА", name, detail)
+
+    od = make_odict()
+    src = map_source_frame(layer, od)
+    oopts = list(dict.fromkeys(src.oopt_id))
+    bnd = None
+    if bounds:
+        pc = ProjectCfg()
+        pc.boundaries = bounds
+        try:
+            bnd = read_boundaries(pc, od)
+        except VLDError as e:
+            log.warning("границы: %s", e)
+
+    def base_cfg():
+        c = Config()
+        c.maps.build = True
+        c.mapstyle.basemap = "none"
+        c.output.file_name = "vld_тест"
+        return c
+
+    # П8.1 — число цветов и подписи легенд
+    c = base_cfg()
+    mats = load_zone_matrices(c)
+    want = {"V": 3, "L": 3, "D": 3, "VxL": 9, "VxD": 9, "LxD": 9, "VLD": 27, "VxD_zones": 9, "VxL_zones": 9}
+    for comp in ("photo_cat", "infra_cat"):
+        if comp in src and src[comp].notna().any():
+            want[comp] = 5
+    got, empty = {}, []
+    for mid, n in want.items():
+        sp = classify_map(src, mid, c, mats)["spec"]
+        got[mid] = len(sp["items"])
+        empty += [f"{mid}:{k}" for k, lab, _ in sp["items"] if not str(lab).strip()]
+    cols = {mid: len({x[2] for x in classify_map(src, mid, c, mats)["spec"]["items"]}) for mid in ("VxL", "VxD", "LxD", "VLD")}
+    ok("П8.1 число классов легенд", all(got[k] == v for k, v in want.items()) and not empty,
+       ", ".join(f"{k}={got[k]}" for k in want) + (f"; пустые подписи: {empty}" if empty else ""))
+    de = min_delta_e(cube_colors(c.mappal.cube_corners).values())
+    ok("П8.1а различимость цветов", all(v == (27 if k == "VLD" else 9) for k, v in cols.items()) and de >= 5,
+       f"уникальных цветов {cols}; куб CIELAB: мин. ΔE76 = {de:.1f}")
+
+    # П8.2 — подписи частных показателей следуют порогам конфигурации
+    c2 = base_cfg()
+    c2.cap.mode, c2.cap.t1, c2.cap.t2 = "2026", 7.0, 70.0
+    lab_cap = map_legend_spec("v_cap", c2)[1]
+    c2.mapstyle.labels = {"v_zon.3": "интразональные"}
+    lab_zon = map_legend_spec("v_zon", c2)[1]
+    ok("П8.2 подписи частных показателей", "70" in lab_cap[1] and "7" in lab_cap[3] and lab_zon[3] == "интразональные",
+       f"v_cap: {lab_cap}; v_zon.3 = «{lab_zon[3]}»")
+
+    # П8.3–П8.5 — пакетное построение: одна, несколько, все ООПТ; линейка; кириллица
+    sel1 = oopts[:1]
+    selN = oopts[:2] if len(oopts) > 1 else oopts
+    cases = [("одна", sel1, False), ("несколько", selN, True), ("все", [], True)]
+    comps = [x for x in ("v_zon", "v_cap") if x in src and src[x].notna().any()]
+    stats = []
+    errs = []
+    files_all = []
+    for nm, oo, ov in cases:
+        cc = base_cfg()
+        cc.maps.maps = ["V", "VxD", "VLD"]
+        cc.maps.components = comps
+        cc.maps.oopt = list(oo)
+        cc.maps.overview = ov
+        cc.maps.formats = ["png"] if nm != "одна" else ["png", "pdf", "tif"]
+        out = W / f"maps_{nm}"
+        r = build_maps(src, cc, out, bnd, None, od)
+        n_o = len(oo) if oo else len(oopts)
+        n_jobs = n_o + (1 if ov and n_o > 1 else 0)
+        n_maps = 3 + len(comps)
+        imgs = [m for m in r["maps"]]
+        stats.append(f"{nm}: {len(imgs)} карт (ожид. {n_maps * n_jobs})")
+        if len(imgs) != n_maps * n_jobs:
+            errs.append(nm)
+        files_all += [f for m in imgs for f in m["files"]]
+    ok("П8.4 пакетное построение", not errs, "; ".join(stats))
+    cc = base_cfg()
+    cc.maps.maps, cc.maps.components, cc.maps.oopt, cc.maps.overview = ["V"], [], [], True
+    cc.maps.formats = ["png"]
+    r = build_maps(src, cc, W / "maps_scale", bnd, None, od)
+    max_err = max(m["scale_err"] for m in r["maps"])
+    ok("П8.3 линейный масштаб", max_err <= 0.01,
+       f"макс. ошибка линейки {max_err * 100:.2f} % (геодезическая проверка), длины: "
+       + ", ".join(f"{m['oopt']} {m['scale_m']:.0f} м" for m in r["maps"]))
+    cyr = [f for f in files_all if re.search("[А-Яа-яЁё]", Path(f).name)]
+    exist = all(Path(f).exists() and Path(f).stat().st_size > 0 for f in files_all)
+    fm = {Path(f).suffix for f in files_all}
+    ok("П8.5 кириллица в именах и форматы", cyr and exist and {".png", ".pdf", ".tif"} <= fm,
+       f"{len(files_all)} файлов, с кириллицей {len(cyr)}, форматы {sorted(fm)}; пример: {Path(cyr[0]).name if cyr else '—'}")
+
+    # П8.6 — слой карт со стилем QGIS
+    lp = W / "maps_одна" / f"{base_cfg().output.file_name}_karty.gpkg"
+    lays = g["pyogrio"].list_layers(lp)[:, 0].tolist() if lp.exists() else []
+    expect = [f"map_{m}" for m in ["V", "VxD", "VLD"] + comps]
+    con = sqlite3.connect(lp)
+    st_rows = con.execute("select f_table_name, styleQML from layer_styles").fetchall()
+    con.close()
+    bad = []
+    for name, qml in st_rows:
+        cats = {e.get("value") for e in ET.fromstring(qml.split("\n", 1)[1]).iter("category")}
+        vals = set(g["gpd"].read_file(lp, layer=name, engine="pyogrio").cls.astype(str))
+        if not vals <= cats:
+            bad.append(f"{name}: {sorted(vals - cats)}")
+    ok("П8.6 слой карт и стили QGIS", set(expect) <= set(lays) and len(st_rows) == len(expect) and not bad,
+       f"слои {lays}; стилей {len(st_rows)}" + (f"; классы без стиля: {bad}" if bad else ""))
+
+    # П8.7 — шаблон матриц решений и карта V × L × D по CSV
+    zp = W / "матрицы_решений.csv"
+    zones_template_table().to_csv(zp, index=False, encoding="utf-8-sig")
+    cz = base_cfg()
+    cz.mappal.zones_file = str(zp)
+    mz = load_zone_matrices(cz)
+    same = all(mz[m][k][0] == z for m, t in ZONE_TEMPLATES.items() for k, z in t.items())
+    cz.maps.maps, cz.maps.components, cz.maps.oopt, cz.maps.overview = ["VLD_zones"], [], sel1, False
+    rz = build_maps(src, cz, W / "maps_zones", bnd, None, od)
+    zf = zone_fields(src, cz)
+    nz = len(rz["maps"][0]["labels"]) if rz["maps"] else 0
+    ok("П8.7 шаблон матриц и V × L × D по CSV", same and len(mz.get("VLD", {})) == 27 and nz > 0 and "zone_VLD" in zf,
+       f"строк шаблона {len(zones_template_table())}; совпадение со встроенными: {same}; зон на карте VLD_zones: {nz}")
+
+    # П8.8 — слой в ориентации «1 — хуже» даёт те же классы после обращения
+    inv = src.copy()
+    for col in ["V", "L", "D"]:
+        inv[col] = (4 - inv[col]).astype("Int64")
+    ip = W / "обращённый.gpkg"
+    inv.to_file(ip, engine="pyogrio")
+    back = map_source_frame(ip, od, worst1=True)
+    a = classify_map(src, "VLD", c, mats)["cls"].astype(str).values
+    b = classify_map(back, "VLD", c, mats)["cls"].astype(str).values
+    ok("П8.8 ориентация «1 — хуже»", len(a) == len(b) and (a == b).all(), f"совпадение классов VLD: {(a == b).mean() * 100:.1f} %")
     return res
 
 
@@ -3865,6 +5080,20 @@ def build_parser() -> argparse.ArgumentParser:
     s2.add_argument("--config", required=True, help="параметры с путями к первичным данным 2026 г.")
     s2.add_argument("--work", required=True)
     s2.add_argument("--v4", help="V4 для сверки числа инвазивных растений")
+    mp = sp.add_parser("maps", help="карты по расчёту, архиву или готовому слою (разд. 13 ТЗ)")
+    mp.add_argument("--config", help="файл параметров JSON (разделы maps, mapstyle, mappal)")
+    mp.add_argument("--set", action="append", metavar="РАЗДЕЛ.ПОЛЕ=ЗНАЧЕНИЕ")
+    src = mp.add_mutually_exclusive_group()
+    src.add_argument("--archive", help="архив годичных результатов: карты без пересчёта по правилам сборки")
+    src.add_argument("--layer", help="ранее выгруженный слой (GPKG/SHP)")
+    mp.add_argument("--worst1", action="store_true", help="слой --layer выгружен в ориентации «1 — хуже»")
+    mp.add_argument("--out", help="папка результатов (по умолчанию из параметров)")
+    zt = sp.add_parser("zones-template", help="шаблон матриц решений (CSV: matrix, code, zone, color)")
+    zt.add_argument("--out", required=True)
+    s3 = sp.add_parser("selftest3", help="автотесты приёмки этапа 3 (П8: карты)")
+    s3.add_argument("--layer", required=True, help="выгрузка этапа 2 (расширенный слой GPKG)")
+    s3.add_argument("--work", required=True)
+    s3.add_argument("--bounds", help="слой границ ООПТ")
     sp.add_parser("gui", help="графический интерфейс")
     return ap
 
@@ -3938,6 +5167,37 @@ def main(argv=None) -> int:
                             "читаются при расчёте, если в конфигурации не заданы собственные справочники"}
             Path(args.out).write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
             print(args.out)
+        elif args.cmd == "maps":
+            cfg = Config.load(args.config) if args.config else Config()
+            _apply_sets(cfg, args.set)
+            cfg.maps.build = True
+            if args.out:
+                cfg.project.out_dir = args.out
+            if args.layer:
+                out_dir = out_dir_of(cfg)
+                out_dir.mkdir(parents=True, exist_ok=True)
+                errs = [m for lvl, m in validate_maps(cfg) if lvl == "ошибка"]
+                if errs:
+                    raise VLDError("; ".join(errs))
+                odict = make_odict()
+                bnd = read_boundaries(cfg.project, odict) if cfg.project.boundaries else None
+                r = build_maps(map_source_frame(args.layer, odict, args.worst1), cfg, out_dir, bnd, None, odict)
+            else:
+                if args.archive:
+                    cfg.assembly.source, cfg.archive.path = "archive", args.archive
+                cfg.archive.save = False
+                cfg.output.format, cfg.output.summary_xlsx, cfg.output.params_json = "none", False, False
+                cfg.check.reference_path, cfg.check.transitions = "", False
+                r = run_pipeline(cfg)
+            print("\n".join(r["files"]))
+        elif args.cmd == "zones-template":
+            zones_template_table().to_csv(args.out, index=False, encoding="utf-8-sig")
+            print(args.out)
+        elif args.cmd == "selftest3":
+            r = selftest3(args.layer, args.work, args.bounds)
+            bad = [k for k, x in r.items() if not x["ok"]]
+            print("\n".join(f"{'OK ' if x['ok'] else 'ОШИБКА'} {k}: {x['detail']}" for k, x in r.items()))
+            return 1 if bad else 0
         elif args.cmd in ("selftest", "selftest2"):
             r = selftest(args.v4, args.work, args.bounds2026) if args.cmd == "selftest" else selftest2(args.config, args.work, args.v4)
             bad = [k for k, x in r.items() if not x["ok"]]
@@ -3956,9 +5216,7 @@ tk = ttk = filedialog = messagebox = None  # загружаются в run_gui()
 
 TAB_NAMES = {1: "Проект и сетка", 2: "Ценность (V)", 3: "Нагрузка (L)", 4: "Нарушенность (D)",
              5: "Агрегация и квантование", 6: "Выходные данные и архив", 7: "Карты", 8: "Проверка"}
-TAB_STUBS = {
-    7: "Карты одного параметра, пар 3 × 3, куб CIELAB и матрица решений — этап 3.",
-}
+TAB_STUBS: dict[int, str] = {}
 LOGOS = [("ipee_ran.png", "ИПЭЭ РАН"), ("lab_biogeocenology.png", "Лаборатория биогеоценологии"),
          ("moscow_coat_of_arms.png", "Правительство Москвы"), ("dpioos.png", "ДПиООС")]
 
@@ -4140,6 +5398,15 @@ class App:
             cb.grid(row=0, column=0, sticky="w")
             if kind == "preset":
                 ttk.Button(fr, text="Применить набор", command=self.apply_preset).grid(row=0, column=1, padx=4)
+        elif kind == "checks":
+            var = None
+            w["vars"] = {}
+            box = ttk.Frame(fr)
+            box.grid(row=0, column=0, sticky="w")
+            for i, (key, text) in enumerate((md.get("choices") or {}).items()):
+                bv = tk.BooleanVar()
+                ttk.Checkbutton(box, text=text, variable=bv).grid(row=i // 3, column=i % 3, sticky="w", padx=(0, 10))
+                w["vars"][key] = bv
         elif kind == "oopt_list":
             var = None
             lb = tk.Listbox(fr, selectmode="extended", height=6, exportselection=False)
@@ -4180,6 +5447,9 @@ class App:
                 w["var"].set(bool(v))
             elif k in ("choice", "preset"):
                 w["var"].set(w["map"].get(v, v))
+            elif k == "checks":
+                for key, bv in w["vars"].items():
+                    bv.set(key in (v or []))
             elif k == "oopt_list":
                 lb = w["listbox"]
                 if v and not w["ids"]:
@@ -4204,6 +5474,8 @@ class App:
                 v = w["var"].get()
             elif k in ("choice", "preset"):
                 v = w["rmap"].get(w["var"].get(), w["var"].get())
+            elif k == "checks":
+                v = [key for key, bv in w["vars"].items() if bv.get()]
             elif k == "oopt_list":
                 v = [w["ids"][i] for i in w["listbox"].curselection()]
             elif k == "files":
@@ -4337,9 +5609,43 @@ class App:
             messagebox.showerror(APP_NAME, "\n".join(errs))
             return
         self.pb["value"] = 0
+        def done(r):
+            self.last_result = r
+            log.info("созданы файлы:\n%s", "\n".join(r["files"]) or "—")
         self._background(lambda: run_pipeline(cfg, progress_cb=lambda f, m: self.q.put(("progress", f, m)),
-                                              confirm_replace=self._confirm_from_thread),
-                         lambda r: log.info("созданы файлы:\n%s", "\n".join(r["files"]) or "—"))
+                                              confirm_replace=self._confirm_from_thread), done)
+
+    def make_maps(self):
+        """Карты по последнему расчёту или по ранее выгруженному слою (без пересчёта)."""
+        if self.worker and self.worker.is_alive():
+            return
+        cfg = self.get_config()
+        errs = [m for lvl, m in validate_maps(cfg) if lvl == "ошибка"]
+        if errs:
+            messagebox.showerror(APP_NAME, "\n".join(errs))
+            return
+        cfg.maps.build = True
+        last = getattr(self, "last_result", None)
+        layer, worst1 = None, False
+        if last is None or "sel" not in last:
+            layer = filedialog.askopenfilename(title="Слой результата для карт",
+                                               filetypes=[("GeoPackage", "*.gpkg"), ("Shapefile", "*.shp"), ("Все файлы", "*.*")])
+            if not layer:
+                return
+            worst1 = messagebox.askyesno(APP_NAME, "Слой выгружен в ориентации «1 — хуже»?", default="no")
+        self.pb["value"] = 0
+        prog = lambda f, m: self.q.put(("progress", f, m))  # noqa: E731
+
+        def job():
+            STOP.clear()
+            if layer:
+                od = make_odict()
+                out_dir = out_dir_of(cfg)
+                out_dir.mkdir(parents=True, exist_ok=True)
+                bnd = read_boundaries(cfg.project, od) if cfg.project.boundaries and Path(cfg.project.boundaries).exists() else None
+                return build_maps(map_source_frame(layer, od, worst1), cfg, out_dir, bnd, prog, od)
+            return build_maps(last["sel"], cfg, last["out_dir"], last["bounds"], prog)
+        self._background(job, lambda r: log.info("карты:\n%s", "\n".join(r["files"]) or "—"))
 
     def _confirm_from_thread(self, pairs):
         ev, box = threading.Event(), {}
@@ -4371,9 +5677,10 @@ class App:
         row.pack(fill="x")
         for text, cmd in (("Проверить данные", self.check), ("Рассчитать", self.calculate), ("Остановить", self.stop)):
             ttk.Button(row, text=text, command=cmd).pack(side="left", padx=3)
-        self.btn_maps = ttk.Button(row, text="Построить карты", state="disabled")
+        self.btn_maps = ttk.Button(row, text="Построить карты", command=self.make_maps)
         self.btn_maps.pack(side="left", padx=3)
-        Tooltip(self.btn_maps, "Карты — этап 3.")
+        Tooltip(self.btn_maps, "По последнему расчёту; если расчёта не было — по выбранному слою GPKG/SHP. "
+                               "Состав, оформление и палитры — вкладка 7.")
         ttk.Button(row, text="Открыть папку результатов", command=self.open_out).pack(side="left", padx=3)
         ttk.Button(row, text="Сохранить параметры", command=self.save_params).pack(side="right", padx=3)
         ttk.Button(row, text="Загрузить параметры", command=self.load_params).pack(side="right", padx=3)
