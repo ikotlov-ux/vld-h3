@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.gpkg
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.xlsx
+*.xls
+*.csv
+!resources/*.csv
+out/
+data/
+resources/logos/*.png
+resources/logos/*.jpg

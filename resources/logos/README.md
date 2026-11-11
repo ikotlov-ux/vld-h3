@@ -1,0 +1,1 @@
+Поместите сюда файлы логотипов (PNG с прозрачным фоном): `ipee_ran.png`, `lab_biogeocenology.png`, `moscow_coat_of_arms.png`, `dpioos.png`. При отсутствии файла в заголовке выводится название организации.
