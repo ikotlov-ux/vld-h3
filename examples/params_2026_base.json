@@ -1,0 +1,123 @@
+{
+  "project": {
+    "param_set": "2026 — базовый",
+    "calc_year": 2026,
+    "boundaries": "",
+    "boundaries_layer": "",
+    "name_field": "",
+    "oopt_select": [],
+    "h3_res": 11,
+    "include_boundary_cells": false,
+    "out_dir": ""
+  },
+  "inputs": {
+    "v4_path": "",
+    "score_tables": [],
+    "inv_rule": "main",
+    "qbs_zero": "na"
+  },
+  "agg_V": {
+    "components": [
+      "v_ins",
+      "v_mam",
+      "v_anam",
+      "v_bird",
+      "v_aqua",
+      "v_rare",
+      "v_cap",
+      "v_zon",
+      "v_qbs"
+    ],
+    "weights": {},
+    "n_min": 1,
+    "stat": "mean"
+  },
+  "agg_D": {
+    "components": [
+      "d_inv",
+      "d_frag"
+    ],
+    "weights": {},
+    "n_min": 1,
+    "stat": "mean"
+  },
+  "quant_V": {
+    "method": "excel_tertiles",
+    "domain": "all",
+    "t1": 2.0714,
+    "t2": 2.2262,
+    "equal_mode": "data",
+    "bins": [
+      1,
+      2
+    ],
+    "sig": 3,
+    "c1": 0.33,
+    "c2": 0.66,
+    "reference_path": ""
+  },
+  "quant_L": {
+    "method": "direct",
+    "domain": "all",
+    "t1": 0.0,
+    "t2": 0.0,
+    "equal_mode": "data",
+    "bins": [
+      1,
+      2
+    ],
+    "sig": 3,
+    "c1": 0.33,
+    "c2": 0.66,
+    "reference_path": ""
+  },
+  "quant_D": {
+    "method": "excel_tertiles",
+    "domain": "all",
+    "t1": 1.25,
+    "t2": 1.75,
+    "equal_mode": "data",
+    "bins": [
+      1,
+      2
+    ],
+    "sig": 3,
+    "c1": 0.33,
+    "c2": 0.66,
+    "reference_path": ""
+  },
+  "archive": {
+    "path": "",
+    "save": false,
+    "replace": false,
+    "store_bounds": false
+  },
+  "assembly": {
+    "source": "current",
+    "rule": "last",
+    "year": 0,
+    "manual": {},
+    "oopt": [],
+    "mode": "I",
+    "arch_fields": true
+  },
+  "output": {
+    "format": "gpkg",
+    "file_name": "vld_result",
+    "layer": "vld_hex",
+    "extended": false,
+    "names_2025": false,
+    "crs": "EPSG:4326",
+    "orientation": "best1",
+    "summary_xlsx": false,
+    "params_json": true
+  },
+  "check": {
+    "reference_path": "",
+    "transitions": false,
+    "tr_oopt": "",
+    "tr_y1": 0,
+    "tr_y2": 0,
+    "tr_layer": false
+  }
+}
