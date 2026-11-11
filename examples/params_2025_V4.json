@@ -14,7 +14,16 @@
     "v4_path": "",
     "score_tables": [],
     "inv_rule": "as_is",
-    "qbs_zero": "number"
+    "qbs_zero": "number",
+    "lat_range": [
+      55.1,
+      56.1
+    ],
+    "lon_range": [
+      36.8,
+      38.1
+    ],
+    "far_km": 10.0
   },
   "agg_V": {
     "components": [
@@ -117,5 +126,239 @@
     "tr_y1": 0,
     "tr_y2": 0,
     "tr_layer": false
+  },
+  "ecosys": {
+    "path": "",
+    "layer": "",
+    "code_field": "",
+    "zon_fix_field": "zon_fix",
+    "cell": 10.0,
+    "oopt_buffer": 100.0,
+    "context": 1000.0
+  },
+  "zon": {
+    "typology": "",
+    "sheet": "Изменённые по таксации",
+    "unmatched": "na"
+  },
+  "cap": {
+    "mode": "2026",
+    "t1": 5.0,
+    "t2": 50.0,
+    "inclusive": false
+  },
+  "ins": {
+    "ratings": [],
+    "coords": "",
+    "agg": "mean",
+    "method": "A",
+    "b_marks": {
+      "1": 1,
+      "2": 1,
+      "3": 2,
+      "4": 3,
+      "5": 3
+    },
+    "diff_warn": 2.0,
+    "biotop_map": {
+      "110": "lis",
+      "111": "lis",
+      "112": "lis",
+      "113": "lis",
+      "121": "lis",
+      "131": "ber",
+      "132": "na",
+      "134": "na",
+      "135": "ber",
+      "141": "sme",
+      "142": "sme",
+      "151": "sos",
+      "152": "sme",
+      "153": "sme",
+      "161": "na",
+      "171": "ber",
+      "211": "dry",
+      "212": "dry",
+      "221": "dry",
+      "222": "dry",
+      "231": "wet",
+      "232": "wet",
+      "310": "na",
+      "400": "na",
+      "503": "na"
+    }
+  },
+  "mam": {
+    "files": [],
+    "ref_files": [],
+    "species_field": "",
+    "fg_field": "",
+    "groups": [],
+    "method": "auto",
+    "k": 10,
+    "unit_res": 8,
+    "unit_field": "",
+    "idw_k": 12,
+    "power": 2.0,
+    "radius": 3000.0,
+    "min_units": 3,
+    "auto_units": 30,
+    "rule": "thresholds",
+    "a_t1": 2.0,
+    "a_t2": 4.0,
+    "b_t1": 2.5,
+    "b_t2": 4.5,
+    "b_closed": "left"
+  },
+  "anam": {
+    "files": [],
+    "ref_files": [],
+    "species_field": "",
+    "fg_field": "",
+    "groups": [],
+    "method": "auto",
+    "k": 10,
+    "unit_res": 8,
+    "unit_field": "",
+    "idw_k": 12,
+    "power": 2.0,
+    "radius": 3000.0,
+    "min_units": 3,
+    "auto_units": 30,
+    "rule": "thresholds",
+    "a_t1": 1.0,
+    "a_t2": 2.0,
+    "b_t1": 1.0,
+    "b_t2": 2.0,
+    "b_closed": "right"
+  },
+  "bird": {
+    "files": [],
+    "value_field": "",
+    "kind": "fg_n",
+    "method": "A",
+    "k": 10,
+    "idw_k": 12,
+    "power": 2.0,
+    "radius": 3000.0,
+    "min_units": 3,
+    "rule": "tertiles",
+    "t1": 0.0,
+    "t2": 0.0
+  },
+  "aqua": {
+    "files": [],
+    "group_field": "",
+    "value_field": "",
+    "kind": "fg_n",
+    "t1": 1.0,
+    "t2": 3.0,
+    "combine": "mean",
+    "shore": 0.0
+  },
+  "rare": {
+    "files": [],
+    "cat_field": "",
+    "recode": {
+      "1": 1,
+      "2": 1,
+      "3": 2,
+      "4": 2,
+      "5": 2,
+      "6": 2
+    },
+    "method": "hex",
+    "buffer": 0.0,
+    "absent": "3"
+  },
+  "qbs": {
+    "files": [],
+    "value_field": "",
+    "score_field": "",
+    "t1": 250.0,
+    "t2": 350.0,
+    "method": "nearest",
+    "max_dist": 0.0,
+    "habitat": false,
+    "year_field": "year"
+  },
+  "recload": {
+    "photos": [],
+    "objects": [],
+    "exclude": [
+      "Информационный стенд",
+      "Урна",
+      "объекты нерекреационного назначения"
+    ],
+    "photo_bins": [
+      0,
+      1,
+      3,
+      10
+    ],
+    "infra_bins": [
+      0,
+      1,
+      3,
+      5
+    ],
+    "l_bins": [
+      0,
+      3
+    ],
+    "smooth_k": 0,
+    "ready": ""
+  },
+  "inv": {
+    "files": [],
+    "value": "count",
+    "count_field": ""
+  },
+  "frag": {
+    "roads": [],
+    "buildings": [],
+    "paved_only": true,
+    "exclude_highway": [
+      "proposed",
+      "construction"
+    ],
+    "road_buffer": 0.0,
+    "s_min": 0.1,
+    "connectivity": 4,
+    "sieve": true,
+    "signs": {
+      "ECON": 1,
+      "ENN": 1,
+      "SHAPE": -1,
+      "CONTIG": -1,
+      "PARA": 0
+    },
+    "econ": {
+      "1-2": 0.6,
+      "1-3": 0.4,
+      "1-4": 0.8,
+      "2-3": 0.2,
+      "2-4": 0.6,
+      "3-4": 0.8,
+      "1-5": 0.8,
+      "2-5": 0.6,
+      "3-5": 0.6,
+      "4-5": 0.2,
+      "1-6": 1.0,
+      "2-6": 1.0,
+      "3-6": 1.0,
+      "4-6": 1.0,
+      "1-0": 1.0,
+      "2-0": 1.0,
+      "3-0": 1.0,
+      "4-0": 1.0
+    },
+    "shape": "fragstats",
+    "index": "rank_mean",
+    "quant": "excel_tertiles",
+    "class_map": {},
+    "patches_out": false,
+    "ready": "",
+    "ready_field": "metrics_avg"
   }
 }
