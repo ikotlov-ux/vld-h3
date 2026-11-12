@@ -43,7 +43,7 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 APP_NAME = "VLD-H3"
 APP_TITLE = "VLD-H3: Ценность – Нагрузка – Нарушенность"
 HERE = Path(__file__).resolve().parent
@@ -713,6 +713,8 @@ PAIR_PAL_CHOICES = {"cube": "срез куба CIELAB", **{k: k for k in PAL9}, 
 BASEMAPS = {"OpenStreetMap.Mapnik": "OpenStreetMap (осветлённая)", "Esri.WorldGrayCanvas": "Esri World Gray Canvas (светло-серая)",
             "OpenStreetMap.HOT": "OpenStreetMap HOT", "CartoDB.Positron": "CartoDB Positron (требует ключ API)", "none": "без подложки"}
 IMG_TYPES = [("CSV", "*.csv"), ("Все файлы", "*.*")]
+MAP_UNITS = {"hex": "гексагоны", "eco": "контуры экосистем D2"}
+ECO_METHODS = {"mode": "преобладающий по площади класс", "mean": "средневзвешенный по площади балл"}
 
 
 @dataclass
@@ -725,9 +727,17 @@ class MapCfg:
     per_oopt: bool = P(True, "Отдельная карта для каждой ООПТ", "Охват — границы ООПТ с полем 5 %.", "bool")
     overview: bool = P(False, "Обзорная карта всех выбранных ООПТ", "", "bool")
     formats: list = P(["png"], "Форматы", "Пусто — только слой карт.", "checks", choices={"png": "PNG", "tif": "TIFF (LZW)", "pdf": "PDF"})
-    layer: bool = P(True, "Сохранять карты в слой GPKG", "Файл «‹имя›_karty.gpkg»: по слою на карту с полями cls, label, color и стилем QGIS.", "bool")
+    units: list = P(["hex"], "Единицы карт", "Контуры экосистем: баллы гексагонов переносятся в выделы слоя D2 "
+                    "(раздел «Экосистемы»), п. 13.7.", "checks", choices=MAP_UNITS)
+    eco_method: str = P("mode", "Перенос баллов в контуры", "Преобладающий класс — балл, занимающий наибольшую площадь выдела "
+                        "(при равенстве — меньший номер); средневзвешенный — среднее по площади пересечений, "
+                        "округлённое до целого (0,5 — к большему номеру). Пары и V × L × D составляются из перенесённых V, L, D.",
+                        "choice", choices=ECO_METHODS)
+    eco_min_cover: float = P(0.5, "Минимальная доля выдела с баллом", "Если гексагоны с определённым баллом покрывают меньшую "
+                             "долю площади выдела, выдел получает н/д.", "float")
+    layer: bool = P(True, "Сохранять карты в слой GPKG", "Файл «‹имя›_karty.gpkg»: по слою на карту (map_* — гексагоны, eco_* — контуры) с полями cls, label, color и стилем QGIS.", "bool")
     subdir: str = P("karty", "Подпапка изображений", "Внутри папки результатов.", "text")
-    name_template: str = P("{map}_{oopt}_{calc_year}", "Шаблон имени файла", "Поля: {map}, {oopt}, {oopt_id}, {calc_year}.", "text")
+    name_template: str = P("{map}_{oopt}_{calc_year}", "Шаблон имени файла", "Поля: {map}, {oopt}, {oopt_id}, {calc_year}. К картам в контурах добавляется «_контуры».", "text")
 
 
 @dataclass
@@ -740,7 +750,7 @@ class MapStyleCfg:
     fade: float = P(0.45, "Осветление подложки", "0 — без осветления, 1 — белый фон.", "float")
     tiles_cache: str = P("", "Кэш тайлов", "Пусто — папка tiles_cache в папке результатов.", "dir")
     alpha: float = P(1.0, "Непрозрачность заливки", "0–1.", "float")
-    outline: str = P("grey", "Контур гексагонов", "", "choice", choices={"grey": "тонкий серый", "none": "без контура"})
+    outline: str = P("grey", "Контур гексагонов и выделов", "", "choice", choices={"grey": "тонкий серый", "none": "без контура"})
     title: bool = P(True, "Заголовок", "", "bool")
     titles: dict = P({}, "Свои заголовки", "Формат: V=Ценность экосистем, VxD=Ценность и нарушенность.", "dict")
     labels: dict = P({}, "Свои подписи легенд", "Формат: V.1=очень высокая, v_cap.3=мелкие выделы.", "dict")
@@ -3841,8 +3851,8 @@ def _pair_vars(mid: str, swap: bool):
     return (b, a) if swap else (a, b)
 
 
-def classify_map(df: pd.DataFrame, mid: str, cfg: Config, mats=None) -> dict:
-    """Классы карты: cls (строка), label, color и описание легенды."""
+def classify_map(df: pd.DataFrame, mid: str, cfg: Config, mats=None, weight=None) -> dict:
+    """Классы карты: cls (строка), label, color и описание легенды; weight — площади (га) вместо числа объектов."""
     p, st = cfg.mappal, cfg.mapstyle
     n = len(df)
     na = pd.Series(True, index=df.index)
@@ -3943,6 +3953,14 @@ def classify_map(df: pd.DataFrame, mid: str, cfg: Config, mats=None) -> dict:
     spec.update(n=n, n_na=int(na.sum()), counts={k: int(counts.get(k, 0)) for k in col_of})
     if spec["kind"] == "zones":
         spec["code_counts"] = df["_code"][df["_code"] != ""].value_counts().to_dict()
+    if weight is not None:
+        w = pd.to_numeric(pd.Series(np.asarray(weight), index=df.index), errors="coerce").fillna(0.0)
+        cw = w[cls != ""].groupby(cls[cls != ""]).sum().to_dict()
+        spec.update(n=float(w.sum()), n_na=float(w[na].sum()), unit="га", n_obj=n,
+                    counts={k: float(cw.get(k, 0.0)) for k in col_of})
+        if spec["kind"] == "zones":
+            m_ = df["_code"] != ""
+            spec["code_counts"] = w[m_].groupby(df["_code"][m_]).sum().to_dict()
     color = cls.map(col_of).fillna(NA_COLOR)
     label = cls.map(lab_of).fillna("н/д")
     unknown = (cls != "") & ~cls.isin(list(col_of))
@@ -4058,16 +4076,19 @@ def _draw_legend(lax, spec, cfg: Config, W, H):
     lax.text(0, H - 1, spec.get("legend_title", spec["title"]), fontsize=fs + 1, weight="bold", va="top")
     top = H - 7
 
+    def fc(c):
+        return _fmt_count(c, spec)
+
     def cnt(k):
         c = counts.get(k, 0)
-        return f"{c} ({100 * c / n:.1f} %)".replace(".", ",")
+        return f"{fc(c)} ({100 * c / n:.1f} %)".replace(".", ",")
     drawn = 0
     if kind in ("single", "zones") and kind == "single":
         rh = min(5.0, (top - 1) / (len(items) + 1.3))
         for i, (k, lab, colr) in enumerate(items + ([("na", "н/д", NA_COLOR)] if spec["n_na"] else [])):
             y = top - (i + 1) * rh
             lax.add_patch(Rectangle((0, y), 9, rh * 0.8, fc=colr, ec="#555555", lw=0.4))
-            txt = lab + (f" — {cnt(k)}" if st.counts and k != "na" else "") + (f" — {spec['n_na']}" if k == "na" and st.counts else "")
+            txt = lab + (f" — {cnt(k)}" if st.counts and k != "na" else "") + (f" — {fc(spec['n_na'])}" if k == "na" and st.counts else "")
             lax.text(11, y + rh * 0.4, txt, fontsize=fs, va="center")
             drawn += 1
     elif kind in ("pair", "zones") and (kind == "pair" or len(spec["vars"]) == 2):
@@ -4083,7 +4104,7 @@ def _draw_legend(lax, spec, cfg: Config, W, H):
                 k = f"{x}_{y}"
                 if kind == "pair":
                     colr = cell[k]
-                    txt = (f"{counts.get(k, 0)}\n{100 * counts.get(k, 0) / n:.0f} %".replace(".", ",")) if st.counts else k.replace("_", "-")
+                    txt = (f"{fc(counts.get(k, 0))}\n{100 * counts.get(k, 0) / n:.0f} %".replace(".", ",")) if st.counts else k.replace("_", "-")
                 else:
                     colr = spec["cell"][k][1]
                     present = k in spec["present"]
@@ -4103,8 +4124,9 @@ def _draw_legend(lax, spec, cfg: Config, W, H):
         if kind == "pair":
             lax.text(xt + 14, y0 + 3 * cs, f"{xv}: 1 — {MAP_SINGLE_LABELS[xv][1]}, 3 — {MAP_SINGLE_LABELS[xv][3]}\n"
                      f"{yv}: 1 — {MAP_SINGLE_LABELS[yv][1]}, 3 — {MAP_SINGLE_LABELS[yv][3]}\n"
-                     + ("В ячейках — число и доля гексагонов\n" if st.counts else "") +
-                     f"Палитра: {spec['palette']}" + (f"\nн/д: {spec['n_na']}" if spec["n_na"] else ""),
+                     + (("В ячейках — площадь выделов и её доля\n" if spec.get("unit") else "В ячейках — число и доля гексагонов\n")
+                        if st.counts else "") +
+                     f"Палитра: {spec['palette']}" + (f"\nн/д: {fc(spec['n_na'])}" if spec["n_na"] else ""),
                      fontsize=fs - 1, va="top", linespacing=1.5)
         else:
             _zone_list(lax, spec, xt + 14, y0 + 3 * cs, fs, W - xt)
@@ -4119,7 +4141,7 @@ def _draw_legend(lax, spec, cfg: Config, W, H):
                     k = f"{v}_{l_}_{d}"
                     colr = next(c for kk, _, c in items if kk == k)
                     lax.add_patch(Rectangle((x0 + (l_ - 1) * cs, y0 + (3 - d) * cs), cs, cs, fc=colr, ec="white", lw=0.6))
-                    t = f"{v}-{l_}-{d}" if not st.counts else f"{v}-{l_}-{d}\n{counts.get(k, 0)}"
+                    t = f"{v}-{l_}-{d}" if not st.counts else f"{v}-{l_}-{d}\n{fc(counts.get(k, 0))}"
                     lax.text(x0 + (l_ - 0.5) * cs, y0 + (3.5 - d) * cs, t, fontsize=4.2, ha="center", va="center", color=_contrast(colr))
                     drawn += 1
             lax.text(x0 + 1.5 * cs, y0 - 1, "L →", fontsize=fs - 1.5, ha="center", va="top")
@@ -4127,11 +4149,22 @@ def _draw_legend(lax, spec, cfg: Config, W, H):
         xt = 8 + 3 * (3 * cs + 10)
         lax.text(xt, top - 1, "Светлота — V (темнее — ценнее);\nоттенок — воздействие: зелёный — мало,\nоранжевый — нагрузка, фиолетовый —\n"
                  f"нарушенность, красный — оба.\nМинимальное ΔE76 = {spec['min_de']:.1f}".replace(".", ",") +
-                 (f"\nн/д: {spec['n_na']}" if spec["n_na"] else ""), fontsize=fs - 1, va="top")
+                 (f"\nн/д: {fc(spec['n_na'])}" if spec["n_na"] else ""), fontsize=fs - 1, va="top")
     else:  # список зон V × L × D
         _zone_list(lax, spec, 0, top, fs, W)
         drawn = len(items)
     return drawn
+
+
+def _fmt_count(c, spec) -> str:
+    """Число объектов или площадь (га) для легенды."""
+    if not spec.get("unit"):
+        return str(int(round(c)))
+    if c <= 0:
+        return "0"
+    if c < 0.1:
+        return "< 0,1 га"
+    return (f"{c:.1f}" if c < 10 else f"{c:.0f}").replace(".", ",") + " га"
 
 
 def _zone_list(lax, spec, x0, ytop, fs, width):
@@ -4148,7 +4181,7 @@ def _zone_list(lax, spec, x0, ytop, fs, width):
         txt = f"{z}: " + (", ".join(shown) if shown else "x")
         if len(spec["vars"]) == 2:
             txt = f"{z} ({', '.join(c.replace('_', '-') for c in codes)})" + ("" if shown else " — x")
-        lax.text(x0 + 9, y + rh * 0.4, txt + (f" — {n}" if n else ""), fontsize=fs - 1, va="center")
+        lax.text(x0 + 9, y + rh * 0.4, txt + (f" — {_fmt_count(n, spec)}" if n else ""), fontsize=fs - 1, va="center")
 
 
 def _draw_map(sub, spec_res, cfg: Config, bnd, main_ids, meta: dict, out_dir: Path, warn_once: dict):
@@ -4204,14 +4237,18 @@ def _draw_map(sub, spec_res, cfg: Config, bnd, main_ids, meta: dict, out_dir: Pa
     ax.set_yticks([])
     attr = _basemap(ax, cfg, out_dir, warn_once)
     geoms = h.geometry.values
-    ext = shp.get_exterior_ring(geoms)
-    coords, idx = shp.get_coordinates(ext, return_index=True)
-    splits = np.flatnonzero(np.diff(idx)) + 1
-    polys = np.split(coords, splits)
     colors = spec_res["color"].loc[sub.index].values
     ec = "#7f7f7f" if st.outline == "grey" else "none"
-    pc = PolyCollection(polys, facecolors=colors, edgecolors=ec, linewidths=0.08 if ec != "none" else 0,
-                        alpha=max(0.0, min(1.0, st.alpha)), zorder=3)
+    if meta.get("unit") == "eco":
+        pc = _polygon_collection(geoms, colors, "#5f5f5f" if ec != "none" else "none", 0.15 if ec != "none" else 0,
+                                 max(0.0, min(1.0, st.alpha)))
+    else:
+        ext = shp.get_exterior_ring(geoms)
+        coords, idx = shp.get_coordinates(ext, return_index=True)
+        splits = np.flatnonzero(np.diff(idx)) + 1
+        polys = np.split(coords, splits)
+        pc = PolyCollection(polys, facecolors=colors, edgecolors=ec, linewidths=0.08 if ec != "none" else 0,
+                            alpha=max(0.0, min(1.0, st.alpha)), zorder=3)
     ax.add_collection(pc)
     if bnd is not None:
         for is_main in (False, True):
@@ -4260,12 +4297,40 @@ def _draw_map(sub, spec_res, cfg: Config, bnd, main_ids, meta: dict, out_dir: Pa
     lax.set_ylim(0, leg_h - 3)
     lax.axis("off")
     n_leg = _draw_legend(lax, spec_res["spec"], cfg, lw_, leg_h - 3)
-    note = [x for x in (meta.get("year_note"), f"Гексагонов: {spec_res['spec']['n']}", "Ориентация баллов: 1 — лучше",
+    cnt_note = meta.get("count_note") or f"Гексагонов: {spec_res['spec']['n']}"
+    note = [x for x in (meta.get("year_note"), cnt_note, "Ориентация баллов: 1 — лучше",
                         f"{APP_NAME} {__version__}, {dt.date.today():%d.%m.%Y}") if x]
     fig.text(1 - m / pw, (m + logo_h + leg_h - 4) / ph, "\n".join(note), fontsize=6.5, ha="right", va="top", color="#333333")
     if st.logos:
         _logo_strip(fig, pw, ph, m, logo_h)
     return fig, {"scale_m": L, "scale_err": err, "lat": lat, "n_legend": n_leg, "landscape": land}
+
+
+def _polygon_collection(geoms, colors, ec, lw, alpha):
+    """Полигоны с дырами и мультиполигоны для отрисовки контуров экосистем."""
+    from matplotlib.collections import PatchCollection
+    from matplotlib.patches import PathPatch
+    from matplotlib.path import Path as MPath
+    shp = geo()["shapely"]
+    patches, cols = [], []
+    for gm, colr in zip(geoms, colors):
+        if gm is None or gm.is_empty:
+            continue
+        for poly in shp.get_parts(gm):
+            if shp.get_type_id(poly) != 3:
+                continue
+            verts, codes = [], []
+            for ring in [poly.exterior, *poly.interiors]:
+                xy = np.asarray(ring.coords)
+                if len(xy) < 4:
+                    continue
+                verts.append(xy)
+                codes += [MPath.MOVETO] + [MPath.LINETO] * (len(xy) - 2) + [MPath.CLOSEPOLY]
+            if verts:
+                patches.append(PathPatch(MPath(np.vstack(verts), codes)))
+                cols.append(colr)
+    return PatchCollection(patches, facecolors=cols, edgecolors=ec, linewidths=lw, alpha=alpha, zorder=3,
+                           match_original=False)
 
 
 def _logo_strip(fig, pw, ph, m, logo_h):
@@ -4374,6 +4439,12 @@ def validate_maps(cfg: Config) -> list[tuple[str, str]]:
         out.append(("предупреждение", "карта V × L × D (матрица решений) требует файла CSV; без него она пропускается"))
     if "LxD_zones" in mc.maps and not mp.zones_file:
         out.append(("предупреждение", "карта L × D (матрица решений) требует файла CSV; без него она пропускается"))
+    if "eco" in (mc.units or []):
+        if not eco_paths(cfg.ecosys):
+            out.append(("ошибка" if mc.units == ["eco"] else "предупреждение",
+                        "карты в контурах экосистем требуют слоя D2 (раздел «Экосистемы»)"))
+        if not 0.0 <= float(mc.eco_min_cover) <= 1.0:
+            out.append(("ошибка", f"минимальная доля выдела с баллом {mc.eco_min_cover}: нужно 0–1"))
     if mc.formats and any(f not in ("png", "tif", "pdf") for f in mc.formats):
         out.append(("ошибка", f"форматы карт: {mc.formats}"))
     return out
@@ -4404,6 +4475,7 @@ def build_maps(sel, cfg: Config, out_dir: Path, bounds=None, progress=None, odic
     except VLDError as e:
         log.warning("карты: %s", e)
         mats = {m: {c: (z, ZONE_COLORS[c]) for c, z in t.items()} for m, t in ZONE_TEMPLATES.items()}
+    units = [u for u in (mc.units or ["hex"]) if u in MAP_UNITS] or ["hex"]
     ids = []
     for mid in map_ids_of(cfg):
         if mid in MAP_COMP and (mid not in df or df[mid].isna().all()):
@@ -4413,9 +4485,21 @@ def build_maps(sel, cfg: Config, out_dir: Path, bounds=None, progress=None, odic
             log.warning("карты: нет матрицы решений для %s (задайте CSV, команда zones-template) — карта пропущена", mid)
             continue
         ids.append(mid)
+    frames = {}
+    if "hex" in units:
+        frames["hex"] = df
+    if "eco" in units:
+        need = [c for c in ("V", "L", "D") if c in df] + [m for m in ids if m in MAP_COMP]
+        try:
+            frames["eco"] = eco_units(df, cfg, bounds, need)
+        except VLDError as e:
+            if len(units) == 1:
+                raise
+            log.warning("%s — карты в контурах пропущены", e)
     bnd = _map_boundaries(df, bounds)
     out_img = out_dir / (mc.subdir or ".")
-    res: dict[str, Any] = {"files": [], "maps": [], "layer": None}
+    res: dict[str, Any] = {"files": [], "maps": [], "layer": None,
+                           "eco": frames["eco"].attrs.get("report") if "eco" in frames else None}
     layers = {}
     warn_once: dict = {}
     oopts = list(dict.fromkeys(df.oopt_id))
@@ -4424,59 +4508,75 @@ def build_maps(sel, cfg: Config, out_dir: Path, bounds=None, progress=None, odic
         jobs += [("one", [o]) for o in oopts]
     if mc.overview and (len(oopts) > 1 or not mc.per_oopt):
         jobs.append(("all", oopts))
-    total = max(1, len(ids) * len(jobs)) if mc.formats else 1
+    total = max(1, len(ids) * len(jobs) * len(frames)) if mc.formats else 1
     done = 0
-    for mid in ids:
-        check_stop()
-        cr = classify_map(df, mid, cfg, mats)
-        sp = cr["spec"]
-        if mid == "VLD":
-            log.info("карта VLD: минимальное ΔE76 = %.2f", sp["min_de"])
-        if mc.layer:
-            src = [c for c in ("V", "L", "D") if c in df] if mid in MAP_MAIN else [mid]
-            lay = df[["h3_id", "oopt_id", "oopt", "calc_year"] + src + ["geometry"]].copy()
-            lay["cls"], lay["label"], lay["color"] = cr["cls"].values, cr["label"].values, cr["color"].values
-            if sp["kind"] == "zones":
-                lay["code"] = _codes(df, sp["vars"]).fillna("").where(cr["cls"] != "na", "")
-            layers[f"map_{mid}"] = (lay, sp["items"])
-        if not mc.formats:
-            continue
-        for kind, oo in jobs:
+    for unit, fr in frames.items():
+        eco = unit == "eco"
+        wcol = fr["area_ha"] if eco else None
+        for mid in ids:
             check_stop()
-            sub = df[df.oopt_id.isin(oo)]
-            if sub.empty:
+            cr = classify_map(fr, mid, cfg, mats, wcol)
+            sp = cr["spec"]
+            if mid == "VLD" and not eco:
+                log.info("карта VLD: минимальное ΔE76 = %.2f", sp["min_de"])
+            if mc.layer:
+                src = [c for c in ("V", "L", "D") if c in fr] if mid in MAP_MAIN else [mid]
+                if eco:
+                    cols = ["eco_id", "oopt_id", "oopt", "calc_year", "eco_code", "src_name", "area_ha", "n_hex", "cover"]
+                    cols += [x for c in src for x in (c, f"{c}_share") if x in fr]
+                else:
+                    cols = ["h3_id", "oopt_id", "oopt", "calc_year"] + src
+                lay = fr[cols + ["geometry"]].copy()
+                lay["cls"], lay["label"], lay["color"] = cr["cls"].values, cr["label"].values, cr["color"].values
+                if sp["kind"] == "zones":
+                    lay["code"] = _codes(fr, sp["vars"]).fillna("").where(cr["cls"] != "na", "")
+                layers[f"{'eco' if eco else 'map'}_{mid}"] = (lay, sp["items"])
+            if not mc.formats:
                 continue
-            crs_ = classify_map(sub, mid, cfg, mats) if kind == "one" or len(oo) != len(oopts) else cr
-            spec = crs_["spec"]
-            years = sub.groupby("oopt_id").calc_year.max()
-            ystr = "-".join(str(int(y)) for y in sorted(set(years.dropna())))
-            if kind == "one":
-                oname = odict.name(oo[0]) if odict.name(oo[0]) else str(sub.oopt.iloc[0])
-                oname = str(sub.oopt.iloc[0]) or oname
-                year_note = f"Расчёт: {ystr} г." if st.year_note and ystr else ""
-            else:
-                oname = "все ООПТ" if len(oo) == len(oopts) else ", ".join(odict.name(o) for o in oo)
-                cnt = years.value_counts().sort_index()
-                year_note = ("Расчёт: " + "; ".join(f"{int(y)} г. — {n} ООПТ" for y, n in cnt.items())) if st.year_note else ""
-            meta = {"title": spec["title"], "subtitle": oname, "year_note": year_note}
-            fig, info = _draw_map(sub, crs_, cfg, bnd, oo, meta, out_dir, warn_once)
-            fname = mc.name_template.format(map=mid, oopt=_safe_name(oname if kind == "one" else "обзор"),
-                                            oopt_id=oo[0] if kind == "one" else "ALL", calc_year=ystr)
-            files = _save_fig(fig, out_img / _safe_name(fname), mc.formats, st.dpi)
-            fig.clear()
-            res["files"] += files
-            res["maps"].append({"map": mid, "oopt": oname, "kind": kind, "files": files,
-                                "n_items": len(spec["items"]), "labels": [x[1] for x in spec["items"]], **info})
-            done += 1
-            if progress:
-                progress(done / total, f"карта {mid}: {oname}")
+            for kind, oo in jobs:
+                check_stop()
+                sub = fr[fr.oopt_id.isin(oo)]
+                if sub.empty:
+                    continue
+                crs_ = (classify_map(sub, mid, cfg, mats, sub["area_ha"] if eco else None)
+                        if kind == "one" or len(oo) != len(oopts) else cr)
+                spec = crs_["spec"]
+                years = sub.groupby("oopt_id").calc_year.max()
+                ystr = "-".join(str(int(y)) for y in sorted(set(years.dropna())))
+                if kind == "one":
+                    oname = odict.name(oo[0]) if odict.name(oo[0]) else str(sub.oopt.iloc[0])
+                    oname = str(sub.oopt.iloc[0]) or oname
+                    year_note = f"Расчёт: {ystr} г." if st.year_note and ystr else ""
+                else:
+                    oname = "все ООПТ" if len(oo) == len(oopts) else ", ".join(odict.name(o) for o in oo)
+                    cnt = years.value_counts().sort_index()
+                    year_note = ("Расчёт: " + "; ".join(f"{int(y)} г. — {n} ООПТ" for y, n in cnt.items())) if st.year_note else ""
+                meta = {"title": spec["title"] + (" — контуры экосистем" if eco else ""), "subtitle": oname,
+                        "year_note": year_note, "unit": unit}
+                if eco:
+                    meta["count_note"] = (f"Выделов: {len(sub)}, {_fmt_count(float(sub.area_ha.sum()), {'unit': 1})}; "
+                                          f"перенос: {ECO_METHODS.get(mc.eco_method, '')}")
+                fig, info = _draw_map(sub, crs_, cfg, bnd, oo, meta, out_dir, warn_once)
+                fname = mc.name_template.format(map=mid, oopt=_safe_name(oname if kind == "one" else "обзор"),
+                                                oopt_id=oo[0] if kind == "one" else "ALL", calc_year=ystr)
+                if eco:
+                    fname += "_контуры"
+                files = _save_fig(fig, out_img / _safe_name(fname), mc.formats, st.dpi)
+                fig.clear()
+                res["files"] += files
+                res["maps"].append({"map": mid, "unit": unit, "oopt": oname, "kind": kind, "files": files,
+                                    "n_items": len(spec["items"]), "labels": [x[1] for x in spec["items"]], **info})
+                done += 1
+                if progress:
+                    progress(done / total, f"карта {mid}{' (контуры)' if eco else ''}: {oname}")
     if mc.layer and layers:
         lp = out_dir / f"{cfg.output.file_name}_karty.gpkg"
         write_map_layer(lp, layers, cfg.output.crs, st.outline == "grey")
         res["layer"] = str(lp)
         res["files"].append(str(lp))
         log.info("слой карт: %s (%d слоёв)", lp, len(layers))
-    log.info("карты: %d изображений по %d видам карт", len([x for m in res["maps"] for x in m["files"]]), len(ids))
+    log.info("карты: %d изображений по %d видам карт (%s)", len([x for m in res["maps"] for x in m["files"]]), len(ids),
+             ", ".join(MAP_UNITS[u] for u in frames))
     return res
 
 
@@ -4525,6 +4625,127 @@ def map_source_frame(path: str | Path, odict: OoptDict, worst1: bool = False):
             if c in d:
                 d[c] = (4 - pd.to_numeric(d[c], errors="coerce")).astype("Int64")
     return d.to_crs(GEO_CRS)
+
+
+def _polygonal(gm):
+    """Только полигональная часть геометрии (после make_valid и пересечений)."""
+    shp = geo()["shapely"]
+    if gm is None or gm.is_empty:
+        return None
+    t = shp.get_type_id(gm)
+    if t in (3, 6):
+        return gm
+    parts = [x for x in shp.get_parts(gm) if shp.get_type_id(x) in (3, 6)]
+    return shp.union_all(parts) if parts else None
+
+
+def read_eco_contours(cfg: Config) -> pd.DataFrame:
+    """Выделы D2 для карт в контурах (EPSG:32637): код типа, номер файла, номер выдела в файле."""
+    g = geo()
+    e = cfg.ecosys
+    paths = eco_paths(e)
+    if not paths:
+        raise VLDError("карты в контурах экосистем: не задан слой экосистем D2 (раздел «Экосистемы»)")
+    parts = []
+    for i, p in enumerate(paths):
+        p = Path(p)
+        if not p.exists():
+            raise VLDError(f"карты в контурах экосистем: не найден слой D2 {p}")
+        lay = e.layer if e.layer and e.layer in list_layers(p) else None
+        d = g["gpd"].read_file(p, layer=lay, engine="pyogrio") if lay else g["gpd"].read_file(p, engine="pyogrio")
+        if d.crs is None:
+            d = d.set_crs(GEO_CRS)
+        d = d.to_crs(METRIC_CRS)
+        cf = pick_field(d.columns, ["class_value", "eco_code", "code", "индекс", "код", "type_code", "gridcode"], e.code_field,
+                        required_label=f"код типа экосистемы (D2, {p.name})")
+        geoms = [_polygonal(x) for x in d.geometry.make_valid().values]
+        parts.append(pd.DataFrame({"eco_code": [_parse_code(v) for v in d[cf]], "src": i, "src_name": p.name,
+                                   "src_fid": np.arange(1, len(d) + 1), "geometry": geoms}))
+    d = pd.concat(parts, ignore_index=True)
+    d = d[d.geometry.notna()].reset_index(drop=True)
+    return g["gpd"].GeoDataFrame(d, geometry="geometry", crs=METRIC_CRS)
+
+
+def eco_units(df, cfg: Config, bounds=None, vars_=None, eco=None):
+    """Перенос баллов гексагонов в контуры экосистем D2 (п. 13.7).
+
+    Выделы обрезаются областью ООПТ (объединение её гексагонов, при наличии слоя границ — пересечённое с границей);
+    при нескольких файлах D2 для ООПТ берутся выделы последнего файла, который её покрывает. Вес гексагона —
+    площадь его пересечения с выделом. Балл выдела — преобладающий по площади класс или средневзвешенный балл,
+    округлённый до целого; при покрытии определёнными баллами меньше eco_min_cover — н/д.
+    """
+    g = geo()
+    shp = g["shapely"]
+    mc = cfg.maps
+    method = mc.eco_method if mc.eco_method in ECO_METHODS else "mode"
+    min_cov = float(mc.eco_min_cover)
+    d = read_eco_contours(cfg) if eco is None else eco
+    vars_ = [v for v in (vars_ or ["V", "L", "D"]) if v in df]
+    h = df.to_crs(METRIC_CRS)
+    bm = None
+    if bounds is not None and len(bounds) and "oopt_id" in bounds:
+        bm = bounds[["oopt_id", "geometry"]].to_crs(METRIC_CRS).dissolve("oopt_id").geometry
+    tree_d = shp.STRtree(d.geometry.values)
+    out, report = [], {}
+    for oid, grp in h.groupby("oopt_id", sort=False):
+        check_stop()
+        hg = grp.geometry.values
+        region = shp.union_all(shp.set_precision(hg, 0.01))
+        if bm is not None and oid in bm.index:
+            region = shp.intersection(region, bm.loc[oid])
+        cand = tree_d.query(region, predicate="intersects")
+        if not len(cand):
+            log.warning("карты в контурах: для ООПТ %s нет выделов D2 — пропущена", oid)
+            report[str(oid)] = {"features": 0}
+            continue
+        last = int(d.src.values[cand].max())
+        cand = np.sort(cand[d.src.values[cand] == last])
+        pieces = np.array([_polygonal(x) for x in shp.intersection(d.geometry.values[cand], region)], dtype=object)
+        ok_ = np.array([x is not None and x.area >= 1.0 for x in pieces], dtype=bool)
+        cand, pieces = cand[ok_], pieces[ok_]
+        n = len(pieces)
+        parea = shp.area(pieces)
+        pi, hi = shp.STRtree(hg).query(pieces, predicate="intersects")
+        a = shp.area(shp.intersection(pieces[pi], hg[hi]))
+        keep = a > 0
+        pi, hi, a = pi[keep], hi[keep], a[keep]
+        rec = pd.DataFrame({"eco_code": pd.array(d.eco_code.values[cand], dtype="Int64"), "src_name": d.src_name.values[cand],
+                            "src_fid": d.src_fid.values[cand], "oopt_id": oid, "oopt": grp.oopt.iloc[0],
+                            "calc_year": grp.calc_year.max() if "calc_year" in grp else pd.NA,
+                            "area_ha": np.round(parea / 1e4, 4),
+                            "n_hex": np.bincount(pi, minlength=n),
+                            "cover": np.round(np.bincount(pi, weights=a, minlength=n) / parea, 4)})
+        for v in vars_:
+            x = pd.to_numeric(grp[v], errors="coerce").to_numpy(dtype=float)[hi]
+            m = ~np.isnan(x)
+            p_, x_, a_ = pi[m], x[m].astype(int), a[m]
+            va = np.bincount(p_, weights=a_, minlength=n)
+            t = pd.DataFrame({"p": p_, "v": x_, "a": a_}).groupby(["p", "v"], as_index=False).a.sum()
+            if method == "mode":
+                best = t.sort_values(["p", "a", "v"], ascending=[True, False, True]).drop_duplicates("p")
+                val = pd.Series(best.v.values, index=best.p.values).reindex(range(n))
+            else:
+                wm = np.bincount(p_, weights=a_ * x_, minlength=n) / np.where(va > 0, va, np.nan)
+                val = pd.Series(np.floor(wm + 0.5), index=range(n))
+            share_a = t.merge(pd.DataFrame({"p": val.index, "v": val.values}).dropna(), on=["p", "v"])
+            sh = pd.Series(share_a.a.values, index=share_a.p.values).reindex(range(n)).to_numpy() / np.where(va > 0, va, np.nan)
+            bad = (va / parea) < min_cov
+            rec[v] = pd.array(np.where(bad | val.isna().to_numpy(), np.nan, val.to_numpy()), dtype="Float64").astype("Int64")
+            rec[f"{v}_share"] = np.round(np.where(bad, np.nan, sh), 4)
+        rec["geometry"] = pieces
+        out.append(rec)
+        report[str(oid)] = {"features": int(n), "file": str(d.src_name.values[cand[0]]) if n else "",
+                            "area_ha": round(float(parea.sum()) / 1e4, 1),
+                            "hex_area_ha": round(float(shp.area(region)) / 1e4, 1)}
+    if not out:
+        raise VLDError("карты в контурах экосистем: ни одна ООПТ не покрыта выделами D2")
+    r = pd.concat(out, ignore_index=True)
+    r.insert(0, "eco_id", np.arange(1, len(r) + 1))
+    r = g["gpd"].GeoDataFrame(r, geometry="geometry", crs=METRIC_CRS).to_crs(GEO_CRS)
+    log.info("карты в контурах: %s; перенос — %s", "; ".join(f"{k} — {x['features']} выделов" for k, x in report.items()),
+             ECO_METHODS[method])
+    r.attrs["report"] = report
+    return r
 
 
 # ---------------------------------------------------------------------------
@@ -4861,7 +5082,7 @@ def selftest2(config: str, work: str, v4: str | None = None) -> dict:
 # ---------------------------------------------------------------------------
 # Автотесты приёмки этапа 3 (разд. 15 ТЗ: П8 — карты)
 # ---------------------------------------------------------------------------
-def selftest3(layer: str, work: str, bounds: str | None = None) -> dict:
+def selftest3(layer: str, work: str, bounds: str | None = None, eco: str | None = None) -> dict:
     """П8: палитры 3/5/9/27 цветов и подписи легенд, линейка, кириллица в именах, пакетное построение,
     слой карт со стилем QGIS, шаблон матриц решений и карта V × L × D по CSV."""
     import sqlite3
@@ -5002,6 +5223,87 @@ def selftest3(layer: str, work: str, bounds: str | None = None) -> dict:
     a = classify_map(src, "VLD", c, mats)["cls"].astype(str).values
     b = classify_map(back, "VLD", c, mats)["cls"].astype(str).values
     ok("П8.8 ориентация «1 — хуже»", len(a) == len(b) and (a == b).all(), f"совпадение классов VLD: {(a == b).mean() * 100:.1f} %")
+
+    # П8.9 — перенос баллов в контуры экосистем: синтетические выделы с известным ответом
+    shp, h3m = g["shapely"], g["h3"]
+    o1 = oopts[0]
+    hs = src[src.oopt_id == o1].set_index("h3_id")
+    hv = pd.to_numeric(hs["V"], errors="coerce")
+    disk, hid2 = None, None
+    for hid in hs.index:
+        dk = list(h3m.grid_disk(hid, 1))
+        if len(dk) == 7 and all(x in hv.index for x in dk) and hv.loc[dk].notna().all():
+            vc = hv.loc[dk].value_counts()
+            if len(vc) > 1 and vc.iloc[0] > vc.iloc[1]:
+                if disk is None:
+                    disk = dk
+                if int(vc.index[0]) != int(np.floor(hv.loc[dk].mean() + 0.5)):
+                    disk = dk  # предпочтителен случай, где преобладающий и средневзвешенный баллы различаются
+                    break
+    if disk is not None:
+        hid2 = next(x for x in hv.dropna().index if x not in disk and all(y not in disk for y in h3m.grid_disk(x, 1)))
+        hm = hs.to_crs(METRIC_CRS)
+        pa = shp.union_all(shp.set_precision(hm.loc[disk].geometry.values, 0.01))
+        pb = hm.loc[hid2].geometry.buffer(-5.0)
+        syn = g["gpd"].GeoDataFrame({"class_value": [141, 211]}, geometry=[pa, pb], crs=METRIC_CRS)
+        sp_ = W / "синтетические_выделы.gpkg"
+        syn.to_file(sp_, engine="pyogrio")
+        ce = base_cfg()
+        ce.ecosys.path = [str(sp_)]
+        sub1 = src[src.oopt_id == o1]
+        em = eco_units(sub1, ce, None, ["V", "L", "D"])
+        ce.maps.eco_method = "mean"
+        ea = eco_units(sub1, ce, None, ["V", "L", "D"])
+        vals = hv.loc[disk]
+        exp_mode, exp_mean = int(vals.value_counts().index[0]), int(np.floor(vals.mean() + 0.5))
+        exp_share = vals.value_counts().iloc[0] / 7
+        ra, rb = em.iloc[0], em.iloc[1]
+        cond = (int(ra.V) == exp_mode and abs(float(ra.V_share) - exp_share) < 0.02 and int(ea.iloc[0].V) == exp_mean
+                and int(rb.V) == int(hv.loc[hid2]) and int(rb.n_hex) == 1 and float(rb.V_share) == 1.0
+                and abs(float(ra.cover) - 1) < 1e-3)
+        # пакетное построение в контурах: изображения, слой eco_*, стили
+        ce.maps.eco_method = "mode"
+        ce.maps.units = ["hex", "eco"]
+        ce.maps.maps, ce.maps.components, ce.maps.oopt, ce.maps.overview = ["V", "VxD", "VLD"], [], [o1], False
+        ce.maps.formats = ["png"]
+        r = build_maps(src, ce, W / "maps_контуры", bnd, None, od)
+        lp = W / "maps_контуры" / f"{ce.output.file_name}_karty.gpkg"
+        lays = g["pyogrio"].list_layers(lp)[:, 0].tolist()
+        n_eco = sum(1 for m in r["maps"] if m["unit"] == "eco" and all(Path(f).exists() for f in m["files"]))
+        con = sqlite3.connect(lp)
+        st_names = {x[0] for x in con.execute("select f_table_name from layer_styles").fetchall()}
+        con.close()
+        lay_ok = {"eco_V", "eco_VxD", "eco_VLD"} <= set(lays) and {"eco_V", "eco_VxD", "eco_VLD"} <= st_names
+        ok("П8.9 перенос баллов в контуры экосистем", cond and n_eco == 3 and lay_ok,
+           f"выдел из 7 гексагонов: V = {ra.V} (ожид. {exp_mode}), доля {float(ra.V_share):.3f} (ожид. {exp_share:.3f}), "
+           f"средневзвешенный {ea.iloc[0].V} (ожид. {exp_mean}); выдел внутри гексагона: V = {rb.V}, гексагонов {rb.n_hex}; "
+           f"карт в контурах {n_eco}; слои eco_* {'есть' if lay_ok else 'нет'}")
+    else:
+        ok("П8.9 перенос баллов в контуры экосистем", False, "не найден гексагон с полным окружением для синтетического теста")
+
+    # П8.10 — перенос на реальном слое D2: сохранение площади и независимая проверка по пересечению слоёв
+    if eco:
+        cr_ = base_cfg()
+        cr_.ecosys.path = [x for x in re.split(r"[;\n]", eco) if x.strip()]
+        er = eco_units(src, cr_, bnd, ["V", "L", "D"])
+        rep_ = er.attrs["report"]
+        cov_min = float(er.cover.min())
+        rng = np.random.default_rng(1)
+        smp = er.iloc[rng.choice(len(er), size=min(40, len(er)), replace=False)].to_crs(METRIC_CRS)
+        hx = src.to_crs(METRIC_CRS)
+        mism = 0
+        for _, rr in smp.iterrows():
+            hh = hx[(hx.oopt_id == rr.oopt_id) & hx.intersects(rr.geometry)]
+            aa = hh.geometry.intersection(rr.geometry).area
+            t = pd.DataFrame({"v": pd.to_numeric(hh.V, errors="coerce"), "a": aa}).dropna().groupby("v").a.sum()
+            if len(t) == 0:
+                mism += int(pd.notna(rr.V))
+                continue
+            best = t[t == t.max()].index.min()
+            mism += int(pd.isna(rr.V) or int(rr.V) != int(best))
+        ok("П8.10 перенос на слое D2", cov_min > 0.999 and mism == 0,
+           "; ".join(f"{k}: {x.get('features', 0)} выделов, {x.get('area_ha', 0)} га из {x.get('hex_area_ha', 0)} га"
+                     for k, x in rep_.items()) + f"; мин. покрытие гексагонами {cov_min:.4f}; расхождений с проверкой {mism} из {len(smp)}")
     return res
 
 
@@ -5102,6 +5404,7 @@ def build_parser() -> argparse.ArgumentParser:
     s3.add_argument("--layer", required=True, help="выгрузка этапа 2 (расширенный слой GPKG)")
     s3.add_argument("--work", required=True)
     s3.add_argument("--bounds", help="слой границ ООПТ")
+    s3.add_argument("--eco", help="слои экосистем D2 через «;» для проверки переноса в контуры (П8.10)")
     sp.add_parser("gui", help="графический интерфейс")
     return ap
 
@@ -5202,7 +5505,7 @@ def main(argv=None) -> int:
             zones_template_table().to_csv(args.out, index=False, encoding="utf-8-sig")
             print(args.out)
         elif args.cmd == "selftest3":
-            r = selftest3(args.layer, args.work, args.bounds)
+            r = selftest3(args.layer, args.work, args.bounds, args.eco)
             bad = [k for k, x in r.items() if not x["ok"]]
             print("\n".join(f"{'OK ' if x['ok'] else 'ОШИБКА'} {k}: {x['detail']}" for k, x in r.items()))
             return 1 if bad else 0
