@@ -1738,11 +1738,11 @@ def output_frame(res, out: OutputCfg):
 
 
 def attr_digest(df: pd.DataFrame) -> str:
-    """SHA-256 таблицы атрибутов (без геометрии) для проверки повторяемости (П10)."""
+    """SHA-256 таблицы атрибутов (без геометрии) для проверки повторяемости (П10); перевод строки LF на всех ОС, чтобы суммы совпадали между Windows, macOS и Linux."""
     t = pd.DataFrame(df.drop(columns="geometry", errors="ignore"))
     key = [c for c in ("oopt_id", "calc_year", "h3_id", "h3_polyfil") if c in t]
     t = t.sort_values(key).reset_index(drop=True) if key else t
-    return hashlib.sha256(t.to_csv(index=False, float_format="%.10g").encode("utf-8")).hexdigest()
+    return hashlib.sha256(t.to_csv(index=False, float_format="%.10g", lineterminator="\n").encode("utf-8")).hexdigest()
 
 
 def write_vector(df, out: OutputCfg, out_dir: Path) -> Path | None:
@@ -7549,7 +7549,7 @@ def selftest4(work: str, gui: bool = True) -> dict:
     d_cli = attr_digest(cli) if cli is not None else ""
     d_back = attr_digest(back) if back is not None else ""
     ok("П12.1 CLI: повторный расчёт процессом run --config", cp.returncode == 0 and d_cli == d_back,
-       f"код {cp.returncode}; SHA-256 таблицы {d_cli[:16]}… = {d_back[:16]}…" + (f"; {cp.stderr[-300:]}" if cp.returncode else ""))
+       f"код {cp.returncode}; SHA-256 таблицы {d_cli} = {d_back[:16]}…" + (f"; {cp.stderr[-300:]}" if cp.returncode else ""))
     rt = []
     for k_ in ("econ", "biotop", "zon_extra", "frag_signs", "rare_recode"):
         c2 = copy.deepcopy(cfg)
