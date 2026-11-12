@@ -43,7 +43,7 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
 APP_NAME = "VLD-H3"
 APP_TITLE = "VLD-H3: Ценность – Нагрузка – Нарушенность"
 HERE = Path(__file__).resolve().parent
@@ -126,13 +126,13 @@ BUILTIN_OOPT = [
 ]
 
 # Частные показатели (прил. В ТЗ)
-V_COMPONENTS = ["v_ins", "v_mam", "v_anam", "v_bird", "v_aqua", "v_rare", "v_cap", "v_zon", "v_qbs"]
+V_COMPONENTS = ["v_ins", "v_mam", "v_anam", "v_fish", "v_bird", "v_aqua", "v_rare", "v_cap", "v_zon", "v_qbs"]
 D_COMPONENTS = ["d_inv", "d_frag"]
 INT_FIELDS = ["V", "L", "D", "V_arch", "D_arch", "n_V", "n_D", "calc_year", "load_cat", "inv_n",
               "rare_raw", "cap_raw", "zon_raw", "v_phyt", "v_zpl", "v_zbn"] + V_COMPONENTS + D_COMPONENTS
 INT_FIELDS += ["n_eco", "photo_n", "infra_n", "photo_cat", "infra_cat", "l_sum", "l_raw", "l_cat5"]
 RAW_FIELDS = ["eco_code", "eco_share", "n_eco", "rare_raw", "cap_raw", "cap_ha", "zon_raw", "inv_n", "load_cat",
-              "mam_n", "anam_n", "bird_n", "ins_raw", "ins_bio", "qbs_raw", "qbs_dist", "frag_raw",
+              "mam_n", "anam_n", "fish_n", "bird_n", "ins_raw", "ins_bio", "qbs_raw", "qbs_dist", "frag_raw",
               "photo_n", "infra_n", "photo_cat", "infra_cat", "l_sum", "l_raw", "l_cat5"]
 
 # Столбцы файла «НОВЫЙ ПЕРЕСЧЕТ_V4.xlsx» (прил. А ТЗ): индекс столбца -> поле
@@ -539,7 +539,7 @@ class FgCfg:
     species_field: str = P("", "Поле вида", "Пусто — автоподбор.", "text")
     fg_field: str = P("", "Поле ФГ", "Пусто — автоподбор; при пустом значении ФГ берётся по виду.", "text")
     groups: list = P([], "Учитываемые ФГ", "Коды ФГ; пусто — все.", "list")
-    method: str = P("auto", "Способ", "п. 8.3.2, 8.3.4.", "choice", choices={"auto": "по рекомендации для каждой ООПТ", "A": "А — прямой подсчёт в окрестности", "B": "Б — IDW числа ФГ"})
+    method: str = P("A", "Способ", "Выбирает пользователь (п. 8.3.2). Рекомендация по ООПТ (Б — при ≥ 30 единицах учёта, п. 8.3.4) выводится кнопкой «Проверить данные» и в журнале расчёта.", "choice", choices={"A": "А — прямой подсчёт в окрестности", "B": "Б — IDW числа ФГ"})
     k: int = P(10, "Способ А: колец H3", "k = 10 — 331 ячейка (≈ 67 га при разрешении 11).", "int", min=0, max=50)
     unit_res: int = P(8, "Способ Б: разрешение единиц учёта", "Ячейки H3 более грубого разрешения.", "int", min=5, max=10)
     unit_field: str = P("", "Способ Б: поле единицы учёта", "Пусто — ячейки H3.", "text")
@@ -547,13 +547,55 @@ class FgCfg:
     power: float = P(2.0, "IDW: степень", "", "float")
     radius: float = P(3000.0, "IDW: радиус, м", "", "float")
     min_units: int = P(3, "IDW: минимум единиц", "", "int", min=1, max=50)
-    auto_units: int = P(30, "Рекомендация Б: минимум единиц в ООПТ", "", "int", min=1, max=1000)
+    auto_units: int = P(30, "Рекомендация Б: минимум единиц в ООПТ", "Только для рекомендации; способ не переключается.", "int", min=1, max=1000)
     rule: str = P("thresholds", "Перевод числа ФГ в балл", "", "choice", choices={"thresholds": "пороги", "tertiles": "терцили в домене расчёта"})
     a_t1: float = P(2.0, "Способ А: порог t1", "n ≤ t1 → 3; t1 < n ≤ t2 → 2; n > t2 → 1.", "float")
     a_t2: float = P(4.0, "Способ А: порог t2", "", "float")
     b_t1: float = P(2.5, "Способ Б: порог t1", "", "float")
     b_t2: float = P(4.5, "Способ Б: порог t2", "", "float")
     b_closed: str = P("left", "Способ Б: границы", "", "choice", choices={"left": "x < t1 → 3; t1 ≤ x < t2 → 2; x ≥ t2 → 1", "right": "x ≤ t1 → 3; t1 < x ≤ t2 → 2; x > t2 → 1"})
+
+
+OVERPASS_URLS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter",
+                 "https://maps.mail.ru/osm/tools/overpass/api/interpreter"]
+OSM_LINE_WIDTH = {"river": 10.0, "canal": 6.0, "stream": 3.0, "ditch": 1.5, "drain": 1.5}
+
+
+@dataclass
+class FishCfg:
+    """Рыбы (только в пределах водоёмов)"""
+    files: list = P([], "Находки", "Те же файлы, что для амфибий и рептилий: учитываются записи с таксономической группой «рыбы» или виды справочника рыб.", "files", filetypes=PT_TYPES)
+    ref_files: list = P([], "Справочники «вид → ФГ» (D11)", "Пусто — встроенный: 1 хищники, 2 всеядные, 3 планктофаги.", "files", filetypes=TAB_TYPES)
+    species_field: str = P("", "Поле вида", "Пусто — автоподбор.", "text")
+    fg_field: str = P("", "Поле ФГ", "Пусто — автоподбор; при пустом значении ФГ берётся по виду.", "text")
+    taxon_field: str = P("", "Поле таксономической группы", "Пусто — автоподбор («группа таксономическая», «сист. группа»).", "text")
+    groups: list = P([], "Учитываемые ФГ", "Коды ФГ; пусто — все.", "list")
+    water_source: str = P("osm", "Водоёмы", "п. 8.4а.2.", "choice", choices={"osm": "OpenStreetMap (Overpass API, кэш в папке результатов)", "file": "слой пользователя"})
+    water_files: list = P([], "Слой водоёмов", "Полигоны (линии рек и ручьёв — с буфером ширины «stream»).", "files", filetypes=VEC_TYPES)
+    water_name_field: str = P("", "Поле названия водоёма в слое", "Пусто — name / название.", "text")
+    osm_urls: list = P(list(OVERPASS_URLS), "Серверы Overpass API", "Опрашиваются по порядку до первого ответа.", "list")
+    osm_refresh: bool = P(False, "Обновить кэш OSM", "Иначе используется ранее загруженный слой того же охвата.", "bool")
+    line_width: dict = P(dict(OSM_LINE_WIDTH), "Ширина линейных водотоков, м", "Если в OSM нет тега width; линии водотоков внутри полигонов водоёмов не учитываются.", "dict")
+    tolerance: float = P(30.0, "Допуск совпадения точки с водоёмом, м", "Точки дальше допуска исключаются и перечисляются в таблице сверки. В пределах допуска предпочитается водоём с тем же названием.", "float")
+    name_tolerance: float = P(0.0, "Допуск при совпадении названия, м", "0 — не применяется; иначе точка дальше основного допуска принимается, если в этом радиусе есть водоём с тем же названием.", "float")
+    point_water_field: str = P("", "Поле водного объекта в находках", "Сверка названий; пусто — автоподбор («водный объект»).", "text")
+    hex_min_share: float = P(0.02, "Минимальная доля воды в гексагоне", "Гексагоны с меньшей долей площади водоёмов не оцениваются.", "float")
+    method: str = P("A", "Способ", "Выбирает пользователь; рекомендация по 30 единицам учёта — в «Проверить данные» и журнале.", "choice", choices={"A": "А — число ФГ в водоёме", "B": "Б — IDW числа ФГ единиц учёта (только гексагоны водоёмов)"})
+    unit_res: int = P(8, "Способ Б: разрешение единиц учёта", "", "int", min=5, max=10)
+    unit_field: str = P("", "Способ Б: поле единицы учёта", "Пусто — ячейки H3.", "text")
+    idw_k: int = P(12, "IDW: ближайших единиц", "", "int", min=1, max=100)
+    power: float = P(2.0, "IDW: степень", "", "float")
+    radius: float = P(3000.0, "IDW: радиус, м", "", "float")
+    min_units: int = P(3, "IDW: минимум единиц", "", "int", min=1, max=50)
+    auto_units: int = P(30, "Рекомендация Б: минимум единиц в ООПТ", "Только для рекомендации.", "int", min=1, max=1000)
+    absent: str = P("na", "Водоём без находок", "В ООПТ, где рыбы учитывались.", "choice", choices={"na": "н/д", "3": "балл 3"})
+    rule: str = P("thresholds", "Перевод числа ФГ в балл", "", "choice", choices={"thresholds": "пороги", "tertiles": "терцили в домене расчёта"})
+    a_t1: float = P(1.0, "Способ А: порог t1", "1 ФГ → 3; 2 ФГ → 2; 3 ФГ → 1.", "float")
+    a_t2: float = P(2.0, "Способ А: порог t2", "", "float")
+    b_t1: float = P(1.0, "Способ Б: порог t1", "", "float")
+    b_t2: float = P(2.0, "Способ Б: порог t2", "", "float")
+    b_closed: str = P("right", "Способ Б: границы", "", "choice", choices={"left": "x < t1 → 3; t1 ≤ x < t2 → 2; x ≥ t2 → 1", "right": "x ≤ t1 → 3; t1 < x ≤ t2 → 2; x > t2 → 1"})
+    layers_out: bool = P(False, "Записать слой водоёмов и находок рыб", "GPKG для просмотра в ГИС; таблица сверки записывается всегда.", "bool")
 
 
 @dataclass
@@ -704,7 +746,8 @@ MAP_MAIN = {"V": "V — ценность", "L": "L — нагрузка", "D": "
             "LxD": "L × D", "VLD": "V × L × D (куб CIELAB)", "VxD_zones": "V × D — матрица решений",
             "VxL_zones": "V × L — матрица решений", "LxD_zones": "L × D — матрица решений",
             "VLD_zones": "V × L × D — матрица решений"}
-MAP_COMP = {"v_ins": "насекомые", "v_mam": "млекопитающие (число ФГ)", "v_anam": "низшие позвоночные (число ФГ)",
+MAP_COMP = {"v_ins": "насекомые", "v_mam": "млекопитающие (число ФГ)", "v_anam": "амфибии и рептилии (число ФГ)",
+            "v_fish": "рыбы (число ФГ)",
             "v_bird": "птицы", "v_aqua": "гидробионты", "v_phyt": "фитопланктон", "v_zpl": "зоопланктон",
             "v_zbn": "зообентос", "v_rare": "редкие виды растений", "v_cap": "ёмкость выдела",
             "v_zon": "зональность экосистем", "v_qbs": "QBS почв", "d_inv": "инвазивные растения",
@@ -817,6 +860,7 @@ class Config:
     ins: InsCfg = field(default_factory=InsCfg)
     mam: FgCfg = field(default_factory=FgCfg)
     anam: FgCfg = field(default_factory=_anam)
+    fish: FishCfg = field(default_factory=FishCfg)
     bird: UnitCfg = field(default_factory=UnitCfg)
     aqua: AquaCfg = field(default_factory=AquaCfg)
     rare: RareCfg = field(default_factory=RareCfg)
@@ -844,6 +888,12 @@ class Config:
             for sf in fields(sub):
                 if sf.name in src:
                     setattr(sub, sf.name, _coerce(src[sf.name], getattr(sub, sf.name)))
+        for sec in ("mam", "anam", "fish"):
+            sub = getattr(cfg, sec)
+            if sub.method not in ("A", "B"):
+                log.warning("%s: способ «%s» больше не поддерживается (способ выбирает пользователь); принят способ А",
+                            SECTION_TITLES.get(sec, (sec,))[0], sub.method)
+                sub.method = "A"
         return cfg
 
     @classmethod
@@ -865,7 +915,7 @@ class Config:
 SECTION_TITLES = {
     "project": ("Проект и сетка", 1), "inputs": ("Готовые баллы и правила входных данных", 1),
     "ecosys": ("Экосистемы (D2) и перенос на сетку", 1),
-    "ins": ("Насекомые", 2), "mam": ("Млекопитающие", 2), "anam": ("Низшие позвоночные", 2),
+    "ins": ("Насекомые", 2), "mam": ("Млекопитающие", 2), "anam": ("Амфибии и рептилии", 2), "fish": ("Рыбы", 2),
     "bird": ("Птицы", 2), "aqua": ("Гидробионты", 2), "rare": ("Редкие виды растений", 2),
     "cap": ("Ёмкость выдела", 2), "zon": ("Зональность", 2), "qbs": ("QBS почв", 2),
     "recload": ("Нагрузка: фотографии и объекты", 3),
@@ -1666,6 +1716,9 @@ SPECIES_RU_NAMES = ["вид (русск название)", "вид (русск.
 FG_NAMES = ["фг", "фг (функциональная группа)", "fun_group_num", "fg", "fgnum", "функциональная группа, номер",
             "fun_group", "функциональная группа"]
 COUNT_NAMES = ["численность", "число особей", "count", "individualcount", "n"]
+TAXON_NAMES = ["группа таксономическая", "таксономическая группа", "сист. группа", "систематическая группа", "таксон",
+               "taxon", "класс", "class"]
+WATER_NAME_NAMES = ["водный объект", "водоём", "водоем", "водный объект (название)", "water_body", "waterbody"]
 CAT_NAMES = ["rare", "категория", "категория кк", "категория (ккм, 2022)", "category", "кк", "cat"]
 GENUS_SYNONYMS = {"sylvaemus": "apodemus", "clethrionomys": "myodes", "percottus": "perccottus",
                   "neovison": "neogale"}
@@ -1673,11 +1726,13 @@ FG_LABELS = {
     "mam": [("зелен", 1), ("семен", 2), ("веточ", 3), ("беспозвоночные в воз", 5), ("беспозвоночные (наз", 4),
             ("беспозвоночные наз", 4), ("беспозвоноч", 4), ("позвоноч", 6)],
     "anam": [("хищ", 1), ("всеяд", 2), ("планкт", 3)],
+    "fish": [("хищ", 1), ("всеяд", 2), ("планкт", 3)],
 }
 FG_NAMES_TXT = {
     "mam": {1: "зеленояд", 2: "семенояд", 3: "веточные корма", 4: "беспозвоночные (наземные и подземные)",
             5: "беспозвоночные в воздухе", 6: "позвоночные"},
     "anam": {1: "хищники", 2: "всеядные", 3: "планктофаги"},
+    "fish": {1: "хищники", 2: "всеядные", 3: "планктофаги"},
 }
 # Встроенные справочники «вид → ФГ» (по таблицам 2025 г.: Theria_list_fun_groups.csv,
 # Функциональные группы ЛО, «Низшие позвоночные.xlsx»); заменяются файлами D11
@@ -1698,17 +1753,21 @@ FG_REFERENCE = {
         "Vulpes vulpes": (6, "лисица"),
     },
     "anam": {
-        "Abramis brama": (2, "лещ"), "Bufo bufo": (1, "жаба серая"), "Bufotes viridis": (1, "жаба зелёная"),
-        "Carassius auratus": (2, "карась серебряный"), "Carassius carassius": (2, "карась золотой"),
-        "Cyprinus carpio": (2, "карп обыкновенный"), "Emys orbicularis": (2, "черепаха болотная"), "Esox lucius": (1, "щука"),
-        "Hypophthalmichthys nobilis": (3, "толстолобик пёстрый"), "Lacerta agilis": (1, "ящерица прыткая"),
-        "Leucaspius delineatus": (3, "верховка"), "Lissotriton vulgaris": (1, "тритон обыкновенный"),
-        "Natrix natrix": (1, "уж обыкновенный"), "Neogobius melanostomus": (1, "бычок-кругляк"),
-        "Pelophylax ridibundus": (1, "лягушка озёрная"), "Perca fluviatilis": (1, "окунь речной"),
-        "Perccottus glenii": (1, "ротан"), "Rana arvalis": (1, "лягушка остромордая"), "Rana temporaria": (1, "лягушка травяная"),
-        "Rhodeus amarus": (2, "горчак"), "Rutilus rutilus": (2, "плотва обыкновенная"), "Sander lucioperca": (1, "судак"),
-        "Tinca tinca": (2, "линь"), "Trachemys scripta": (2, "черепаха красноухая"), "Triturus cristatus": (1, "тритон гребенчатый"),
+        "Bufo bufo": (1, "жаба серая"), "Bufotes viridis": (1, "жаба зелёная"), "Emys orbicularis": (2, "черепаха болотная"),
+        "Lacerta agilis": (1, "ящерица прыткая"), "Lissotriton vulgaris": (1, "тритон обыкновенный"),
+        "Natrix natrix": (1, "уж обыкновенный"), "Pelophylax ridibundus": (1, "лягушка озёрная"),
+        "Rana arvalis": (1, "лягушка остромордая"), "Rana temporaria": (1, "лягушка травяная"),
+        "Trachemys scripta": (2, "черепаха красноухая"), "Triturus cristatus": (1, "тритон гребенчатый"),
         "Zootoca vivipara": (1, "ящерица живородящая"),
+    },
+    # рыбы: 1 — хищники, 2 — всеядные, 3 — планктофаги (уклейка — по решению от 12.11.2026)
+    "fish": {
+        "Abramis brama": (2, "лещ"), "Alburnus alburnus": (3, "уклейка"), "Carassius auratus": (2, "карась серебряный"),
+        "Carassius carassius": (2, "карась золотой"), "Cyprinus carpio": (2, "карп обыкновенный"), "Esox lucius": (1, "щука"),
+        "Hypophthalmichthys nobilis": (3, "толстолобик пёстрый"), "Leucaspius delineatus": (3, "верховка"),
+        "Neogobius melanostomus": (1, "бычок-кругляк"), "Perca fluviatilis": (1, "окунь речной"),
+        "Perccottus glenii": (1, "ротан"), "Rhodeus amarus": (2, "горчак"), "Rutilus rutilus": (2, "плотва обыкновенная"),
+        "Sander lucioperca": (1, "судак"), "Tinca tinca": (2, "линь"),
     },
 }
 # Встроенная таблица зональности (прил. Г)
@@ -1914,7 +1973,7 @@ def read_points(paths, label: str, ctx: Ctx, keep_geom: bool = False):
         near = g["shapely"].contains_xy(ctx.far_geom, x, y)
         n_far = int((~near).sum())
         if n_far:
-            log.warning("%s: точек далее %.0f км от ООПТ: %d; исключены", label, ctx.cfg.inputs.far_km, n_far)
+            log.warning("%s: точек дальше %.0f км от ООПТ: %d; исключены", label, ctx.cfg.inputs.far_km, n_far)
         df = df[near].reset_index(drop=True)
     df["oopt_id"] = ctx.assign_oopt(df.x.values, df.y.values) if len(df) else []
     df["cell"] = ctx.cells_of(df.lat.values, df.lon.values) if len(df) else []
@@ -2134,11 +2193,112 @@ def clark_evans(x, y, area):
     return float(nn.mean() / (0.5 / np.sqrt(n / area))), float(np.median(nn))
 
 
+def coalesce_fields(df: pd.DataFrame, names, user: str = "") -> pd.Series | None:
+    """Значение по строкам из первого непустого подходящего поля (файлы с разными именами полей)."""
+    if user:
+        return df[pick_field(df.columns, names, user)]
+    m = {_norm_col(c): c for c in df.columns}
+    cols = [m[n] for n in names if n in m]
+    if not cols:
+        return None
+    out = pd.Series([None] * len(df), index=df.index, dtype=object)
+    for c in cols:
+        v = df[c]
+        empty = out.isna() | out.astype(str).str.strip().str.lower().isin(["", "nan", "none"])
+        out[empty] = v[empty]
+    return out
+
+
+def is_fish_taxon(v) -> bool:
+    t = str(v or "").strip().lower()
+    return any(x in t for x in ("рыб", "pisces", "actinopterygii", "osteichthyes"))
+
+
+def split_fish(df: pd.DataFrame, want_fish: bool, ctx: Ctx, label: str, taxon_field: str = ""):
+    """Разделение находок низших позвоночных: рыбы (v_fish) и амфибии с рептилиями (v_anam).
+
+    Признак — поле таксономической группы; при его отсутствии или пустом значении — вид из справочника рыб."""
+    tv = coalesce_fields(df, TAXON_NAMES, taxon_field)
+    sv = coalesce_fields(df, SPECIES_NAMES, getattr(ctx.cfg.fish, "species_field", ""))
+    rv = coalesce_fields(df, SPECIES_RU_NAMES)
+    ref_lat, ref_ru = load_fg_reference("fish", ctx.cfg.fish.ref_files, ctx)
+    by_sp = np.zeros(len(df), bool)
+    if sv is not None:
+        by_sp |= np.array([norm_species(x) in ref_lat for x in sv], bool)
+    if rv is not None:
+        by_sp |= np.array([norm_species(x) in ref_ru for x in rv], bool)
+    if tv is not None:
+        known = tv.notna() & ~tv.astype(str).str.strip().str.lower().isin(["", "nan", "none"])
+        isf = np.where(known, tv.map(is_fish_taxon).to_numpy(bool), by_sp)
+    else:
+        isf = by_sp
+    tf = pick_field(df.columns, TAXON_NAMES, taxon_field)
+    keep = isf if want_fish else ~isf
+    n_out = int((~keep).sum())
+    if n_out:
+        log.info("%s: записей другого блока (%s) исключено: %d", label, "не рыбы" if want_fish else "рыбы", n_out)
+    return df[keep].reset_index(drop=True), {"taxon_field": tf, "excluded_other_block": n_out}
+
+
+def ab_units(pts: pd.DataFrame, cfg, ctx: Ctx) -> pd.DataFrame:
+    """Единицы учёта способа Б: ячейки H3 разрешения unit_res или значения поля unit_field."""
+    if getattr(cfg, "unit_field", "") and cfg.unit_field in pts:
+        ukey = pts[cfg.unit_field].astype(str)
+    else:
+        ukey = pd.Series([ctx.h3.cell_to_parent(c, int(cfg.unit_res)) for c in pts.cell], dtype=object)
+    units = pd.DataFrame({"u": ukey.values, "fg": pts._fg.values, "x": pts.x.values, "y": pts.y.values,
+                          "oopt_id": pts.oopt_id.values})
+    if units.empty:
+        return pd.DataFrame(columns=["x", "y", "n_rec", "fg", "oopt_id"])
+    ug = units.groupby("u").agg(x=("x", "mean"), y=("y", "mean"), n_rec=("x", "size"),
+                                fg=("fg", lambda s: len(set().union(*s))),
+                                oopt_id=("oopt_id", lambda s: s.value_counts().index[0]))
+    if not getattr(cfg, "unit_field", ""):
+        ll = np.array([ctx.h3.cell_to_latlng(u) for u in ug.index])
+        ug["x"], ug["y"] = ctx.to_utm.transform(ll[:, 1], ll[:, 0])
+    return ug
+
+
+def ab_recommend(ug, pts, ctx: Ctx, cfg, oids, share_a=None) -> dict:
+    """Рекомендация способа по ООПТ (п. 8.3.4): Б — при числе единиц учёта не меньше auto_units
+    и медианном расстоянии до ближайшей единицы не больше половины радиуса IDW; иначе А."""
+    from scipy.stats import spearmanr
+    rec = {}
+    areas = ctx.bm.set_index("oopt_id").geometry.area
+    for oid in sorted(oids):
+        u = ug[ug.oopt_id == oid]
+        ce, med = clark_evans(u.x.values, u.y.values, float(areas.get(oid, 0)))
+        rho = (float(spearmanr(u.n_rec, u.fg).statistic)
+               if len(u) > 2 and u.fg.nunique() > 1 and u.n_rec.nunique() > 1 else None)
+        meth = "B" if (len(u) >= cfg.auto_units and np.isfinite(med) and med <= cfg.radius / 2) else "A"
+        why = (f"единиц учёта {len(u)} ≥ {cfg.auto_units}" if meth == "B" else
+               f"единиц учёта {len(u)} < {cfg.auto_units}" if len(u) < cfg.auto_units else
+               f"медианное расстояние {_ru_num(med)} м > {_ru_num(cfg.radius / 2)} м")
+        rec[oid] = {"records": int((pts.oopt_id == oid).sum()), "units": int(len(u)), "spearman_n_fg": rho,
+                    "median_nn_m": round(med, 1) if np.isfinite(med) else None,
+                    "clark_evans": round(ce, 3) if np.isfinite(ce) else None,
+                    "share_hex_with_records_A": (share_a or {}).get(oid),
+                    "recommended": meth, "reason": why, "chosen": cfg.method}
+    return rec
+
+
+def log_recommendation(label: str, rec: dict):
+    for oid, r in rec.items():
+        log.info("%s, %s: единиц учёта %d, медиана расстояния %s м — рекомендуется способ %s (%s); выбран способ %s",
+                 label, oid, r["units"], _ru_num(r["median_nn_m"]), "Б" if r["recommended"] == "B" else "А",
+                 r["reason"], "Б" if r["chosen"] == "B" else "А")
+
+
 def fg_indicator(name: str, group: str, cfg, ctx: Ctx, label: str):
-    """Балл ФГ (млекопитающие, низшие позвоночные) и исходное значение по гексагонам."""
+    """Балл ФГ (млекопитающие, амфибии и рептилии) и исходное значение по гексагонам."""
     pts, rep = read_points(cfg.files, label, ctx)
     if pts is None or not len(pts):
         return None
+    if group == "anam":
+        pts, r0 = split_fish(pts, False, ctx, label, getattr(cfg, "taxon_field", ""))
+        rep.update(r0)
+        if not len(pts):
+            return None
     pts, rep2 = fg_of_points(pts, cfg, group, ctx, label)
     rep.update(rep2)
     pts = pts[pd.notna(pts.oopt_id)].reset_index(drop=True)
@@ -2148,36 +2308,13 @@ def fg_indicator(name: str, group: str, cfg, ctx: Ctx, label: str):
     cntA = fg_ring_count(pts.cell.tolist(), pts._fg.tolist(), ctx, int(cfg.k))
     nA = g.h3_id.map(cntA).astype(float)
     # способ Б: единицы учёта
-    if cfg.unit_field and cfg.unit_field in pts:
-        ukey = pts[cfg.unit_field].astype(str)
-    else:
-        ukey = pd.Series([ctx.h3.cell_to_parent(c, int(cfg.unit_res)) for c in pts.cell])
-    units = pd.DataFrame({"u": ukey.values, "fg": pts._fg.values, "x": pts.x.values, "y": pts.y.values,
-                          "oopt_id": pts.oopt_id.values})
-    ug = units.groupby("u").agg(x=("x", "mean"), y=("y", "mean"), n_rec=("x", "size"),
-                                fg=("fg", lambda s: len(set().union(*s))),
-                                oopt_id=("oopt_id", lambda s: s.value_counts().index[0]))
-    if not cfg.unit_field:
-        ll = np.array([ctx.h3.cell_to_latlng(u) for u in ug.index])
-        ug["x"], ug["y"] = ctx.to_utm.transform(ll[:, 1], ll[:, 0])
+    ug = ab_units(pts, cfg, ctx)
     nB, dmin = idw_values(ug.x.values, ug.y.values, ug.fg.values, ctx, cfg.idw_k, cfg.power, cfg.radius, cfg.min_units)
     nB = pd.Series(nB, index=g.index)
-    # рекомендация по ООПТ (п. 8.3.4)
-    from scipy.stats import spearmanr
-    rec = {}
-    areas = ctx.bm.set_index("oopt_id").geometry.area
-    for oid in sorted(surveyed):
-        u = ug[ug.oopt_id == oid]
-        ce, med = clark_evans(u.x.values, u.y.values, float(areas.get(oid, 0)))
-        rho = float(spearmanr(u.n_rec, u.fg).statistic) if len(u) > 2 and u.fg.nunique() > 1 and u.n_rec.nunique() > 1 else None
-        hexes = g.oopt_id == oid
-        meth = "B" if (len(u) >= cfg.auto_units and np.isfinite(med) and med <= cfg.radius / 2) else "A"
-        rec[oid] = {"records": int((pts.oopt_id == oid).sum()), "units": int(len(u)), "spearman_n_fg": rho,
-                    "median_nn_m": round(med, 1) if np.isfinite(med) else None,
-                    "clark_evans": round(ce, 3) if np.isfinite(ce) else None,
-                    "share_hex_with_records_A": round(float(nA[hexes].notna().mean()), 4) if hexes.any() else None,
-                    "recommended": meth}
-    method = {oid: (rec.get(oid, {}).get("recommended", "A") if cfg.method == "auto" else cfg.method) for oid in g.oopt_id.unique()}
+    share_a = {oid: round(float(nA[g.oopt_id == oid].notna().mean()), 4) for oid in surveyed if (g.oopt_id == oid).any()}
+    rec = ab_recommend(ug, pts, ctx, cfg, surveyed, share_a)
+    log_recommendation(label, rec)
+    method = {oid: cfg.method for oid in g.oopt_id.unique()}
     useB = g.oopt_id.map(method).eq("B")
     n = pd.Series(np.where(useB, nB, nA), index=g.index)
     if cfg.rule == "tertiles":
@@ -2191,11 +2328,414 @@ def fg_indicator(name: str, group: str, cfg, ctx: Ctx, label: str):
     uns = ~g.oopt_id.isin(surveyed)
     s[uns] = np.nan
     n[uns] = np.nan
+    codes = sorted({c for st in pts._fg for c in st}, key=str)
     rep.update(units=int(len(ug)), recommendation=rec, method_used=method,
-               fg_codes={str(k): FG_NAMES_TXT.get(group, {}).get(k, str(k)) for k in sorted({c for st in pts._fg for c in st}, key=str)})
+               fg_codes={str(k): FG_NAMES_TXT.get(group, {}).get(k, str(k)) for k in codes})
+    if group == "anam" and cfg.rule == "thresholds":
+        nmax = len(codes)
+        if nmax and nmax <= cfg.a_t2:
+            log.warning("%s: в данных %d ФГ; при порогах t1 = %s, t2 = %s балл 1 недостижим", label, nmax,
+                        _ru_num(cfg.a_t1), _ru_num(cfg.a_t2))
     _score_report(rep, s, g)
     ctx.report(name, **rep)
     return pd.DataFrame({"h3_id": g.h3_id, f"{name.split('_')[1]}_n": n.round(4), name: s})
+
+
+# --- рыбы: водоёмы OSM и сверка находок (п. 8.4а) ---------------------------------------
+def overpass_water(bbox, urls, timeout: int = 180) -> tuple[dict, str]:
+    """Водоёмы и водотоки OSM в охвате bbox = (юг, запад, север, восток) через Overpass API."""
+    import urllib.parse
+    import urllib.request
+    b = "({:.5f},{:.5f},{:.5f},{:.5f})".format(*bbox)
+    q = (f"[out:json][timeout:{timeout}];("
+         f'way["natural"="water"]{b};relation["natural"="water"]{b};'
+         f'way["landuse"~"^(reservoir|basin)$"]{b};relation["landuse"~"^(reservoir|basin)$"]{b};'
+         f'way["waterway"="riverbank"]{b};relation["waterway"="riverbank"]{b};'
+         f'way["waterway"~"^(river|stream|canal|ditch|drain)$"]{b};);out tags geom;')
+    data = urllib.parse.urlencode({"data": q}).encode()
+    errs = []
+    for u in [x for x in urls if str(x).strip()]:
+        try:
+            req = urllib.request.Request(str(u).strip(), data=data, headers={"User-Agent": TILE_UA})
+            with urllib.request.urlopen(req, timeout=timeout + 30) as r:
+                js = json.loads(r.read().decode("utf-8"))
+            if "elements" in js and "runtime error" not in str(js.get("remark", "")):
+                return js, str(u).strip()
+            errs.append(f"{u}: {js.get('remark', 'нет данных')}")
+        except Exception as ex:  # сеть, тайм-аут, ошибка разбора
+            errs.append(f"{u}: {ex}")
+    raise VLDError("водоёмы OSM: серверы Overpass API недоступны (" + "; ".join(errs) +
+                   "). Повторите позже или задайте слой водоёмов (источник «слой пользователя»).")
+
+
+def _osm_width(tags: dict, default: float) -> float:
+    m = re.match(r"\s*([0-9]+(?:[.,][0-9]+)?)", str(tags.get("width", "")))
+    return float(m.group(1).replace(",", ".")) if m else float(default)
+
+
+def osm_water_frames(js: dict, widths: dict):
+    """Полигоны водоёмов и линии водотоков из ответа Overpass (out geom) в EPSG:4326."""
+    g = geo()
+    shp = g["shapely"]
+    from shapely.geometry import LineString, Polygon
+    polys, lines = [], []
+    for e in js.get("elements", []):
+        t = e.get("tags", {}) or {}
+        name = str(t.get("name", "") or "")
+        alt = "; ".join(str(t[k]) for k in ("alt_name", "old_name", "official_name", "loc_name", "name:ru")
+                        if t.get(k) and t.get(k) != name)
+        oid = f"{e.get('type')}/{e.get('id')}"
+        if e.get("type") == "way":
+            pts = [(p["lon"], p["lat"]) for p in e.get("geometry", []) if p]
+            if len(pts) < 2:
+                continue
+            ww = t.get("waterway", "")
+            if ww in widths and t.get("natural") != "water":
+                tun = t.get("tunnel", "no") not in ("no", "") or t.get("location") == "underground"
+                lines.append({"osm_id": oid, "name": name, "alt": alt, "kind": ww, "width": _osm_width(t, widths[ww]),
+                              "tunnel": bool(tun), "geometry": LineString(pts)})
+            elif len(pts) >= 4 and pts[0] == pts[-1]:
+                polys.append({"osm_id": oid, "name": name, "alt": alt,
+                              "kind": t.get("water") or t.get("landuse") or t.get("waterway") or "water",
+                              "geometry": Polygon(pts)})
+        elif e.get("type") == "relation":
+            outer, inner = [], []
+            for m in e.get("members", []):
+                if m.get("type") != "way" or not m.get("geometry"):
+                    continue
+                pts = [(p["lon"], p["lat"]) for p in m["geometry"] if p]
+                if len(pts) >= 2:
+                    (inner if m.get("role") == "inner" else outer).append(LineString(pts))
+            if not outer:
+                continue
+            po = shp.get_parts(shp.polygonize(shp.get_parts(shp.union_all(outer))))
+            if not len(po):
+                continue
+            gm = shp.union_all(po)
+            if inner:
+                pi = shp.get_parts(shp.polygonize(shp.get_parts(shp.union_all(inner))))
+                if len(pi):
+                    gm = gm.difference(shp.union_all(pi))
+            polys.append({"osm_id": oid, "name": name, "alt": alt,
+                          "kind": t.get("water") or t.get("landuse") or t.get("waterway") or "water", "geometry": gm})
+    gpd_ = g["gpd"]
+    P_ = gpd_.GeoDataFrame(polys, geometry="geometry", crs=GEO_CRS) if polys else gpd_.GeoDataFrame(
+        {"osm_id": [], "name": [], "alt": [], "kind": []}, geometry=[], crs=GEO_CRS)
+    L_ = gpd_.GeoDataFrame(lines, geometry="geometry", crs=GEO_CRS) if lines else gpd_.GeoDataFrame(
+        {"osm_id": [], "name": [], "alt": [], "kind": [], "width": [], "tunnel": []}, geometry=[], crs=GEO_CRS)
+    return P_, L_
+
+
+OSM_WATER_SKIP = {"wastewater"}
+
+
+def water_bodies(P_, L_):
+    """Водные объекты в EPSG:32637. Полигоны водоёмов — как есть; водотоки — буфер ширины вне полигонов.
+    Части с одинаковым названием, соприкасающиеся до вычитания полигонов (участки одной реки, в том числе
+    разделённые прудами), объединяются в один водный объект; безымянные — по связности."""
+    g = geo()
+    shp = g["shapely"]
+    Pm = P_.to_crs(METRIC_CRS)
+    Pm = Pm[~Pm.kind.astype(str).isin(OSM_WATER_SKIP)].copy()
+    Pm["geometry"] = Pm.geometry.make_valid()
+    Pm = Pm[Pm.geometry.area > 0]
+    pu = shp.union_all(Pm.geometry.values) if len(Pm) else None
+    items = []   # (ключ группы, вид, osm_id, геометрия для связности, геометрия объекта)
+    for r in Pm.itertuples():
+        nm = str(r.name or "").strip()
+        items.append((nm or f"\x00p{r.Index}", str(r.kind), str(r.osm_id), r.geometry, r.geometry,
+                      str(getattr(r, "alt", "") or "")))
+    if len(L_):
+        Lm = L_.to_crs(METRIC_CRS)
+        for r in Lm.itertuples():
+            bf = r.geometry.buffer(max(float(r.width), 0.5) / 2, cap_style="flat")
+            if bool(getattr(r, "tunnel", False)):
+                own = bf.difference(bf)      # участки в трубах и коллекторах: только для связности
+            else:
+                own = bf.difference(pu) if pu is not None else bf
+            items.append((str(r.name or "").strip() or "\x00l", str(r.kind), str(r.osm_id), bf, own,
+                          str(getattr(r, "alt", "") or "")))
+    rows = []
+    for nm in sorted({it[0] for it in items}):
+        grp = [it for it in items if it[0] == nm]
+        conn = shp.get_parts(shp.union_all([it[3].buffer(1.0) for it in grp]))
+        tree = shp.STRtree(conn)
+        lab = [int(tree.query(it[3].representative_point(), predicate="intersects")[0]) if len(
+            tree.query(it[3].representative_point(), predicate="intersects")) else -1 for it in grp]
+        for k in sorted(set(lab)):
+            mem = [it for it, l_ in zip(grp, lab) if l_ == k]
+            gm = shp.union_all([it[4] for it in mem if not it[4].is_empty])
+            if gm is None or gm.is_empty:
+                continue
+            gm = shp.union_all([p_ for p_ in shp.get_parts(gm) if p_.geom_type == "Polygon" and p_.area >= 1.0]) \
+                if gm.geom_type in ("MultiPolygon", "GeometryCollection") else gm
+            if gm is None or gm.is_empty or gm.area < 1.0:
+                continue
+            alts = sorted({a.strip() for it in mem for a in str(it[5]).split(";") if a.strip() and a.strip() != nm})
+            rows.append({"name": "" if nm.startswith("\x00") else nm, "alt": "; ".join(alts)[:250],
+                         "kind": ", ".join(sorted({it[1] for it in mem})),
+                         "osm_id": "; ".join(it[2] for it in mem)[:250], "geometry": gm})
+    out = g["gpd"].GeoDataFrame(rows, geometry="geometry", crs=METRIC_CRS) if rows else g["gpd"].GeoDataFrame(
+        {"name": [], "alt": [], "kind": [], "osm_id": []}, geometry=[], crs=METRIC_CRS)
+    out = out.reset_index(drop=True)
+    out.insert(0, "wid", np.arange(1, len(out) + 1))
+    out["area_ha"] = (out.geometry.area / 1e4).round(3)
+    return out
+
+
+def load_water(ctx: Ctx, c) -> tuple[Any, dict]:
+    """Слой водных объектов (EPSG:32637) по OSM или слою пользователя."""
+    g = geo()
+    shp = g["shapely"]
+    rep: dict = {"source": c.water_source}
+    region = shp.union_all(list(ctx.bm.geometry.values)).buffer(max(float(c.tolerance), 0) + 500)
+    if c.water_source == "file":
+        if not c.water_files:
+            raise VLDError("рыбы: не задан слой водоёмов")
+        P_, L_ = [], []
+        for f in c.water_files:
+            p, lay = split_layer(f)
+            ctx.inputs.append(str(p))
+            t = read_table(p, layer=pick_layer(p, lay))
+            if t.crs is None:
+                t = t.set_crs(GEO_CRS)
+            t = t.to_crs(GEO_CRS)
+            nf = pick_field(t.columns, ["name", "название", "наименование", "имя"] + WATER_NAME_NAMES, c.water_name_field)
+            t = g["gpd"].GeoDataFrame({"osm_id": [f"{p.name}:{i}" for i in range(len(t))],
+                                       "name": t[nf].fillna("").astype(str) if nf else "",
+                                       "alt": "", "kind": "слой", "geometry": t.geometry.values}, geometry="geometry", crs=GEO_CRS)
+            t = t[t.geometry.notna()]
+            gt = t.geometry.geom_type
+            P_.append(t[gt.isin(["Polygon", "MultiPolygon"])])
+            ln = t[gt.isin(["LineString", "MultiLineString"])].copy()
+            ln["width"] = float((c.line_width or {}).get("stream", 3.0))
+            L_.append(ln)
+        W = water_bodies(pd.concat(P_, ignore_index=True).pipe(g["gpd"].GeoDataFrame, crs=GEO_CRS),
+                         pd.concat(L_, ignore_index=True).pipe(g["gpd"].GeoDataFrame, crs=GEO_CRS))
+        rep["files"] = [Path(split_layer(f)[0]).name for f in c.water_files]
+    else:
+        rg = g["gpd"].GeoSeries([region], crs=METRIC_CRS).to_crs(GEO_CRS).total_bounds
+        bbox = (round(rg[1], 4), round(rg[0], 4), round(rg[3], 4), round(rg[2], 4))
+        key = hashlib.sha256(json.dumps(["v2", bbox, sorted((c.line_width or {}).items())]).encode()).hexdigest()[:10]
+        cdir = out_dir_of(ctx.cfg) / "cache"
+        cp = cdir / f"vodoemy_osm_{key}.gpkg"
+        if cp.exists() and not c.osm_refresh:
+            W = read_table(cp, layer="vodoemy").to_crs(METRIC_CRS)
+            rep.update(cache=str(cp), cached=True)
+            log.info("рыбы: водоёмы OSM из кэша %s (%d объектов)", cp.name, len(W))
+        else:
+            log.info("рыбы: загрузка водоёмов OSM (Overpass API), охват %s", bbox)
+            js, url = overpass_water(bbox, c.osm_urls or OVERPASS_URLS)
+            P_, L_ = osm_water_frames(js, c.line_width or OSM_LINE_WIDTH)
+            W = water_bodies(P_, L_)
+            cdir.mkdir(parents=True, exist_ok=True)
+            W.assign(loaded=dt.date.today().isoformat(), server=url).to_crs(GEO_CRS).to_file(
+                cp, layer="vodoemy", driver="GPKG", engine="pyogrio")
+            rep.update(cache=str(cp), cached=False, server=url, osm_elements=len(js.get("elements", [])))
+            log.info("рыбы: водоёмов OSM %d (элементов %d), кэш %s", len(W), len(js.get("elements", [])), cp.name)
+        rep.update(bbox=bbox, licence="© участники OpenStreetMap, ODbL")
+    W = W[W.geometry.intersects(region)].reset_index(drop=True)
+    rep["water_bodies"] = int(len(W))
+    return W, rep
+
+
+_WN_GENERIC = {"пруд", "пруды", "река", "р", "ручей", "руч", "озеро", "оз", "берег", "ниже", "выше", "в", "з", "ю", "с",
+               "св", "сз", "юв", "юз", "канал", "водохранилище", "вдхр", "протока", "старица", "пойма", "у", "на", "и"}
+_WN_ORD = {"перв": "1", "втор": "2", "трет": "3", "четв": "4", "пят": "5", "шест": "6", "седьм": "7", "восьм": "8",
+           "девят": "9", "десят": "10"}
+
+
+def _water_tokens(s) -> tuple[set, set]:
+    t = str(s or "").lower().replace("ё", "е")
+    t = t.replace("(", " ").replace(")", " ")
+    nums, words = set(), set()
+    for w in re.findall(r"[0-9]+|[а-яa-z]+", t):
+        if w.isdigit():
+            nums.add(str(int(w)))
+            continue
+        if w in _WN_GENERIC or w in ("ый", "ой", "ий", "й", "я", "е"):
+            continue
+        o = next((v for k, v in _WN_ORD.items() if w.startswith(k)), None)
+        if o:
+            nums.add(o)
+            continue
+        st = re.sub(r"(ого|его|ому|ему|ыми|ими|ым|им|ой|ей|ая|яя|ое|ее|ые|ие|ый|ий|ых|их|ую|юю|а|я|ы|и|у|ю|е|о|й)$", "", w).rstrip("ь")
+        if len(st) >= 3:
+            words.add(st[:6])
+    return nums, words
+
+
+def water_names_agree(a, b):
+    """Согласие названий водного объекта в находке и в слое: «да», «нет» или None (сравнить нельзя).
+    b — название или список названий (основное и альтернативные)."""
+    na, wa = _water_tokens(a)
+    if not (wa or na):
+        return None
+    res = None
+    for x in ([b] if isinstance(b, str) else list(b or [])):
+        nb, wb = _water_tokens(x)
+        if not (wb or nb):
+            continue
+        if na and nb and na != nb:
+            res = "нет"
+            continue
+        if (wa & wb) or (not wa and not wb and na == nb):
+            return "да"
+        res = "нет"
+    return res
+
+
+def fish_indicator(ctx: Ctx):
+    """Балл рыб (v_fish): число ФГ рыб в водоёме (А) или IDW единиц учёта (Б) только для гексагонов водоёмов."""
+    c = ctx.cfg.fish
+    label = "рыбы"
+    g = geo()
+    shp = g["shapely"]
+    pts, rep = read_points(c.files, label, ctx)
+    if pts is None or not len(pts):
+        return None
+    pts, r0 = split_fish(pts, True, ctx, label, c.taxon_field)
+    rep.update(r0)
+    if not len(pts):
+        log.warning("рыбы: в файлах находок нет записей рыб")
+        return None
+    pts, rep2 = fg_of_points(pts, c, "fish", ctx, label)
+    rep.update(rep2)
+    pts = pts[pd.notna(pts.oopt_id)].reset_index(drop=True)
+    if not len(pts):
+        return None
+    W, wrep = load_water(ctx, c)
+    rep["water"] = wrep
+    gr = ctx.grid
+    # сверка находок с водоёмами
+    pwv = coalesce_fields(pts, WATER_NAME_NAMES, c.point_water_field)
+    spv = coalesce_fields(pts, SPECIES_NAMES, c.species_field)
+    pnames = [str(x) if x is not None and str(x).strip().lower() not in ("", "nan", "none") else "" for x in
+              (pwv if pwv is not None else [""] * len(pts))]
+    xy = shp.points(pts.x.values, pts.y.values)
+    tol = max(float(c.tolerance), 0.0)
+    ntol = max(float(c.name_tolerance), 0.0)
+    near = np.full(len(pts), -1)
+    dd = np.full(len(pts), np.nan)
+    status = np.full(len(pts), "нет водоёмов", dtype=object)
+    agree: list = [None] * len(pts)
+    if len(W):
+        wnames = [[str(n)] + [x.strip() for x in str(al or "").split(";") if x.strip()]
+                  for n, al in zip(W.name, W.get("alt", pd.Series([""] * len(W))))]
+        tree = shp.STRtree(W.geometry.values)
+        (pi, wi), dist = tree.query_nearest(xy, return_distance=True, all_matches=False)
+        near[pi], dd[pi] = wi, dist
+        R = max(tol, ntol)
+        ci, cj = tree.query(shp.buffer(xy, R + 0.01), predicate="intersects") if R > 0 else (np.array([], int), np.array([], int))
+        cand: dict[int, list] = {}
+        if len(ci):
+            cd = shp.distance(xy[ci], W.geometry.values[cj])
+            for i_, j_, d_ in zip(ci, cj, cd):
+                cand.setdefault(int(i_), []).append((float(d_), int(j_)))
+        for i_ in range(len(pts)):
+            if near[i_] < 0:
+                continue
+            cs = sorted(cand.get(i_, []))
+            ag = {j_: water_names_agree(pnames[i_], wnames[j_]) for _, j_ in cs} if pnames[i_] else {}
+            within = [(d_, j_) for d_, j_ in cs if d_ <= tol]
+            pick = None
+            if within:
+                good = [(d_, j_) for d_, j_ in within if ag.get(j_) == "да"]
+                pick = (good or within)[0]
+                status[i_] = "в водоёме" if pick[0] <= 0.05 else "в допуске"
+            elif ntol > 0:
+                good = [(d_, j_) for d_, j_ in cs if d_ <= ntol and ag.get(j_) == "да"]
+                if good:
+                    pick = good[0]
+                    status[i_] = "по названию"
+            if pick is None:
+                pick = (dd[i_], near[i_])
+                status[i_] = "вне водоёма"
+            dd[i_], near[i_] = pick
+            agree[i_] = water_names_agree(pnames[i_], wnames[near[i_]]) if pnames[i_] else None
+    wname = np.array([W.name.iloc[j] if j >= 0 else "" for j in near], dtype=object)
+    sv = pd.DataFrame({"файл": pts._src, "ООПТ": pts.oopt_id, "вид": spv.values if spv is not None else "",
+                       "ФГ": [", ".join(FG_NAMES_TXT["fish"].get(x, str(x)) for x in sorted(st, key=str)) for st in pts._fg],
+                       "широта": pts.lat.round(6), "долгота": pts.lon.round(6),
+                       "водный объект (находка)": pnames,
+                       "водоём слоя, wid": [int(W.wid.iloc[j]) if j >= 0 else None for j in near],
+                       "водоём слоя, название": wname, "расстояние, м": np.round(dd, 1), "статус": status,
+                       "названия совпадают": agree})
+    ok_ = np.isin(status, ["в водоёме", "в допуске", "по названию"])
+    n_out = int((~ok_).sum())
+    if n_out:
+        log.warning("рыбы: находок вне водоёмов (дальше %s м): %d; исключены (таблица сверки)", _ru_num(tol), n_out)
+    n_bad_name = int(sum(1 for a in agree if a == "нет"))
+    if n_bad_name:
+        log.warning("рыбы: названия водного объекта в находке и в слое водоёмов расходятся: %d записей", n_bad_name)
+    rep["points_check"] = {"total": int(len(pts)), **{k: int(v) for k, v in pd.Series(status).value_counts().items()},
+                           "names_disagree": n_bad_name,
+                           "by_oopt": {oid: {k: int(v) for k, v in grp.value_counts().items()}
+                                       for oid, grp in pd.Series(status).groupby(pts.oopt_id.values)}}
+    ctx.extra_tables = getattr(ctx, "extra_tables", {})
+    ctx.extra_tables["ryby_sverka"] = sv
+    pts = pts.assign(wid=[int(W.wid.iloc[j]) if j >= 0 else -1 for j in near])[ok_].reset_index(drop=True)
+    surveyed = set(pts.oopt_id.unique())
+    # гексагоны водоёмов
+    hexes = cells_to_gdf(gr.h3_id).to_crs(METRIC_CRS)
+    hg = hexes.geometry.values
+    harea = shp.area(hg)
+    water_share = np.zeros(len(gr))
+    best_fg = np.full(len(gr), np.nan)
+    fg_w = {}
+    for wid_, grp in pts.groupby("wid"):
+        fg_w[int(wid_)] = len(set().union(*grp._fg))
+    if len(W):
+        wt = shp.STRtree(W.geometry.values)
+        hi, wj = wt.query(hg, predicate="intersects")
+        if len(hi):
+            ar = shp.area(shp.intersection(hg[hi], W.geometry.values[wj]))
+            np.add.at(water_share, hi, ar)
+            water_share = water_share / harea
+            for h_, j_, a_ in zip(hi, wj, ar):
+                if a_ <= 0:
+                    continue
+                v = fg_w.get(int(W.wid.iloc[j_]), 0 if c.absent == "3" else np.nan)
+                if np.isfinite(v) and not (np.isfinite(best_fg[h_]) and best_fg[h_] >= v):
+                    best_fg[h_] = v
+    is_w = water_share >= float(c.hex_min_share)
+    nA = pd.Series(np.where(is_w, best_fg, np.nan), index=gr.index)
+    ug = ab_units(pts, c, ctx)
+    nB, _ = idw_values(ug.x.values, ug.y.values, ug.fg.values, ctx, c.idw_k, c.power, c.radius, c.min_units)
+    nB = pd.Series(np.where(is_w, nB, np.nan), index=gr.index)
+    rec = ab_recommend(ug, pts, ctx, c, surveyed)
+    log_recommendation(label, rec)
+    useB = c.method == "B"
+    n = nB if useB else nA
+    if c.rule == "tertiles":
+        s, th = score_tertiles(n.to_numpy())
+        rep["tertile_thresholds"] = th
+    else:
+        s = (score_thresholds(nB, c.b_t1, c.b_t2, c.b_closed) if useB else
+             score_thresholds(nA, c.a_t1, c.a_t2, "right"))
+    s = pd.Series(s, index=gr.index)
+    if c.absent == "3" and not useB:
+        s[is_w & (nA == 0)] = 3.0
+    uns = ~gr.oopt_id.isin(surveyed)
+    s[uns] = np.nan
+    n = n.copy()
+    n[uns] = np.nan
+    Wo = W.copy()
+    Wo["n_rec"] = Wo.wid.map(pts.groupby("wid").size()).fillna(0).astype(int)
+    Wo["fg_n"] = Wo.wid.map(fg_w).fillna(0).astype(int)
+    rep.update(units=int(len(ug)), recommendation=rec, method_used={oid: c.method for oid in gr.oopt_id.unique()},
+               water_hexes=int(is_w.sum()), water_bodies_with_records=int((Wo.n_rec > 0).sum()),
+               fg_codes={str(k): FG_NAMES_TXT["fish"].get(k, str(k)) for k in sorted({x for st in pts._fg for x in st}, key=str)},
+               fg_by_water={f"{r.wid} {r.name}".strip(): int(r.fg_n) for r in Wo[Wo.n_rec > 0].itertuples()})
+    if c.layers_out:
+        ctx.extra_layers = getattr(ctx, "extra_layers", {})
+        ctx.extra_layers["ryby_vodoemy"] = Wo.to_crs(GEO_CRS)
+        ctx.extra_layers["ryby_nahodki"] = g["gpd"].GeoDataFrame(
+            sv.assign(**{"водоём слоя, wid": sv["водоём слоя, wid"].astype("Int64")}),
+            geometry=g["gpd"].points_from_xy(sv["долгота"], sv["широта"]), crs=GEO_CRS)
+    _score_report(rep, s, gr)
+    ctx.report("v_fish", **rep)
+    return pd.DataFrame({"h3_id": gr.h3_id, "fish_n": n.round(4), "v_fish": s})
 
 
 def _score_report(rep, s, g):
@@ -2396,6 +2936,10 @@ def eco_transfer(ctx: Ctx):
     e = ctx.cfg.ecosys
     s = float(e.cell)
     d = read_ecosystems(ctx)
+    if d is None or len(d) == 0:
+        log.warning("D2: в границах выбранных ООПТ выделов нет; показатели по экосистемам не рассчитываются")
+        ctx.eco = None
+        return None
     windows = []
     rows = []
     for oid, sub in d.groupby("oopt_id"):
@@ -2450,6 +2994,8 @@ def eco_transfer(ctx: Ctx):
 
 
 def zon_indicator(ctx: Ctx):
+    if ctx.eco is None:
+        return None
     table, src = read_zonality(ctx.cfg.zon, ctx)
     eco = ctx.eco
     d = eco["d"].set_index("fid")
@@ -2484,6 +3030,8 @@ def zon_indicator(ctx: Ctx):
 
 
 def cap_indicator(ctx: Ctx):
+    if ctx.eco is None:
+        return None
     c = ctx.cfg.cap
     d = ctx.eco["d"].set_index("fid")
     a = d.area_ha
@@ -3219,7 +3767,7 @@ def frag_ready(ctx: Ctx):
 
 
 def primary_requested(cfg) -> bool:
-    return bool(cfg.ecosys.path or cfg.ins.ratings or cfg.mam.files or cfg.anam.files or cfg.bird.files or
+    return bool(cfg.ecosys.path or cfg.ins.ratings or cfg.mam.files or cfg.anam.files or cfg.fish.files or cfg.bird.files or
                 cfg.aqua.files or cfg.rare.files or cfg.qbs.files or cfg.recload.photos or cfg.recload.objects or
                 cfg.recload.ready or cfg.inv.files or cfg.frag.ready)
 
@@ -3238,7 +3786,9 @@ def compute_primary(base: pd.DataFrame, bounds, res: int, cfg, odict, prog):
     if cfg.mam.files:
         steps.append(("млекопитающие", lambda: fg_indicator("v_mam", "mam", cfg.mam, ctx, "млекопитающие")))
     if cfg.anam.files:
-        steps.append(("низшие позвоночные", lambda: fg_indicator("v_anam", "anam", cfg.anam, ctx, "низшие позвоночные")))
+        steps.append(("амфибии и рептилии", lambda: fg_indicator("v_anam", "anam", cfg.anam, ctx, "амфибии и рептилии")))
+    if cfg.fish.files:
+        steps.append(("рыбы", lambda: fish_indicator(ctx)))
     if cfg.bird.files:
         steps.append(("птицы", lambda: unit_indicator("v_bird", cfg.bird, ctx, "птицы", "bird_n")))
     if cfg.aqua.files:
@@ -3282,6 +3832,55 @@ def indicator_table(ind: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+REC_BLOCKS = {"v_mam": "млекопитающие", "v_anam": "амфибии и рептилии", "v_fish": "рыбы"}
+
+
+def recommendation_table(ind: dict) -> pd.DataFrame:
+    """Рекомендация способа А/Б по ООПТ и выбранный способ (п. 8.3.4)."""
+    rows = []
+    for name, lab in REC_BLOCKS.items():
+        for oid, r in ((ind.get(name) or {}).get("recommendation") or {}).items():
+            rows.append({"Блок": lab, "ООПТ": oid, "Находок": r.get("records"), "Единиц учёта": r.get("units"),
+                         "Медиана расстояния до ближайшей единицы, м": r.get("median_nn_m"),
+                         "Индекс Кларка — Эванса": r.get("clark_evans"),
+                         "Рекомендуется": "Б" if r.get("recommended") == "B" else "А", "Основание": r.get("reason"),
+                         "Выбран": "Б" if r.get("chosen") == "B" else "А"})
+    return pd.DataFrame(rows)
+
+
+def fg_recommendations(cfg: Config) -> pd.DataFrame:
+    """Рекомендация способа А/Б до расчёта: по находкам млекопитающих, амфибий и рептилий, рыб и границам ООПТ.
+    Для рыб учитываются все находки в ООПТ (сверка с водоёмами — при расчёте)."""
+    blocks = [(k, lab) for k, lab in (("mam", "млекопитающие"), ("anam", "амфибии и рептилии"), ("fish", "рыбы"))
+              if getattr(cfg, k).files]
+    if not blocks:
+        return pd.DataFrame()
+    if not cfg.project.boundaries:
+        raise VLDError("рекомендация А/Б: нужен слой границ ООПТ")
+    odict = make_odict()
+    bounds = read_boundaries(cfg.project, odict)
+    if cfg.project.oopt_select:
+        want = {odict.resolve(x) or str(x) for x in cfg.project.oopt_select}
+        bounds = bounds[bounds.oopt_id.isin(want)]
+    ctx = Ctx(grid=pd.DataFrame({"h3_id": pd.Series([], dtype=object), "oopt_id": pd.Series([], dtype=object)}),
+              bounds=bounds, res=int(cfg.project.h3_res), cfg=cfg, odict=odict)
+    ind = {}
+    for key, lab in blocks:
+        c = getattr(cfg, key)
+        pts, _ = read_points(c.files, lab, ctx)
+        if pts is None or not len(pts):
+            continue
+        if key in ("anam", "fish"):
+            pts, _ = split_fish(pts, key == "fish", ctx, lab, getattr(c, "taxon_field", ""))
+        if not len(pts):
+            continue
+        pts, _ = fg_of_points(pts, c, key, ctx, lab)
+        pts = pts[pd.notna(pts.oopt_id)].reset_index(drop=True)
+        ug = ab_units(pts, c, ctx)
+        ind[f"v_{key}"] = {"recommendation": ab_recommend(ug, pts, ctx, c, set(pts.oopt_id.unique()))}
+    return recommendation_table(ind)
+
+
 # ---------------------------------------------------------------------------
 # Конвейер расчёта
 # ---------------------------------------------------------------------------
@@ -3314,6 +3913,8 @@ def make_odict() -> OoptDict:
 def builtin_ref(key: str, default):
     """Справочник из defaults.json (ключ key) или встроенный."""
     v = load_defaults().get(key)
+    if key == "fg_reference" and isinstance(v, dict) and v:
+        return {**default, **v}   # группы, которых нет в defaults.json (например, fish), — встроенные
     return v if isinstance(v, type(default)) and v else default
 
 
@@ -3322,7 +3923,9 @@ def validate_primary(cfg: Config) -> list[tuple[str, str]]:
     msgs = []
     files = {"слой экосистем D2": eco_paths(cfg.ecosys), "типология D3": [cfg.zon.typology],
              "насекомые": cfg.ins.ratings + [cfg.ins.coords], "млекопитающие": cfg.mam.files + cfg.mam.ref_files,
-             "низшие позвоночные": cfg.anam.files + cfg.anam.ref_files, "птицы": cfg.bird.files,
+             "амфибии и рептилии": cfg.anam.files + cfg.anam.ref_files,
+             "рыбы": cfg.fish.files + cfg.fish.ref_files + (cfg.fish.water_files if cfg.fish.water_source == "file" else []),
+             "птицы": cfg.bird.files,
              "гидробионты": cfg.aqua.files, "редкие растения": cfg.rare.files, "QBS": cfg.qbs.files,
              "нагрузка": cfg.recload.photos + cfg.recload.objects + [cfg.recload.ready], "инвазивные": cfg.inv.files,
              "фрагментация": cfg.frag.roads + cfg.frag.buildings + [cfg.frag.ready]}
@@ -3332,6 +3935,10 @@ def validate_primary(cfg: Config) -> list[tuple[str, str]]:
                 msgs.append(("ошибка", f"файл не найден ({label}): {f}"))
     if primary_requested(cfg) and not (cfg.project.boundaries or cfg.inputs.v4_path):
         msgs.append(("ошибка", "для первичных данных нужен слой границ ООПТ (или сетка V4)"))
+    if cfg.fish.files and cfg.fish.water_source == "file" and not cfg.fish.water_files:
+        msgs.append(("ошибка", "рыбы: выбран слой водоёмов пользователя, но файл не задан"))
+    if cfg.fish.files and cfg.fish.water_source == "osm":
+        msgs.append(("сведения", "рыбы: водоёмы будут загружены из OpenStreetMap (нужен доступ к Overpass API) или взяты из кэша"))
     if cfg.ins.ratings and not cfg.ecosys.path:
         msgs.append(("предупреждение", "насекомые: без слоя экосистем D2 биотоп гексагона не определяется; v_ins = н/д"))
     if (cfg.frag.roads or cfg.frag.buildings) and not (cfg.ecosys.path or cfg.frag.ready):
@@ -3423,6 +4030,7 @@ def build_current(cfg: Config, odict: OoptDict, prog: Progress):
             raise VLDError(f"выбранные ООПТ не найдены: {sorted(want)}")
     indicators: dict = {}
     extra_layers: dict = {}
+    extra_tables: dict = {}
     if primary_requested(cfg):
         if bounds is None and p.boundaries:
             bounds = read_boundaries(p, odict)
@@ -3436,6 +4044,7 @@ def build_current(cfg: Config, odict: OoptDict, prog: Progress):
         inputs_used += ctx.inputs
         indicators = ctx.reports
         extra_layers = getattr(ctx, "extra_layers", {})
+        extra_tables = getattr(ctx, "extra_tables", {})
         cols = [c for c in prim.columns if c != "h3_id"]
         base = base.drop(columns=[c for c in cols if c in base.columns]).merge(prim, on="h3_id", how="left")
         log.info("частные показатели по первичным данным: %s", ", ".join(c for c in cols if c in V_COMPONENTS + D_COMPONENTS + ["load_cat", "inv_n", "v_phyt", "v_zpl", "v_zbn"]))
@@ -3479,6 +4088,7 @@ def build_current(cfg: Config, odict: OoptDict, prog: Progress):
     res = res.sort_values(["oopt_id", "calc_year", "h3_id"]).reset_index(drop=True)
     reports["_indicators"] = indicators
     reports["_layers"] = extra_layers
+    reports["_tables"] = extra_tables
     return res, reports, bounds, res_used, inputs_used
 
 
@@ -3538,6 +4148,10 @@ def run_pipeline(cfg: Config, progress_cb=None, confirm_replace: Callable[[list]
         if cfg.assembly.source != "archive":
             current, reports, bounds, h3_res, inputs = build_current(cfg, odict, prog)
             indicators = reports.pop("_indicators", {})
+            for name, tab in (reports.pop("_tables", None) or {}).items():
+                tp = out_dir / f"{cfg.output.file_name}_{name}.csv"
+                tab.to_csv(tp, index=False, encoding="utf-8-sig")
+                result["files"].append(str(tp))
             for name, lay in reports.pop("_layers", {}).items():
                 lp = out_dir / f"{cfg.output.file_name}_{name}.gpkg"
                 lay.to_file(lp, layer=name, driver="GPKG", engine="pyogrio")
@@ -3574,6 +4188,9 @@ def run_pipeline(cfg: Config, progress_cb=None, confirm_replace: Callable[[list]
             tabs = summary_tables(sel, reports_all, cfg)
             if indicators:
                 tabs["Частные показатели"] = indicator_table(indicators)
+                rt = recommendation_table(indicators)
+                if len(rt):
+                    tabs["Способ А или Б"] = rt
             write_xlsx(tabs, xp)
             result["files"].append(str(xp))
         if cfg.check.reference_path:
@@ -3733,9 +4350,9 @@ def map_legend_spec(name: str, cfg: Config) -> tuple[str, dict[int, str]]:
         lab = {1: "высокий", 2: "средний", 3: "низкий"}
         if cfg.ins.method == "A":
             lab = {1: "высокий (SCORE_NORM > 2/3)", 2: "средний (1/3 < SCORE_NORM ≤ 2/3)", 3: "низкий (SCORE_NORM ≤ 1/3)"}
-    elif name in ("v_mam", "v_anam"):
+    elif name in ("v_mam", "v_anam", "v_fish"):
         fc = getattr(cfg, name[2:])
-        title = "Млекопитающие: число ФГ" if name == "v_mam" else "Низшие позвоночные: число ФГ"
+        title = {"v_mam": "Млекопитающие", "v_anam": "Амфибии и рептилии", "v_fish": "Рыбы"}[name] + ": число ФГ"
         lab = _fg_labels(fc.a_t1, fc.a_t2) if fc.rule == "thresholds" else {1: "высокое (терцили)", 2: "среднее", 3: "низкое"}
     elif name == "v_bird":
         title = "Птицы: число ФГ"
@@ -5032,7 +5649,7 @@ def selftest2(config: str, work: str, v4: str | None = None) -> dict:
     um = [x.get("вид") for x in rp.get("unmatched", [])]
     ok("П9 координаты и виды", rp.get("swapped") == 1 and rp.get("out_of_range") == 1 and rp.get("far") == 1 and um == ["Fantasia nonexistens"]
        and rp.get("matched", {}).get("вид") == 3,
-       f"перестановка {rp.get('swapped')}, вне района {rp.get('out_of_range')}, далее 10 км {rp.get('far')}, без ФГ {um}, сопоставлено {rp.get('matched')}")
+       f"перестановка {rp.get('swapped')}, вне района {rp.get('out_of_range')}, дальше 10 км {rp.get('far')}, без ФГ {um}, сопоставлено {rp.get('matched')}")
     # некорректная геометрия D2 (самопересечение «бабочка») и отсутствие кода
     if base.ecosys.path:
         gg = geo()
@@ -5067,7 +5684,7 @@ def selftest2(config: str, work: str, v4: str | None = None) -> dict:
     c5.project.oopt_select = ["BIT"]
     c5.project.out_dir = str(work_p / "p9_out")
     c5.output.format, c5.output.params_json = "none", False
-    for sec in ("ins", "mam", "anam", "bird", "aqua", "rare", "qbs", "inv"):
+    for sec in ("ins", "mam", "anam", "fish", "bird", "aqua", "rare", "qbs", "inv"):
         for f_ in fields(getattr(c5, sec)):
             if f_.name == "files" or f_.name == "ratings":
                 setattr(getattr(c5, sec), f_.name, [])
@@ -5075,6 +5692,64 @@ def selftest2(config: str, work: str, v4: str | None = None) -> dict:
     v5 = r5["result"]
     ok("П9 отсутствующие блоки", v5.V.notna().any() and not any(x in r5.get("indicators", {}) for x in ("v_mam", "v_ins")),
        f"V рассчитан по {sorted(k for k in r5.get('indicators', {}) if k.startswith('v_'))}; n_V: {v5.n_V.value_counts().sort_index().to_dict()}")
+    # П9а. Рыбы: только в пределах водоёмов, сверка точек, отделение от амфибий и рептилий
+    gg = geo()
+    from pyproj import Transformer
+    from shapely.geometry import LineString as _LS
+    _tg = Transformer.from_crs(METRIC_CRS, GEO_CRS, always_xy=True)
+    x0, y0 = cen.x, cen.y
+    sqr = lambda x, y, d: gg["Polygon"]([(x, y), (x + d, y), (x + d, y + d), (x, y + d)])  # noqa: E731
+    wl = gg["gpd"].GeoDataFrame({"name": ["Первый пруд", "Второй пруд", "ручей Тестовый", "Четвёртый пруд"]},
+                                geometry=[sqr(x0, y0, 120), sqr(x0 + 600, y0, 120),
+                                          _LS([(x0 + 120, y0 + 60), (x0 + 600, y0 + 60)]),
+                                          sqr(x0, y0 - 130, 120)], crs=METRIC_CRS)
+    fw = syn / "vodoemy.gpkg"
+    wl.to_crs(GEO_CRS).to_file(fw, layer="w", driver="GPKG", engine="pyogrio")
+    pp = [(x0 + 30, y0 + 30, "Perca fluviatilis", "лучеперые рыбы", "1-ый пруд"),
+          (x0 + 60, y0 + 60, "Rutilus rutilus", "лучеперые рыбы", "Первый пруд"),
+          (x0 + 125, y0 + 90, "Alburnus alburnus", "лучеперые рыбы", "Первый пруд, В берег"),
+          (x0 + 650, y0 + 50, "Perccottus glenii", "лучеперые рыбы", "Третий пруд"),
+          (x0 + 300, y0 + 400, "Esox lucius", "лучеперые рыбы", "Первый пруд"),
+          (x0 + 60, y0 - 4, "Cyprinus carpio", "лучеперые рыбы", "Четвертый пруд"),
+          (x0 + 660, y0 - 80, "Neogobius melanostomus", "лучеперые рыбы", "Второй пруд"),
+          (x0 + 40, y0 + 200, "Rana arvalis", "амфибии", ""),
+          (x0 + 50, y0 + 210, "Emys orbicularis", "рептилии", "")]
+    lo_, la_ = _tg.transform(np.array([q[0] for q in pp]), np.array([q[1] for q in pp]))
+    ff = syn / "nizshie.csv"
+    pd.DataFrame({"lat (широта)": la_, "long (долгота)": lo_, "вид (латинское название)": [q[2] for q in pp],
+                  "группа таксономическая": [q[3] for q in pp], "водный объект": [q[4] for q in pp]}).to_csv(ff, index=False)
+    c6 = Config.from_dict({"anam": {"method": "auto"}})
+    c6.project = copy.deepcopy(c.project)
+    c6.inputs = copy.deepcopy(c.inputs)
+    c6.project.out_dir = str(work_p / "p9_out")
+    c6.anam.files = [str(ff)]
+    c6.fish.files = [str(ff)]
+    c6.fish.water_source = "file"
+    c6.fish.water_files = [str(fw)]
+    c6.fish.name_tolerance = 100.0
+    pr6, ctx6 = compute_primary(g2, b2, 11, c6, odict, lambda f, m: None)
+    rf_ = ctx6.reports.get("v_fish", {})
+    ra_ = ctx6.reports.get("v_anam", {})
+    sv_ = getattr(ctx6, "extra_tables", {}).get("ryby_sverka")
+    h1 = gg["h3"].latlng_to_cell(*Transformer_to_geo(x0 + 60, y0 + 60)[::-1], 11)
+    h2 = gg["h3"].latlng_to_cell(*Transformer_to_geo(x0 + 660, y0 + 60)[::-1], 11)
+    hl = gg["h3"].latlng_to_cell(*Transformer_to_geo(x0 + 60, y0 + 400)[::-1], 11)
+    vf = pr6.set_index("h3_id").v_fish
+    st_ = dict(zip(sv_["вид"], sv_["статус"])) if sv_ is not None else {}
+    nm_ = dict(zip(sv_["вид"], sv_["названия совпадают"])) if sv_ is not None else {}
+    wn_ = dict(zip(sv_["вид"], sv_["водоём слоя, название"])) if sv_ is not None else {}
+    cond6 = (vf.get(h1) == 1 and vf.get(h2) == 3 and pd.isna(vf.get(hl)) and st_.get("Esox lucius") == "вне водоёма"
+             and st_.get("Alburnus alburnus") == "в допуске" and nm_.get("Perca fluviatilis") == "да"
+             and nm_.get("Perccottus glenii") == "нет" and set(ra_.get("fg_codes", {})) == {"1", "2"}
+             and wn_.get("Cyprinus carpio") == "Четвёртый пруд" and wn_.get("Alburnus alburnus") == "Первый пруд"
+             and st_.get("Neogobius melanostomus") == "по названию"
+             and ra_.get("excluded_other_block") == 7 and rf_.get("excluded_other_block") == 2
+             and c6.anam.method == "A" and rf_.get("recommendation", {}).get("BIT", {}).get("recommended") == "A")
+    ok("П9а рыбы в пределах водоёмов", cond6,
+       f"v_fish: пруд 1 = {vf.get(h1)}, пруд 2 = {vf.get(h2)}, суша = {vf.get(hl)}; статусы {st_}; названия {nm_}; "
+       f"выбор водоёма по названию: Cyprinus carpio → {wn_.get('Cyprinus carpio')}; "
+       f"ФГ амфибий и рептилий {sorted(ra_.get('fg_codes', {}))}; исключено из v_anam {ra_.get('excluded_other_block')}, "
+       f"из v_fish {rf_.get('excluded_other_block')}; водных гексагонов {rf_.get('water_hexes')}")
     (work_p / "selftest2_report.json").write_text(json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")
     return res
 
@@ -5405,6 +6080,9 @@ def build_parser() -> argparse.ArgumentParser:
     s3.add_argument("--work", required=True)
     s3.add_argument("--bounds", help="слой границ ООПТ")
     s3.add_argument("--eco", help="слои экосистем D2 через «;» для проверки переноса в контуры (П8.10)")
+    ck = sp.add_parser("check", help="проверка параметров и рекомендация способа А/Б по ООПТ")
+    ck.add_argument("--config", required=True)
+    ck.add_argument("--set", action="append", default=[], help="раздел.поле=значение")
     sp.add_parser("gui", help="графический интерфейс")
     return ap
 
@@ -5427,6 +6105,15 @@ def main(argv=None) -> int:
                 cfg.archive.replace = True
             r = run_pipeline(cfg)
             print("\n".join(r["files"]))
+        elif args.cmd == "check":
+            cfg = Config.load(args.config)
+            _apply_sets(cfg, args.set)
+            for lvl, m in validate(cfg):
+                print(f"{lvl}: {m}")
+            t = fg_recommendations(cfg)
+            if len(t):
+                print("Рекомендация способа А/Б (способ выбирает пользователь):")
+                print(t.to_string(index=False))
         elif args.cmd == "import-v4":
             cfg = preset_config(args.preset)
             cfg.inputs.v4_path = args.v4
@@ -5889,9 +6576,20 @@ class App:
             log.info("параметры сохранены: %s", p)
 
     def check(self):
-        for lvl, m in validate(self.get_config()):
+        cfg = self.get_config()
+        msgs = validate(cfg)
+        for lvl, m in msgs:
             log.log(logging.ERROR if lvl == "ошибка" else logging.WARNING if lvl == "предупреждение" else logging.INFO,
                     "проверка (%s): %s", lvl, m)
+        if any(getattr(cfg, k).files for k in ("mam", "anam", "fish")) and cfg.project.boundaries and \
+                not any(lvl == "ошибка" for lvl, _ in msgs) and not (self.worker and self.worker.is_alive()):
+            def done(t):
+                if t is None or not len(t):
+                    log.info("рекомендация А/Б: нет находок в ООПТ")
+                    return
+                log.info("рекомендация способа А/Б (Б — при ≥ %d единицах учёта в ООПТ; способ выбирает пользователь):\n%s",
+                         cfg.mam.auto_units, t.drop(columns=["Индекс Кларка — Эванса"]).to_string(index=False))
+            self._background(lambda: fg_recommendations(cfg), done)
 
     def show_archive(self):
         path = self.widgets[("archive", "path")]["var"].get()

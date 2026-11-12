@@ -233,6 +233,7 @@
           "v_ins",
           "v_mam",
           "v_anam",
+          "v_fish",
           "v_bird",
           "v_aqua",
           "v_rare",
@@ -430,10 +431,6 @@
       ]
     },
     "anam": {
-      "Abramis brama": [
-        2,
-        "лещ"
-      ],
       "Bufo bufo": [
         1,
         "жаба серая"
@@ -441,6 +438,56 @@
       "Bufotes viridis": [
         1,
         "жаба зелёная"
+      ],
+      "Emys orbicularis": [
+        2,
+        "черепаха болотная"
+      ],
+      "Lacerta agilis": [
+        1,
+        "ящерица прыткая"
+      ],
+      "Lissotriton vulgaris": [
+        1,
+        "тритон обыкновенный"
+      ],
+      "Natrix natrix": [
+        1,
+        "уж обыкновенный"
+      ],
+      "Pelophylax ridibundus": [
+        1,
+        "лягушка озёрная"
+      ],
+      "Rana arvalis": [
+        1,
+        "лягушка остромордая"
+      ],
+      "Rana temporaria": [
+        1,
+        "лягушка травяная"
+      ],
+      "Trachemys scripta": [
+        2,
+        "черепаха красноухая"
+      ],
+      "Triturus cristatus": [
+        1,
+        "тритон гребенчатый"
+      ],
+      "Zootoca vivipara": [
+        1,
+        "ящерица живородящая"
+      ]
+    },
+    "fish": {
+      "Abramis brama": [
+        2,
+        "лещ"
+      ],
+      "Alburnus alburnus": [
+        3,
+        "уклейка"
       ],
       "Carassius auratus": [
         2,
@@ -454,10 +501,6 @@
         2,
         "карп обыкновенный"
       ],
-      "Emys orbicularis": [
-        2,
-        "черепаха болотная"
-      ],
       "Esox lucius": [
         1,
         "щука"
@@ -466,29 +509,13 @@
         3,
         "толстолобик пёстрый"
       ],
-      "Lacerta agilis": [
-        1,
-        "ящерица прыткая"
-      ],
       "Leucaspius delineatus": [
         3,
         "верховка"
       ],
-      "Lissotriton vulgaris": [
-        1,
-        "тритон обыкновенный"
-      ],
-      "Natrix natrix": [
-        1,
-        "уж обыкновенный"
-      ],
       "Neogobius melanostomus": [
         1,
         "бычок-кругляк"
-      ],
-      "Pelophylax ridibundus": [
-        1,
-        "лягушка озёрная"
       ],
       "Perca fluviatilis": [
         1,
@@ -497,14 +524,6 @@
       "Perccottus glenii": [
         1,
         "ротан"
-      ],
-      "Rana arvalis": [
-        1,
-        "лягушка остромордая"
-      ],
-      "Rana temporaria": [
-        1,
-        "лягушка травяная"
       ],
       "Rhodeus amarus": [
         2,
@@ -521,18 +540,6 @@
       "Tinca tinca": [
         2,
         "линь"
-      ],
-      "Trachemys scripta": [
-        2,
-        "черепаха красноухая"
-      ],
-      "Triturus cristatus": [
-        1,
-        "тритон гребенчатый"
-      ],
-      "Zootoca vivipara": [
-        1,
-        "ящерица живородящая"
       ]
     }
   },
