@@ -1,5 +1,5 @@
 ﻿группа;царство;тип/отдел;класс;порядок;семейство;ранг;вид (латынь);вид (русск.);синонимы (латынь);синонимы (русск.);ККМ гор.;ККМ пр.;ККМ: запись категории;Прил. 4 ККМ;Прил. 4: оговорка;ККРФ кат.;ККРФ № п/п;МСОП кат.;МСОП ID;код v_rare (гор.);код v_rare (пр.);основание включения;примечание
-Сосудистые растения;Plantae;Tracheophyta;Lycopodiopsida;Lycopodiales;Lycopodiaceae;вид;Lycopodium annotinum;Плаун годичный;;;1;1;1;;;;;;;1;1;ККМ;"принятое имя по GBIF: Spinulum annotinum annotinum; в данных VLD как Spinulum annotinum; категория в файле данных: 2025: 1"
+Сосудистые растения;Plantae;Tracheophyta;Lycopodiopsida;Lycopodiales;Lycopodiaceae;вид;Lycopodium annotinum;Плаун годичный;"Spinulum annotinum annotinum; Spinulum annotinum";;1;1;1;;;;;;;1;1;ККМ;"принятое имя по GBIF: Spinulum annotinum annotinum; в данных VLD как Spinulum annotinum; категория в файле данных: 2025: 1"
 Сосудистые растения;Plantae;Tracheophyta;Lycopodiopsida;Lycopodiales;Lycopodiaceae;вид;Lycopodium clavatum;Плаун булавовидный;;;1;1;1;;;;;NE;;1;1;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Lycopodiopsida;Lycopodiales;Lycopodiaceae;вид;Huperzia selago;Баранец обыкновенный;;;0;0;0;;;;;NE;;0;0;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Polypodiopsida;Equisetales;Equisetaceae;вид;Equisetum ramosissimum;Хвощ ветвистый;;;4;4;4;;;;;LC;14828406;4;4;ККМ;
@@ -14,22 +14,22 @@
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Nymphaeales;Nymphaeaceae;вид;Nymphaea candida;Кувшинка белоснежная;;;3;3;3;;;;;NE;;3;3;ККМ;категория в файле данных: 2025: 3, 2026: 3
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Papaveraceae;вид;Corydalis cava;Хохлатка полая;;;2;2;2;;;;;NE;;2;2;ККМ;категория в файле данных: 2025: 2, 2026: 2
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Papaveraceae;вид;Corydalis intermedia;Хохлатка промежуточная;;;2;2;2;;;;;NE;;2;2;ККМ;
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Papaveraceae;вид;Corydalis marschalliana;Хохлатка Маршалла;;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Corydalis cava
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Papaveraceae;вид;Corydalis marschalliana;Хохлатка Маршалла;Corydalis cava;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Corydalis cava
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Ranunculaceae;вид;Caltha palustris;Калужница болотная;;;3;3;3;;;;;LC;167915;3;3;ККМ;категория в файле данных: 2025: 3, 2026: 3
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Ranunculaceae;вид;Trollius europaeus;Купальница европейская;;;2;3;2 (гор.) 3 (пр.);;;;;NE;;2;3;ККМ;категория в файле данных: 2025: 2
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Ranunculaceae;вид;Aconitum septentrionale;Борец северный, или высокий;;;1;3;1 (гор.) 3 (пр.);;;;;NE;;1;3;ККМ;категория в файле данных: 2025: 1, 2026: 1
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Ranunculaceae;вид;Anemonoides nemorosa;Ветреница дубравная;;;2;2;2;;;;;NE;;2;2;ККМ;"принятое имя по GBIF: Anemone nemorosa; категория в файле данных: 2025: 2, 2026: 2"
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Ranunculaceae;вид;Anemonoides nemorosa;Ветреница дубравная;Anemone nemorosa;;2;2;2;;;;;NE;;2;2;ККМ;"принятое имя по GBIF: Anemone nemorosa; категория в файле данных: 2025: 2, 2026: 2"
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Ranunculaceae;вид;Hepatica nobilis;Печёночница благородная;;;1;1;1;;;;;NE;;1;1;ККМ;категория в файле данных: 2025: 1, 2026: 1
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Ranunculaceae;вид;Ranunculus lingua;Лютик языколистный, или длиннолистный;;;2;2;2;;;;;LC;175245;2;2;ККМ;категория в файле данных: 2025: 2, 2026: 2
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Droseraceae;вид;Drosera rotundifolia;Росянка круглолистная;;;2;2;2;;;;;LC;168798;2;2;ККМ;
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Polygonaceae;вид;Bistorta major;Горец змеиный, или раковые шейки;;;3;3;3;;;;;;;3;3;ККМ;"принятое имя по GBIF: Bistorta officinalis officinalis; в данных VLD как Bistorta officinalis; категория в файле данных: 2025: 3, 2026: 3"
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Coccyganthe flos-cuculi;Горицвет кукушкин;;;5;5;5;;;;;NE;;5;5;ККМ;"принятое имя по GBIF: Silene flos-cuculi; в данных VLD как Silene flos-cuculi; категория в файле данных: 2026: 5"
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Polygonaceae;вид;Bistorta major;Горец змеиный, или раковые шейки;"Bistorta officinalis officinalis; Bistorta officinalis";;3;3;3;;;;;;;3;3;ККМ;"принятое имя по GBIF: Bistorta officinalis officinalis; в данных VLD как Bistorta officinalis; категория в файле данных: 2025: 3, 2026: 3"
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Coccyganthe flos-cuculi;Горицвет кукушкин;Silene flos-cuculi;;5;5;5;;;;;NE;;5;5;ККМ;"принятое имя по GBIF: Silene flos-cuculi; в данных VLD как Silene flos-cuculi; категория в файле данных: 2026: 5"
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Viscaria vulgaris;Смолка обыкновенная;Steris viscaria;;3;;3 (гор.);;;;;NE;;3;;ККМ;"в данных VLD как Steris viscaria; категория в файле данных: 2026: 3"
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Melandrium dioicum;Дрёма двудомная;;;3;;3 (гор.);;;;;;;3;;ККМ;принятое имя по GBIF: Silene dioica dioica
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Melandrium dioicum;Дрёма двудомная;Silene dioica dioica;;3;;3 (гор.);;;;;;;3;;ККМ;принятое имя по GBIF: Silene dioica dioica
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Dianthus deltoides;Гвоздика травянка;;;2;3;2 (гор.) 3 (пр.);;;;;NE;;2;3;ККМ;категория в файле данных: 2025: 2, 2026: 2
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Dianthus fischeri;Гвоздика Фишера;;;3;3;3;;;;;NE;;3;3;ККМ;"принятое имя по GBIF: Dianthus chinensis; категория в файле данных: 2026: 3"
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Dianthus fischeri;Гвоздика Фишера;Dianthus chinensis;;3;3;3;;;;;NE;;3;3;ККМ;"принятое имя по GBIF: Dianthus chinensis; категория в файле данных: 2026: 3"
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Dianthus superbus;Гвоздика пышная;;;1;1;1;;;;;NE;;1;1;ККМ;
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Saxifragales;Crassulaceae;вид;Jovibarba globifera;Бородник шароносный, или молодило побегоносное;;;1;1;1;;;;;;;1;1;ККМ;принятое имя по GBIF: Sempervivum globiferum globiferum
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Saxifragales;Crassulaceae;вид;Jovibarba globifera;Бородник шароносный, или молодило побегоносное;Sempervivum globiferum globiferum;;1;1;1;;;;;;;1;1;ККМ;принятое имя по GBIF: Sempervivum globiferum globiferum
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Geraniales;Geraniaceae;вид;Geranium robertianum;Герань Роберта;;;2;2;2;;;;;NE;;2;2;ККМ;категория в файле данных: 2025: 2, 2026: 2
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Myrtales;Onagraceae;вид;Circaea alpina;Двулепестник альпийский;;;2;2;2;;;;;NE;;2;2;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Fabales;Polygalaceae;вид;Polygala amarella;Истод горьковатый;;;0;0;0;;;;;NE;;0;0;ККМ;
@@ -54,7 +54,7 @@
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ericales;Ericaceae;вид;Andromeda polifolia;Подбел обыкновенный;;;1;1;1;;;;;LC;64263821;1;1;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ericales;Ericaceae;вид;Chamaedaphne calyculata;Болотный мирт, или Хамедафна обыкновенная;;;2;2;2;;;;;LC;64310601;2;2;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ericales;Ericaceae;вид;Vaccinium uliginosum;Голубика;;;2;2;2;;;;;NE;;2;2;ККМ;
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ericales;Ericaceae;вид;Oxycoccus palustris;Клюква болотная;;;2;2;2;;;;;LC;64326221;2;2;ККМ;принятое имя по GBIF: Vaccinium oxycoccos
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ericales;Ericaceae;вид;Oxycoccus palustris;Клюква болотная;Vaccinium oxycoccos;;2;2;2;;;;;LC;64326221;2;2;ККМ;принятое имя по GBIF: Vaccinium oxycoccos
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ericales;Ericaceae;вид;Calluna vulgaris;Вереск обыкновенный;;;1;1;1;;;;;NE;;1;1;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Apiales;Apiaceae;вид;Sanicula europaea;Подлесник европейский;;;5;5;5;;;;;NE;;5;5;ККМ;категория в файле данных: 2026: 5
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Apiales;Apiaceae;вид;Eryngium planum;Синеголовник плосколистный;;;3;3;3;;;;;NE;;3;3;ККМ;категория в файле данных: 2026: 3
@@ -68,11 +68,11 @@
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Asterales;Campanulaceae;вид;Campanula trachelium;Колокольчик крапиволистный;;;3;3;3;;;;;NE;;3;3;ККМ;категория в файле данных: 2025: 3, 2026: 3
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Asterales;Asteraceae;вид;Eupatorium cannabinum;Посконник коноплёвый;;;4;4;4;;;;;NE;;4;4;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Asterales;Asteraceae;вид;Antennaria dioica;Кошачья лапка двудомная;;;1;1;1;;;;;NE;;1;1;ККМ;
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Asterales;Asteraceae;вид;Anthemis tinctoria;Пупавка красильная;;;3;3;3;;;;;;;3;3;ККМ;"принятое имя по GBIF: Cota tinctoria tinctoria; в данных VLD как Cota tinctoria; категория в файле данных: 2025: 3, 2026: 3"
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Asterales;Asteraceae;вид;Anthemis tinctoria;Пупавка красильная;"Cota tinctoria tinctoria; Cota tinctoria";;3;3;3;;;;;;;3;3;ККМ;"принятое имя по GBIF: Cota tinctoria tinctoria; в данных VLD как Cota tinctoria; категория в файле данных: 2025: 3, 2026: 3"
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Asterales;Asteraceae;вид;Crepis sibirica;Скерда сибирская;;;1;1;1;;;;;NE;;1;1;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Asterales;Asteraceae;вид;Ligularia sibirica;Бузульник сибирский;;;0;0;0;;;;;NE;;0;0;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Asterales;Asteraceae;вид;Carlina vulgaris;Колючник обыкновенный;Carlina biebersteinii;;2;4;2 (гор.) 4 (пр.);;;;;NE;;2;4;ККМ;"в данных VLD как Carlina biebersteinii; категория в файле данных: 2026: 2"
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Boraginales;Boraginaceae;вид;Omphalodes scorpioides;Омфалодес ползучий, или пупочник;;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Memoremea scorpioides
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Boraginales;Boraginaceae;вид;Omphalodes scorpioides;Омфалодес ползучий, или пупочник;Memoremea scorpioides;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Memoremea scorpioides
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Boraginales;Boraginaceae;вид;Nonea pulla;Нонея тёмно-бурая;;;1;1;1;;;;;NE;;1;1;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Boraginales;Boraginaceae;вид;Pulmonaria obscura;Медуница неясная;;;3;3;3;;;;;NE;;3;3;ККМ;категория в файле данных: 2025: 3, 2026: 3
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Boraginales;Boraginaceae;вид;Myosotis palustris;Незабудка болотная;Myosotis scorpioides;;3;3;3;;;;;NE;;3;3;ККМ;"в данных VLD как Myosotis scorpioides; категория в файле данных: 2025: 3, 2026: 3"
@@ -80,8 +80,8 @@
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Plantaginaceae;вид;Veronica teucrium;Вероника широколистная;;;2;2;2;;;;;NE;;2;2;ККМ;категория в файле данных: 2025: 2, 2026: 2
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Orobanchaceae;вид;Pedicularis kaufmannii;Мытник Кауфмана;;;1;1;1;;;;;NE;;1;1;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Orobanchaceae;вид;Pedicularis palustris;Мытник болотный;;;1;1;1;;;;;LC;19620542;1;1;ККМ;
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Lamiaceae;вид;Nepeta pannonica;Котовник голый, или венгерский;;;2;2;2;;;;;;;2;2;ККМ;принятое имя по GBIF: Nepeta nuda nuda
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Lamiaceae;вид;Thymus loevyanus;Тимьян, или чабрец, Лёви;;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Thymus odoratissimus
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Lamiaceae;вид;Nepeta pannonica;Котовник голый, или венгерский;Nepeta nuda nuda;;2;2;2;;;;;;;2;2;ККМ;принятое имя по GBIF: Nepeta nuda nuda
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Lamiaceae;вид;Thymus loevyanus;Тимьян, или чабрец, Лёви;Thymus odoratissimus;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Thymus odoratissimus
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Lamiaceae;вид;Thymus marschallianus;Тимьян, или чабрец, Маршалла;;;1;1;1;;;;;NE;;1;1;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Lamiaceae;вид;Thymus pulegioides;Тимьян, или чабрец, блошиный;;;1;1;1;;;;;NE;;1;1;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Gentianales;Gentianaceae;вид;Centaurium erythraea;Золототысячник обыкновенный;;;1;1;1;;;;;LC;202950;1;1;ККМ;
@@ -96,15 +96,15 @@
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Iridaceae;вид;Iris pseudacorus;Касатик, или ирис жёлтый, или аировидный;;;3;3;3;;;;;LC;163999;3;3;ККМ;категория в файле данных: 2025: 3, 2026: 3
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Iridaceae;вид;Iris sibirica;Касатик, или ирис, сибирский;;;1;1;1;;;;;NE;;1;1;ККМ;категория в файле данных: 2026: 1
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Iridaceae;вид;Gladiolus imbricatus;Шпажник черепитчатый;;;1;1;1;;;;;NE;;1;1;ККМ;
-Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Orchidaceae;вид;Dactylorhiza baltica;Пальчатокоренник балтийский;;;2;2;2;;;;;;;2;2;ККМ;"принятое имя по GBIF: Dactylorhiza majalis baltica; в данных VLD как Dactylorhiza majalis baltica; категория в файле данных: 2025: 2"
-Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Orchidaceae;вид;Dactylorhiza fuchsii;Пальчатокоренник Фукса;;;1;2;1 (гор.) 2 (пр.);;;;;;;1;2;ККМ;"принятое имя по GBIF: Dactylorhiza maculata fuchsii; категория в файле данных: 2025: 1"
+Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Orchidaceae;вид;Dactylorhiza baltica;Пальчатокоренник балтийский;Dactylorhiza majalis baltica;;2;2;2;;;;;;;2;2;ККМ;"принятое имя по GBIF: Dactylorhiza majalis baltica; в данных VLD как Dactylorhiza majalis baltica; категория в файле данных: 2025: 2"
+Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Orchidaceae;вид;Dactylorhiza fuchsii;Пальчатокоренник Фукса;Dactylorhiza maculata fuchsii;;1;2;1 (гор.) 2 (пр.);;;;;;;1;2;ККМ;"принятое имя по GBIF: Dactylorhiza maculata fuchsii; категория в файле данных: 2025: 1"
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Orchidaceae;вид;Dactylorhiza incarnata;Пальчатокоренник мясо-красный;;;3;3;3;;;;;NE;;3;3;ККМ;категория в файле данных: 2025: 3, 2026: 3
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Orchidaceae;вид;Dactylorhiza maculata;Пальчатокоренник пятнистый;;;0;0;0;;;;;NE;;0;0;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Orchidaceae;вид;Platanthera bifolia;Любка двулистная;;;1;2;1 (гор.) 2 (пр.);;;;;NE;;1;2;ККМ;категория в файле данных: 2025: 1
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Orchidaceae;вид;Platanthera chlorantha;Любка зеленоцветковая;;;1;1;1;;;;;NE;;1;1;ККМ;категория в файле данных: 2025: 1
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Orchidaceae;вид;Epipactis helleborine;Дремлик широколистный;;;5;5;5;;;;;NE;;5;5;ККМ;категория в файле данных: 2025: 5, 2026: 5
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Orchidaceae;вид;Epipactis palustris;Дремлик болотный;;;1;1;1;;;;;LC;175923;1;1;ККМ;категория в файле данных: 2025: 1
-Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Orchidaceae;вид;Listera ovata;Тайник яйцевидный;;;2;2;2;;;;;NE;;2;2;ККМ;"принятое имя по GBIF: Neottia ovata; в данных VLD как Neottia ovata; категория в файле данных: 2025: 2"
+Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Orchidaceae;вид;Listera ovata;Тайник яйцевидный;Neottia ovata;;2;2;2;;;;;NE;;2;2;ККМ;"принятое имя по GBIF: Neottia ovata; в данных VLD как Neottia ovata; категория в файле данных: 2025: 2"
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Orchidaceae;вид;Neottia nidus-avis;Гнездовка настоящая;;;3;3;3;;;;;LC;175996;3;3;ККМ;категория в файле данных: 2025: 3, 2026: 3
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Orchidaceae;вид;Corallorhiza trifida;Ладьян трёхнадрезный;;;2;2;2;;;;;NE;;2;2;ККМ;категория в файле данных: 2025: 2
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Orchidaceae;вид;Goodyera repens;Гудайера ползучая;;;1;1;1;;;;;NE;;1;1;ККМ;
@@ -117,22 +117,22 @@
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Cyperaceae;вид;Carex lasiocarpa;Осока пушистоплодная;;;2;2;2;;;;;LC;167842;2;2;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Cyperaceae;вид;Carex limosa;Осока топяная;;;2;2;2;;;;;LC;167843;2;2;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Avenella flexuosa;Овсик извилистый, или щучка извилистая;;;2;2;2;;;;;NE;;2;2;ККМ;
-Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Bromopsis benekenii;Кострец Бенекена;;;4;4;4;;;;;NE;;4;4;ККМ;"принятое имя по GBIF: Bromus benekenii; в данных VLD как Bromus benekenii; категория в файле данных: 2025: 4"
+Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Bromopsis benekenii;Кострец Бенекена;Bromus benekenii;;4;4;4;;;;;NE;;4;4;ККМ;"принятое имя по GBIF: Bromus benekenii; в данных VLD как Bromus benekenii; категория в файле данных: 2025: 4"
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Festuca altissima;Овсяница высокая, или лесная;;;2;2;2;;;;;NE;;2;2;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Festuca valesiaca;Овсяница валлисская, или типчак;;;2;2;2;;;;;NE;;2;2;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Glyceria nemoralis;Манник дубравный;;;2;2;2;;;;;LC;167864;2;2;ККМ;
-Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Hierochlo odorata;Зубровка душистая;;;3;3;3;;;;;NE;;3;3;ККМ;"принятое имя по GBIF: Anthoxanthum nitens; в данных VLD как Anthoxanthum nitens; категория в файле данных: 2025: 3"
+Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Hierochlo odorata;Зубровка душистая;Anthoxanthum nitens;;3;3;3;;;;;NE;;3;3;ККМ;"принятое имя по GBIF: Anthoxanthum nitens; в данных VLD как Anthoxanthum nitens; категория в файле данных: 2025: 3"
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Leersia oryzoides;Леерсия рисовидная;;;3;3;3;;;;;LC;164118;3;3;ККМ;категория в файле данных: 2025: 3, 2026: 3
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Melica picta;Перловник пестрый;;;4;4;4;;;;;NE;;4;4;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Phleum phleoides;Тимофеевка степная;;;2;2;2;;;;;NE;;2;2;ККМ;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Poa remota;Мятлик расставленный;;;2;2;2;;;;;NE;;2;2;ККМ;
-Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Sieglingia decumbens;Зиглингия лежачая;;;4;4;4;;;;;NE;;4;4;ККМ;принятое имя по GBIF: Danthonia decumbens
+Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Sieglingia decumbens;Зиглингия лежачая;Danthonia decumbens;;4;4;4;;;;;NE;;4;4;ККМ;принятое имя по GBIF: Danthonia decumbens
 Моховидные;Plantae;Anthocerotophyta;Anthocerotopsida;Anthocerotales;Anthocerotaceae;вид;Anthoceros agrestis;Антоцерос пашенный;;;2;2;2;;;;;NE;;2;2;ККМ;
 Моховидные;Plantae;Bryophyta;Bryopsida;Bryales;Bryaceae;вид;Rhodobryum roseum;Родобриум розетковидный;;;3;3;3;;;;;NE;;3;3;ККМ;
 Моховидные;Plantae;Bryophyta;Bryopsida;Bryales;Mniaceae;вид;Plagiomnium undulatum;Плагиомниум волнистый;;;3;3;3;;;;;NE;;3;3;ККМ;
-Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Calliergonaceae;вид;Warnstorfia exannulata;Варнсторфия бесколечковая;;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Sarmentypnum exannulatum
-Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Anomodontaceae;вид;Anomodon longifolius;Аномодон длиннолистный;;;1;1;1;;;;;NE;;1;1;ККМ;принятое имя по GBIF: Anomodontella longifolia
-Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Neckeraceae;вид;Anomodon attenuatus;Аномодон утонченный;;;1;1;1;;;;;NE;;1;1;ККМ;принятое имя по GBIF: Pseudanomodon attenuatus
+Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Calliergonaceae;вид;Warnstorfia exannulata;Варнсторфия бесколечковая;Sarmentypnum exannulatum;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Sarmentypnum exannulatum
+Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Anomodontaceae;вид;Anomodon longifolius;Аномодон длиннолистный;Anomodontella longifolia;;1;1;1;;;;;NE;;1;1;ККМ;принятое имя по GBIF: Anomodontella longifolia
+Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Neckeraceae;вид;Anomodon attenuatus;Аномодон утонченный;Pseudanomodon attenuatus;;1;1;1;;;;;NE;;1;1;ККМ;принятое имя по GBIF: Pseudanomodon attenuatus
 Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Brachytheciaceae;вид;Rhynchostegium murale;Ринхостегиум стенной;;;2;2;2;;;;;NE;;2;2;ККМ;
 Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Pylaisiaceae;вид;Ptilium crista-castrensis;Птилиум гребенчатый;;;1;3;1 (гор.) 3 (пр.);;;;;NE;;1;3;ККМ;
 Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Leucodontaceae;вид;Leucodon sciuroides;Левкодон беличий;;;3;3;3;;;;;NE;;3;3;ККМ;
@@ -164,7 +164,7 @@
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Lecanorales;Cladoniaceae;вид;Cladonia turgida;Кладония вздутая;;;0;4;0 (гор.) 4 (пр.);;;;;NE;;0;4;ККМ;
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Lecanorales;Cladoniaceae;вид;Cladonia borealis;Кладония северная;;;1;1;1;;;;;NE;;1;1;ККМ;
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Lecanorales;Cladoniaceae;вид;Cladonia rangiferina;Кладония оленья;;;1;3;1 (гор.) 3 (пр.);;;;;NE;;1;3;ККМ;
-Лишайники;Fungi;Ascomycota;Lecanoromycetes;Lecanorales;Lecanoraceae;вид;Lecanora muralis;Леканора настенная, или Протопармелиопсис настенный;;;3;3;3;;;;;NE;;3;3;ККМ;принятое имя по GBIF: Protoparmeliopsis muralis
+Лишайники;Fungi;Ascomycota;Lecanoromycetes;Lecanorales;Lecanoraceae;вид;Lecanora muralis;Леканора настенная, или Протопармелиопсис настенный;Protoparmeliopsis muralis;;3;3;3;;;;;NE;;3;3;ККМ;принятое имя по GBIF: Protoparmeliopsis muralis
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Lecanorales;Parmeliaceae;вид;Hypogymnia tubulosa;Гипогимния трубчатая;;;2;2;2;;;;;NE;;2;2;ККМ;
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Lecanorales;Parmeliaceae;вид;Melanelixia subargentifera;Меланеликсия серебристоносная;;;2;2;2;;;;;NE;;2;2;ККМ;
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Lecanorales;Parmeliaceae;вид;Parmelina tiliacea;Пармелина липовая;;;1;1;1;;;;;NE;;1;1;ККМ;
@@ -190,7 +190,7 @@
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Ostropales;Graphidaceae;вид;Graphis scripta;Графис письменный;;;2;4;2 (гор.) 4 (пр.);;;;;NE;;2;4;ККМ;
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Caliciales;Physciaceae;вид;Anaptychia ciliaris;Анаптихия реснитчатая;;;0;1;0 (гор.) 1 (пр.);;;;;NE;;0;1;ККМ;
 Лишайники;Fungi;Basidiomycota;Agaricomycetes;Cantharellales;Hydnaceae;вид;Multiclavula mucida;Мультиклавула слизистая;;;1;1;1;;;;;NE;;1;1;ККМ;
-Грибы;Fungi;Ascomycota;Leotiomycetes;Helotiales;Cordieritidaceae;вид;Ionomidotis irregularis;Иономидотис неправильный;;;3;3;3;;;;;NE;;3;3;ККМ;принятое имя по GBIF: Diplocarpa irregularis
+Грибы;Fungi;Ascomycota;Leotiomycetes;Helotiales;Cordieritidaceae;вид;Ionomidotis irregularis;Иономидотис неправильный;Diplocarpa irregularis;;3;3;3;;;;;NE;;3;3;ККМ;принятое имя по GBIF: Diplocarpa irregularis
 Грибы;Fungi;Ascomycota;Leotiomycetes;Helotiales;Sclerotiniaceae;вид;Sclerencoelia fascicularis;Склерэнцелия пучковая;Encoelia fascicularis;Энцелия;3;3;3;;;;;NE;;3;3;ККМ;
 Грибы;Fungi;Ascomycota;Leotiomycetes;Leotiales;Leotiaceae;вид;Leotia lubrica;Леоция студенистая;;;3;3;3;;;;;NE;;3;3;ККМ;
 Грибы;Fungi;Ascomycota;Leotiomycetes;Phacidiales;Phacidiaceae;вид;Bulgaria inquinans;Булгария пачкающая;;;3;3;3;;;;;NE;;3;3;ККМ;
@@ -209,7 +209,7 @@
 Грибы;Fungi;Basidiomycota;Agaricomycetes;Agaricales;Hygrophoraceae;вид;Chrysomphalina grossula;Хризомфалина крыжовенная;;толстенькая;3;3;3;;;;;NE;;3;3;ККМ;
 Грибы;Fungi;Basidiomycota;Agaricomycetes;Agaricales;Pluteaceae;вид;Pluteus salicinus;Плютей ивовый;;;3;3;3;;;;;NE;;3;3;ККМ;
 Грибы;Fungi;Basidiomycota;Agaricomycetes;Agaricales;Cortinariaceae;вид;Cortinarius pholideus;Паутинник чешуйчатый;;;0;0;0;;;;;NE;;0;0;ККМ;
-Грибы;Fungi;Basidiomycota;Agaricomycetes;Agaricales;Cortinariaceae;вид;Cortinarius triumphans;Паутинник триумфальный, или жёлтый;;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Phlegmacium triumphans
+Грибы;Fungi;Basidiomycota;Agaricomycetes;Agaricales;Cortinariaceae;вид;Cortinarius triumphans;Паутинник триумфальный, или жёлтый;Phlegmacium triumphans;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Phlegmacium triumphans
 Грибы;Fungi;Basidiomycota;Agaricomycetes;Agaricales;Cortinariaceae;вид;Cortinarius violaceus;Паутинник фиолетовый;;;4;4;4;;;;;NE;;4;4;ККМ;
 Грибы;Fungi;Basidiomycota;Agaricomycetes;Agaricales;Hymenogastraceae;вид;Galerina hypnorum;Галерина моховая;;;3;3;3;;;;;NE;;3;3;ККМ;
 Грибы;Fungi;Basidiomycota;Agaricomycetes;Agaricales;Hymenogastraceae;вид;Galerina paludosa;Галерина болотная;;;3;3;3;;;;;NE;;3;3;ККМ;
@@ -236,12 +236,12 @@
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Alismatales;Potamogetonaceae;вид;Potamogeton obtusifolius;Рдест туполистный;;;;;;да;;;;LC;167905;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Alismatales;Potamogetonaceae;вид;Potamogeton praelongus;Рдест длиннейший;;;;;;да;;;;LC;167906;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Alismatales;Potamogetonaceae;вид;Zannichellia palustris;Дзанникеллия болотная;;;;;;да;;;;LC;164133;6;6;Прил. 4;
-Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Alismatales;Juncaginaceae;вид;Triglochin palustre;Триостренник болотный;;;;;;да;;;;LC;164152;6;6;Прил. 4;принятое имя по GBIF: Triglochin palustris
+Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Alismatales;Juncaginaceae;вид;Triglochin palustre;Триостренник болотный;Triglochin palustris;;;;;да;;;;LC;164152;6;6;Прил. 4;принятое имя по GBIF: Triglochin palustris
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Alismatales;Alismataceae;вид;Alisma gramineum;Частуха злаковидная;;;;;;да;;;;DD;164301;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Alismatales;Butomaceae;вид;Butomus umbellatus;Сусак зонтичный;;;;;;да;;;;LC;164438;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Alismatales;Hydrocharitaceae;вид;Stratiotes aloides;Телорез алоэвидный;;;;;;да;;;;LC;167872;6;6;Прил. 4;
-Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Hierochloe repens;Зубровка ползучая, или степная;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Anthoxanthum repens
-Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Trisetum sibiricum;Трищетинник сибирский;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Sibirotrisetum sibiricum
+Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Hierochloe repens;Зубровка ползучая, или степная;Anthoxanthum repens;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Anthoxanthum repens
+Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Trisetum sibiricum;Трищетинник сибирский;Sibirotrisetum sibiricum;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Sibirotrisetum sibiricum
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Beckmannia eruciformis;Бекмания обыкновенная;;;;;;да;;;;LC;175261;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Koeleria cristata;Тонконог гребенчатый;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Holcus lanatus;Бухарник шерстистый;;;;;;да;;;;NE;;6;6;Прил. 4;
@@ -258,7 +258,7 @@
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Cyperaceae;вид;Carex diandra;Осока двутычинковая;;;;;;да;;;;LC;19617611;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Cyperaceae;вид;Carex ericetorum;Осока верещатниковая;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Cyperaceae;вид;Carex flava;Осока жёлтая;;;;;;да;;;;LC;164048;6;6;Прил. 4;
-Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Cyperaceae;вид;Carex juncella;Осока ситничковая, или вилюйская;;;;;;да;;;;LC;164003;6;6;Прил. 4;принятое имя по GBIF: Carex nigra juncea
+Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Cyperaceae;вид;Carex juncella;Осока ситничковая, или вилюйская;Carex nigra juncea;;;;;да;;;;LC;164003;6;6;Прил. 4;принятое имя по GBIF: Carex nigra juncea
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Cyperaceae;вид;Carex muricata;Осока колючковатая;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Cyperaceae;вид;Carex riparia;Осока береговая;;;;;;да;;;;LC;164262;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Cyperaceae;вид;Carex vaginata;Осока влагалищная;;;;;;да;;;;LC;64273612;6;6;Прил. 4;
@@ -268,7 +268,7 @@
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Juncaceae;вид;Juncus alpinoarticulatus;Ситник альпийский;;;;;;да;;;;LC;19619028;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Juncaceae;вид;Juncus conglomeratus;Ситник скученный;;;;;;да;;;;LC;164416;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Juncaceae;вид;Luzula pallescens;Ожика бледноватая;;;;;;да;;;;NE;;6;6;Прил. 4;
-Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Liliales;Liliaceae;вид;Gagea erubescens;Гусиный лук краснеющий;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Gagea fragifera
+Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Liliales;Liliaceae;вид;Gagea erubescens;Гусиный лук краснеющий;Gagea fragifera;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Gagea fragifera
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Amaryllidaceae;вид;Allium ursinum;Лук медвежий, или черемша;;;;;;да;;;;NE;;6;6;Прил. 4;исключён из ККМ в 2022 г. (Прил. 3 к 79-ПП в ред. 1235-ПП), включён в Прил. 4
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Malpighiales;Salicaceae;вид;Salix acutifolia;Ива остролистная, или верба;;;;;;да;;;;LC;79925718;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Malpighiales;Salicaceae;вид;Salix phylicifolia;Ива филиколистная, или двуцветная;;;;;;да;;;;LC;83826389;6;6;Прил. 4;
@@ -280,15 +280,15 @@
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Silene nutans;Смолёвка поникшая;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Silene tatarica;Смолёвка татарская;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Scleranthus perennis;Дивала многолетняя;;;;;;да;;;;NE;;6;6;Прил. 4;
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Cucubalus baccifer;Волдырник ягодоносный;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Silene baccifera
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Gypsophila muralis;Качим постенный;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Psammophiliella muralis
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Cucubalus baccifer;Волдырник ягодоносный;Silene baccifera;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Silene baccifera
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Caryophyllales;Caryophyllaceae;вид;Gypsophila muralis;Качим постенный;Psammophiliella muralis;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Psammophiliella muralis
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Nymphaeales;Nymphaeaceae;вид;Nuphar lutea;Кубышка жёлтая;;;;;;да;;;;LC;164316;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Ranunculaceae;вид;Thalictrum minus;Василисник малый;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Ranunculaceae;вид;Thalictrum simplex;Василисник простой;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Brassicales;Brassicaceae;вид;Barbarea stricta;Сурепица прямая;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Brassicales;Brassicaceae;вид;Arabis pendula;Резуха повислая;;;;;;да;;;;;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Brassicales;Brassicaceae;вид;Arabis sagittata;Резуха стреловидная;;;;;;да;;;;NE;;6;6;Прил. 4;
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Rosales;Rosaceae;вид;Rubus nessensis;Куманика, или Ежевика несская, или Куманика;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Rubus polonicus
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Rosales;Rosaceae;вид;Rubus nessensis;Куманика, или Ежевика несская, или Куманика;Rubus polonicus;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Rubus polonicus
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Rosales;Rosaceae;вид;Sanguisorba officinalis;Кровохлёбка лекарственная;;;;;;да;;;;LC;203458;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Rosales;Rosaceae;вид;Agrimonia pilosa;Репешок волосистый;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Rosales;Rosaceae;вид;Prunus spinosa;Слива колючая, или терн;;;;;;да;;;;LC;172194;6;6;Прил. 4;
@@ -303,19 +303,19 @@
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Malpighiales;Violaceae;вид;Viola canina;Фиалка собачья;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Malpighiales;Violaceae;вид;Viola collina;Фиалка холмовая;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Malpighiales;Violaceae;вид;Viola hirta;Фиалка опушенная;;;;;;да;;;;NE;;6;6;Прил. 4;
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Malpighiales;Violaceae;вид;Viola persicifolia;Фиалка персиколистная, или прудовая;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Viola stagnina
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Malpighiales;Violaceae;вид;Viola persicifolia;Фиалка персиколистная, или прудовая;Viola stagnina;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Viola stagnina
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Malpighiales;Violaceae;вид;Viola riviniana;Фиалка Ривиниуса;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Malpighiales;Violaceae;вид;Viola rupestris;Фиалка скальная, или песчаная;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Malpighiales;Violaceae;вид;Viola selkirkii;Фиалка Селькирка;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Myrtales;Lythraceae;вид;Lythrum virgatum;Дербенник прутьевидный;;;;;;да;;;;NE;;6;6;Прил. 4;
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Myrtales;Onagraceae;вид;Epilobium smyrneum;Кипрей смиренский, или жилковатый;;;;;;да;;;;;;6;6;Прил. 4;принятое имя по GBIF: Epilobium roseum subsessile
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Myrtales;Onagraceae;вид;Epilobium smyrneum;Кипрей смиренский, или жилковатый;Epilobium roseum subsessile;;;;;да;;;;;;6;6;Прил. 4;принятое имя по GBIF: Epilobium roseum subsessile
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Myrtales;Onagraceae;вид;Epilobium roseum;Кипрей розовый;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Plantaginaceae;вид;Hippuris vulgaris;Водяная сосенка обыкновенная;;;;;;да;;;;LC;167870;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Myrtales;Onagraceae;вид;Circaea lutetiana;Двулепестник парижский;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Apiales;Apiaceae;вид;Angelica archangelica;Дудник лекарственный, или дягиль;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Apiales;Apiaceae;вид;Conioselinum tataricum;Гирчовник татарский;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Apiales;Apiaceae;вид;Oenanthe aquatica;Омежник водный;;;;;;да;;;;LC;167934;6;6;Прил. 4;
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Apiales;Apiaceae;вид;Laserpitium prutenicum;Гладыш прусский;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Silphiodaucus prutenicus
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Apiales;Apiaceae;вид;Laserpitium prutenicum;Гладыш прусский;Silphiodaucus prutenicus;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Silphiodaucus prutenicus
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ericales;Ericaceae;вид;Pyrola media;Грушанка средняя;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ericales;Ericaceae;вид;Orthilia secunda;Ортилия однобокая;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ericales;Ericaceae;вид;Vaccinium myrtillus;Черника;;;;;;да;;;;NE;;6;6;Прил. 4;
@@ -327,7 +327,7 @@
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Boraginales;Boraginaceae;вид;Cynoglossun officinale;Чернокорень лекарственный;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Lamiaceae;вид;Salvia nemorosa;Шалфей дубравный, или сухостепной;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Lamiaceae;вид;Origanum vulgare;Душица обыкновенная;;;;;;да;;;;NE;;6;6;Прил. 4;
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Lamiaceae;вид;Acinos arvensis;Щебрушка полевая;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Clinopodium acinos
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Lamiaceae;вид;Acinos arvensis;Щебрушка полевая;Clinopodium acinos;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Clinopodium acinos
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Scrophulariaceae;вид;Verbascum lychnitis;Коровяк метельчатый, или мучнистый;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Scrophulariaceae;вид;Verbascum thapsus;Коровяк обыкновенный, или медвежье ухо;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Orobanchaceae;вид;Lathraea squamaria;Петров крест чешуйчатый;;;;;;да;;;;NE;;6;6;Прил. 4;
@@ -336,17 +336,17 @@
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Asterales;Asteraceae;вид;Inula salicina;Девясил иволистный;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Asterales;Asteraceae;вид;Achillea salicifolia;Тысячелистник иволистный;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Asterales;Asteraceae;вид;Senecio jacobaea;Крестовник Якова;;;;;;да;;;;NE;;6;6;Прил. 4;
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Asterales;Asteraceae;вид;Senecio fluviatilis;Крестовник приречный;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Senecio sarracenicus
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Asterales;Asteraceae;вид;Senecio fluviatilis;Крестовник приречный;Senecio sarracenicus;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Senecio sarracenicus
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Asterales;Asteraceae;вид;Helichrysum arenarium;Цмин песчаный;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Asparagales;Asparagaceae;вид;Convallaria majalis;Ландыш майский;;;;;;да;;;;NE;;6;6;Прил. 4;
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Ranunculaceae;вид;Anemonoides ranunculoides;Ветреница лютиковая;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Anemone ranunculoides
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Ranunculaceae;вид;Anemonoides ranunculoides;Ветреница лютиковая;Anemone ranunculoides;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Anemone ranunculoides
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Ranunculales;Papaveraceae;вид;Corydalis solida;Хохлатка плотная;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Asterales;Asteraceae;вид;Leucanthemum vulgare;Нивяник обыкновенный;;;;;;да;;;;NE;;6;6;Прил. 4;
-Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Calamagrostis neglecta;Вейник незамеченный;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Achnatherum calamagrostis
+Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Calamagrostis neglecta;Вейник незамеченный;Achnatherum calamagrostis;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Achnatherum calamagrostis
 Сосудистые растения;Plantae;Tracheophyta;Liliopsida;Poales;Poaceae;вид;Calamagrostis purpurea;Вейник пурпурный;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Saxifragales;Grossulariaceae;вид;Ribes spicatum;Смородина колосистая;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Fabales;Fabaceae;вид;Lathyrus palustris;Чина болотная;;;;;;да;;;;LC;18762781;6;6;Прил. 4;
-Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Apiales;Apiaceae;вид;Cenolophium denudatum;Пусторёбрышник обнаженный;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Cenolophium fischeri
+Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Apiales;Apiaceae;вид;Cenolophium denudatum;Пусторёбрышник обнаженный;Cenolophium fischeri;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Cenolophium fischeri
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Apiales;Apiaceae;вид;Kadenia dubia;Кадения сомнительная;;;;;;да;;;;NE;;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Lentibulariaceae;вид;Utricularia intermedia;Пузырчатка средняя;;;;;;да;;;;LC;167883;6;6;Прил. 4;
 Сосудистые растения;Plantae;Tracheophyta;Magnoliopsida;Lamiales;Lentibulariaceae;вид;Utricularia minor;Пузырчатка малая;;;;;;да;;;;LC;164169;6;6;Прил. 4;
@@ -357,24 +357,24 @@
 Моховидные;Plantae;Marchantiophyta;Jungermanniopsida;Jungermanniales;Anastrophyllaceae;вид;Isopaches bicrenatus;Изопахес двугородчатый;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Marchantiophyta;Jungermanniopsida;Jungermanniales;Scapaniaceae;вид;Scapania irrigua;Скапания заливаемая;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Polytrichopsida;Polytrichales;Polytrichaceae;вид;Atrichum angustatum;Атрихум суженный;;;;;;да;;;;NE;;6;6;Прил. 4;
-Моховидные;Plantae;Bryophyta;Bryopsida;Bryales;Bryaceae;вид;Bryum cyclophyllum;Бриум круглолистный;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Ptychostomum cyclophyllum
-Моховидные;Plantae;Bryophyta;Bryopsida;Bryales;Bryaceae;вид;Bryum rubens;Бриум краснеющий;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Rosulabryum rubens
+Моховидные;Plantae;Bryophyta;Bryopsida;Bryales;Bryaceae;вид;Bryum cyclophyllum;Бриум круглолистный;Ptychostomum cyclophyllum;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Ptychostomum cyclophyllum
+Моховидные;Plantae;Bryophyta;Bryopsida;Bryales;Bryaceae;вид;Bryum rubens;Бриум краснеющий;Rosulabryum rubens;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Rosulabryum rubens
 Моховидные;Plantae;Bryophyta;Bryopsida;Bryales;Bryaceae;вид;Bryum weigelii;Бриум Вейгеля;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Calliergonaceae;вид;Calliergon giganteum;Каллиэргон гигантский;;;;;;да;;;;NE;;6;6;Прил. 4;
-Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Calliergonaceae;вид;Calliergon stramineum;Каллиэргон соломенно-жёлтый;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Straminergon stramineum
+Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Calliergonaceae;вид;Calliergon stramineum;Каллиэргон соломенно-жёлтый;Straminergon stramineum;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Straminergon stramineum
 Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Amblystegiaceae;вид;Campylium chrysophyllum;Кампилиум золотистолистный;;;;;;да;;;;NE;;6;6;Прил. 4;
-Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Amblystegiaceae;вид;Campylium sommerfeltii;Кампилиум Зоммерфельта;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Campylophyllopsis sommerfeltii
+Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Amblystegiaceae;вид;Campylium sommerfeltii;Кампилиум Зоммерфельта;Campylophyllopsis sommerfeltii;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Campylophyllopsis sommerfeltii
 Моховидные;Plantae;Bryophyta;Bryopsida;Dicranales;Dicranellaceae;вид;Dicranella rufescens;Дикранелла рыжеватая;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Bryopsida;Dicranales;Fissidentaceae;вид;Fissidens minutulus;Фиссиденс мелкий;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Helodiaceae;вид;Helodium blandowii;Гелодиум Бландова;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Plagiotheciaceae;вид;Herzogiella seligeri;Герцогиелла Зелигера;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Hylocomiaceae;вид;Hylocomium splendens;Гилокомиум блестящий;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Hypnaceae;вид;Hypnum cupressiforme;Гипнум кипарисовидный;;;;;;да;;;;NE;;6;6;Прил. 4;
-Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Pseudoleskeellaceae;вид;Leskeella nervosa;Лескеелла жилковатая;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Pseudoleskeella nervosa
+Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Pseudoleskeellaceae;вид;Leskeella nervosa;Лескеелла жилковатая;Pseudoleskeella nervosa;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Pseudoleskeella nervosa
 Моховидные;Plantae;Bryophyta;Bryopsida;Bryales;Mniaceae;вид;Mnium marginatum;Мниум окаймлённый;;;;;;да;;;;NE;;6;6;Прил. 4;
-Моховидные;Plantae;Bryophyta;Bryopsida;Orthotrichales;Orthotrichaceae;вид;Orthotrichum obtusifolium;Ортотрихум туполистный;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Nyholmiella obtusifolia
-Моховидные;Plantae;Bryophyta;Bryopsida;Orthotrichales;Orthotrichaceae;вид;Orthotrichum speciosum;Ортотрихум красивый;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Lewinskya speciosa
-Моховидные;Plantae;Bryophyta;Bryopsida;Pottiales;Pottiaceae;вид;Phascum cuspidatum;Фаскум остроконечный;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Tortula acaulon
+Моховидные;Plantae;Bryophyta;Bryopsida;Orthotrichales;Orthotrichaceae;вид;Orthotrichum obtusifolium;Ортотрихум туполистный;Nyholmiella obtusifolia;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Nyholmiella obtusifolia
+Моховидные;Plantae;Bryophyta;Bryopsida;Orthotrichales;Orthotrichaceae;вид;Orthotrichum speciosum;Ортотрихум красивый;Lewinskya speciosa;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Lewinskya speciosa
+Моховидные;Plantae;Bryophyta;Bryopsida;Pottiales;Pottiaceae;вид;Phascum cuspidatum;Фаскум остроконечный;Tortula acaulon;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Tortula acaulon
 Моховидные;Plantae;Bryophyta;Bryopsida;Bartramiales;Bartramiaceae;вид;Philonotis fontana;Филонотис ключевой;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Plagiotheciaceae;вид;Plagiothecium cavifolium;Плагиотециум вогнутолистный;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Plagiotheciaceae;вид;Plagiothecium nemorale;Плагиотециум дубравный;;;;;;да;;;;NE;;6;6;Прил. 4;
@@ -383,14 +383,14 @@
 Моховидные;Plantae;Bryophyta;Bryopsida;Bryales;Mniaceae;вид;Pohlia bulbifera;Полия живородящая;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Bryopsida;Bryales;Mniaceae;вид;Pohlia camptotrachela;Полия согнутошейковая;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Bryopsida;Bryales;Mniaceae;вид;Pohlia proligera;Полия выводковая;;;;;;да;;;;NE;;6;6;Прил. 4;
-Моховидные;Plantae;Bryophyta;Polytrichopsida;Polytrichales;Polytrichaceae;вид;Polytrichastrum formosum;Политрихаструм красивый;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Polytrichum formosum
-Моховидные;Plantae;Bryophyta;Polytrichopsida;Polytrichales;Polytrichaceae;вид;Polytrichastrum longisetum;Политрихаструм длинноножковый;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Polytrichum longisetum
+Моховидные;Plantae;Bryophyta;Polytrichopsida;Polytrichales;Polytrichaceae;вид;Polytrichastrum formosum;Политрихаструм красивый;Polytrichum formosum;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Polytrichum formosum
+Моховидные;Plantae;Bryophyta;Polytrichopsida;Polytrichales;Polytrichaceae;вид;Polytrichastrum longisetum;Политрихаструм длинноножковый;Polytrichum longisetum;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Polytrichum longisetum
 Моховидные;Plantae;Bryophyta;Polytrichopsida;Polytrichales;Polytrichaceae;вид;Polytrichum commune;Политрихум обыкновенный;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Polytrichopsida;Polytrichales;Polytrichaceae;вид;Polytrichum strictum;Политрихум сжатый;;;;;;да;;;;NE;;6;6;Прил. 4;
-Моховидные;Plantae;Bryophyta;Bryopsida;Pottiales;Pottiaceae;вид;Pottia intermedia;Поттия промежуточная;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Tortula caucasica
+Моховидные;Plantae;Bryophyta;Bryopsida;Pottiales;Pottiaceae;вид;Pottia intermedia;Поттия промежуточная;Tortula caucasica;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Tortula caucasica
 Моховидные;Plantae;Bryophyta;Bryopsida;Dicranales;Ditrichaceae;вид;Pseudephemerum nitidum;Псевдофемерум блестящий;;;;;;да;;;;NE;;6;6;Прил. 4;
-Моховидные;Plantae;Bryophyta;Bryopsida;Grimmiales;Seligeriaceae;вид;Seligeria campylopoda;Зелигерия согнутоножковая;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Blindiadelphus campylopodus
-Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Amblystegiaceae;вид;Serpoleskea subtilis;Серполескея тонкая;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Pseudoamblystegium subtile
+Моховидные;Plantae;Bryophyta;Bryopsida;Grimmiales;Seligeriaceae;вид;Seligeria campylopoda;Зелигерия согнутоножковая;Blindiadelphus campylopodus;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Blindiadelphus campylopodus
+Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Amblystegiaceae;вид;Serpoleskea subtilis;Серполескея тонкая;Pseudoamblystegium subtile;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Pseudoamblystegium subtile
 Моховидные;Plantae;Bryophyta;Sphagnopsida;Sphagnales;Sphagnaceae;вид;Sphagnum angustifolium;Сфагнум узколистный;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Sphagnopsida;Sphagnales;Sphagnaceae;вид;Sphagnum balticum;Сфагнум балтийский;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Sphagnopsida;Sphagnales;Sphagnaceae;вид;Sphagnum capillifolium;Сфагнум волосолистный;;;;;;да;;;;NE;;6;6;Прил. 4;
@@ -401,17 +401,17 @@
 Моховидные;Plantae;Bryophyta;Sphagnopsida;Sphagnales;Sphagnaceae;вид;Sphagnum riparium;Сфагнум береговой;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Taxiphyllaceae;вид;Taxiphyllum wissgrillii;Таксифиллум Виссгрилла;;;;;;да;;;;NE;;6;6;Прил. 4;
 Моховидные;Plantae;Bryophyta;Polytrichopsida;Tetraphidales;Tetraphidaceae;вид;Tetraphis pellucida;Тетрафис прозрачный;;;;;;да;;;;NE;;6;6;Прил. 4;
-Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Thuidiaceae;вид;Thuidium philibertii;Туидиум Филиберта;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Thuidium assimile
-Моховидные;Plantae;Marchantiophyta;Jungermanniopsida;Jungermanniales;Adelanthaceae;вид;Jamesoniella autumnalis;Джемсониелла осенняя;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Syzygiella autumnalis
+Моховидные;Plantae;Bryophyta;Bryopsida;Hypnales;Thuidiaceae;вид;Thuidium philibertii;Туидиум Филиберта;Thuidium assimile;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Thuidium assimile
+Моховидные;Plantae;Marchantiophyta;Jungermanniopsida;Jungermanniales;Adelanthaceae;вид;Jamesoniella autumnalis;Джемсониелла осенняя;Syzygiella autumnalis;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Syzygiella autumnalis
 Водоросли;Chromista;Ochrophyta;Bacillariophyceae;Rhizosoleniales;Rhizosoleniaceae;вид;Rhizosolenia longiseta;Ризосоления длиннощетинковая;;;;;;да;;;;NE;;6;6;Прил. 4;
 Водоросли;Chromista;Ochrophyta;Bacillariophyceae;Chaetocerotales;Acanthocerataceae;вид;Acanthoceras zachariasii;Акантоцерас Захариаса;;;;;;да;;;;NE;;6;6;Прил. 4;
 Водоросли;Chromista;Ochrophyta;Bacillariophyceae;Surirellales;Surirellaceae;вид;Campylodiscus hibernicus;Кампилодискус ирландский;;;;;;да;;;;NE;;6;6;Прил. 4;
 Водоросли;Chromista;Ochrophyta;Phaeophyceae;Phaeothamniales;Phaeothamniaceae;вид;Phaeothamnion dichrysis;Феотамнион двухроматофорный;;;;;;да;;;;;;6;6;Прил. 4;
-Водоросли;Plantae;Rhodophyta;Florideophyceae;Acrochaetiales;Audouinellaceae;вид;Chantransia chalybea;Шантранзия серостальная;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Audouinella chalybea
-Водоросли;Plantae;Chlorophyta;Chlorophyceae;Chaetophorales;Chaetophoraceae;вид;Chaetophora elegans;Хетофора изящная;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Chaetophoropsis elegans
+Водоросли;Plantae;Rhodophyta;Florideophyceae;Acrochaetiales;Audouinellaceae;вид;Chantransia chalybea;Шантранзия серостальная;Audouinella chalybea;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Audouinella chalybea
+Водоросли;Plantae;Chlorophyta;Chlorophyceae;Chaetophorales;Chaetophoraceae;вид;Chaetophora elegans;Хетофора изящная;Chaetophoropsis elegans;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Chaetophoropsis elegans
 Водоросли;Plantae;Charophyta;Charophyceae;Coleochaetales;Coleochaetaceae;вид;Coleochaete scutata;Колеохета щитовидная;;;;;;да;;;;NE;;6;6;Прил. 4;
-Водоросли;Bacteria;Cyanobacteria;Cyanobacteriia;Cyanobacteriales;Tolypothrichaceae;вид;Tolypothrix tenuis f. lanata;Толипотрикс тонкий;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Tolypothrix lanata
-Водоросли;Chromista;Cercozoa;;;Spongomonadidae;вид;Rhipidodendron splendidum;Рипидодендрон блестящий;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Spongomonas spec
+Водоросли;Bacteria;Cyanobacteria;Cyanobacteriia;Cyanobacteriales;Tolypothrichaceae;вид;Tolypothrix tenuis f. lanata;Толипотрикс тонкий;Tolypothrix lanata;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Tolypothrix lanata
+Водоросли;Chromista;Cercozoa;;;Spongomonadidae;вид;Rhipidodendron splendidum;Рипидодендрон блестящий;Spongomonas spec;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Spongomonas spec
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Caliciales;Caliciaceae;вид;Calicium abietinum;Калициум еловый;;;;;;да;;;;NE;;6;6;Прил. 4;
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Lecanorales;Parmeliaceae;вид;Nephromopsis chlorophylla;Нефромопсис хлорофилловый;;;;;;да;;;;NE;;6;6;Прил. 4;
 Лишайники;Fungi;Ascomycota;Coniocybomycetes;Coniocybales;Coniocybaceae;вид;Chaenotheca ferruginea;Хенотека ржаво-красная;;;;;;да;;;;NE;;6;6;Прил. 4;
@@ -428,7 +428,7 @@
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Lecanorales;Parmeliaceae;вид;Parmeliopsis hyperopta;Пармелиопсис тёмный;;;;;;да;;;;LC;194660868;6;6;Прил. 4;
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Ostropales;Phlyctidaceae;вид;Phlyctis argena;Фликтис серебристо-белый;;;;;;да;;;;NE;;6;6;Прил. 4;
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Caliciales;Physciaceae;вид;Physcia aipolia;Фисция аиполлия;;;;;;да;;;;NE;;6;6;Прил. 4;
-Лишайники;Fungi;Ascomycota;Lecanoromycetes;Caliciales;Physciaceae;вид;Physconia grisea;Фискония серая;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Poeltonia grisea
+Лишайники;Fungi;Ascomycota;Lecanoromycetes;Caliciales;Physciaceae;вид;Physconia grisea;Фискония серая;Poeltonia grisea;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Poeltonia grisea
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Caliciales;Physciaceae;вид;Physconia perisidiosa;Фискония изидиозная;;;;;;да;;;;NE;;6;6;Прил. 4;
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Teloschistales;Teloschistaceae;вид;Polycauliona candelaria;Поликаулиона восково-жёлтая [Ксантория восково-жёлтая];Xanthoria candelaria;;;;;да;;;;NE;;6;6;Прил. 4;
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Teloschistales;Teloschistaceae;вид;Oxneria fallax;Окснерия обманчивая;;;;;;да;;;;NE;;6;6;Прил. 4;
@@ -439,14 +439,14 @@
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Peltigerales;Peltigeraceae;вид;Peltigera didactyla;Пельтигера двупалая;;;;;;да;;;;NE;;6;6;Прил. 4;
 Лишайники;Fungi;Ascomycota;Lecanoromycetes;Lecanorales;Parmeliaceae;вид;Platismatia glauca;Платизмация сизая;;;;;;да;;;;NE;;6;6;Прил. 4;
 Лишайники;Fungi;Ascomycota;Coniocybomycetes;Coniocybales;Coniocybaceae;вид;Chaenotheca chrysocephala;Хенотека золотистоголовая;;;;;;да;;;;NE;;6;6;Прил. 4;
-Грибы;Fungi;Basidiomycota;Agaricomycetes;Agaricales;Porotheleaceae;вид;Mycena hyemalis;Мицена зимняя;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Phloeomana hiemalis
+Грибы;Fungi;Basidiomycota;Agaricomycetes;Agaricales;Porotheleaceae;вид;Mycena hyemalis;Мицена зимняя;Phloeomana hiemalis;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Phloeomana hiemalis
 Грибы;Fungi;Basidiomycota;Agaricomycetes;Russulales;Russulaceae;вид;Russula grisea;Сыроежка серая;;;;;;да;;;;NE;;6;6;Прил. 4;
-Грибы;Fungi;Basidiomycota;Agaricomycetes;Agaricales;Pluteaceae;вид;Pluteus patricius;Плютей чешуйчатый;;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Pluteus petasatus
+Грибы;Fungi;Basidiomycota;Agaricomycetes;Agaricales;Pluteaceae;вид;Pluteus patricius;Плютей чешуйчатый;Pluteus petasatus;;;;;да;;;;NE;;6;6;Прил. 4;принятое имя по GBIF: Pluteus petasatus
 Грибы;Fungi;Ascomycota;Pezizomycetes;Pezizales;Morchellaceae;вид;Morchella esculenta;Сморчок обыкновенный;;;;;;да;;;;NE;;6;6;Прил. 4;
 Грибы;Fungi;Ascomycota;Pezizomycetes;Pezizales;Discinaceae;вид;Gyromitra esculenta;Строчок обыкновенный;;;;;;да;;;;NE;;6;6;Прил. 4;
 Грибы;Fungi;Ascomycota;Pezizomycetes;Pezizales;Discinaceae;вид;Gyromitra gigas;Строчок гигантский;;;;;;да;;;;NE;;6;6;Прил. 4;
-Грибы;Fungi;Basidiomycota;Agaricomycetes;Boletales;Boletaceae;вид;Leccinum percandidum;Подосиновик белый;;;;;;да;;;;LC;122090640;6;6;Прил. 4;"исключён из ККМ в 2022 г. (Прил. 3 к 79-ПП в ред. 1235-ПП), включён в Прил. 4; принятое имя по GBIF: Leccinum versipelle"
-Грибы;Fungi;Basidiomycota;Agaricomycetes;Boletales;Boletaceae;вид;Leccinum roseofractum;Подберёзовик чёрный;;;;;;да;;;;LC;122090633;6;6;Прил. 4;"исключён из ККМ в 2022 г. (Прил. 3 к 79-ПП в ред. 1235-ПП), включён в Прил. 4; принятое имя по GBIF: Leccinum scabrum"
+Грибы;Fungi;Basidiomycota;Agaricomycetes;Boletales;Boletaceae;вид;Leccinum percandidum;Подосиновик белый;Leccinum versipelle;;;;;да;;;;LC;122090640;6;6;Прил. 4;"исключён из ККМ в 2022 г. (Прил. 3 к 79-ПП в ред. 1235-ПП), включён в Прил. 4; принятое имя по GBIF: Leccinum versipelle"
+Грибы;Fungi;Basidiomycota;Agaricomycetes;Boletales;Boletaceae;вид;Leccinum roseofractum;Подберёзовик чёрный;Leccinum scabrum;;;;;да;;;;LC;122090633;6;6;Прил. 4;"исключён из ККМ в 2022 г. (Прил. 3 к 79-ПП в ред. 1235-ПП), включён в Прил. 4; принятое имя по GBIF: Leccinum scabrum"
 Грибы;Fungi;Basidiomycota;Agaricomycetes;Agaricales;Tricholomataceae;вид;Phaeolepiota aurea;Зонтик золотистый;;;;;;да;;;;NE;;6;6;Прил. 4;исключён из ККМ в 2022 г. (Прил. 3 к 79-ПП в ред. 1235-ПП), включён в Прил. 4
-Грибы;Fungi;Basidiomycota;Agaricomycetes;Phallales;Phallaceae;вид;Dictyophora duplicata;Сетконоска сдвоенная;;;;;;да;;;;NE;;6;6;Прил. 4;"исключён из ККМ в 2022 г. (Прил. 3 к 79-ПП в ред. 1235-ПП), включён в Прил. 4; принятое имя по GBIF: Phallus indusiatus"
+Грибы;Fungi;Basidiomycota;Agaricomycetes;Phallales;Phallaceae;вид;Dictyophora duplicata;Сетконоска сдвоенная;Phallus indusiatus;;;;;да;;;;NE;;6;6;Прил. 4;"исключён из ККМ в 2022 г. (Прил. 3 к 79-ПП в ред. 1235-ПП), включён в Прил. 4; принятое имя по GBIF: Phallus indusiatus"
 Грибы;Fungi;Basidiomycota;Agaricomycetes;Phallales;Phallaceae;вид;Clathrus ruber;Решёточник красный;;;;;;да;;;;NE;;6;6;Прил. 4;исключён из ККМ в 2022 г. (Прил. 3 к 79-ПП в ред. 1235-ПП), включён в Прил. 4

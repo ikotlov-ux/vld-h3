@@ -570,6 +570,113 @@
     "400": 3,
     "503": 3
   },
+  "alien_animals": [
+    [
+      "Neogale vison",
+      "американская норка",
+      "Neovison vison; Mustela vison; норка американская",
+      "млекопитающие",
+      "околоводный"
+    ],
+    [
+      "Ondatra zibethicus",
+      "ондатра",
+      "Ondatra zibethica; Fiber zibethicus",
+      "млекопитающие",
+      "околоводный"
+    ],
+    [
+      "Rattus norvegicus",
+      "серая крыса",
+      "пасюк; крыса серая",
+      "млекопитающие",
+      "наземный"
+    ],
+    [
+      "Canis familiaris",
+      "собака",
+      "Canis lupus familiaris; собака домашняя; собака бродячая; бродячая собака",
+      "млекопитающие",
+      "наземный"
+    ],
+    [
+      "Felis catus",
+      "домашняя кошка",
+      "Felis silvestris catus; кошка; кошка домашняя",
+      "млекопитающие",
+      "наземный"
+    ],
+    [
+      "Mus musculus",
+      "домовая мышь",
+      "мышь домовая",
+      "млекопитающие",
+      "наземный"
+    ],
+    [
+      "Tadorna ferruginea",
+      "огарь",
+      "красная утка",
+      "птицы",
+      "околоводный"
+    ],
+    [
+      "Columba livia",
+      "сизый голубь",
+      "Columba livia domestica; голубь сизый",
+      "птицы",
+      "наземный"
+    ],
+    [
+      "Trachemys scripta",
+      "красноухая черепаха",
+      "Trachemys scripta elegans; Pseudemys scripta; черепаха красноухая",
+      "пресмыкающиеся",
+      "водный"
+    ],
+    [
+      "Carassius auratus",
+      "серебряный карась",
+      "Carassius gibelio; Carassius auratus gibelio; карась серебряный",
+      "рыбы",
+      "водный"
+    ],
+    [
+      "Neogobius melanostomus",
+      "бычок-кругляк",
+      "Neogobius melanogaster; Apollonia melanostoma; кругляк; бычок кругляк",
+      "рыбы",
+      "водный"
+    ],
+    [
+      "Perccottus glenii",
+      "ротан",
+      "Percottus glenii; Perccottus glehni; ротан-головешка",
+      "рыбы",
+      "водный"
+    ],
+    [
+      "Cyprinus carpio",
+      "карп",
+      "сазан; карп обыкновенный",
+      "рыбы",
+      "водный"
+    ],
+    [
+      "Hypophthalmichthys nobilis",
+      "пёстрый толстолобик",
+      "Aristichthys nobilis; толстолобик пёстрый",
+      "рыбы",
+      "водный"
+    ],
+    [
+      "Physella acuta",
+      "физа заострённая",
+      "Physa acuta; Haitia acuta; Costatella acuta",
+      "моллюски",
+      "водный"
+    ]
+  ],
   "biotop_map": {
     "110": "lis",
     "111": "lis",
@@ -624,5 +731,5 @@
     "CONTIG": -1,
     "PARA": 0
   },
-  "_note": "biotop_map, econ, frag_signs — значения по умолчанию соответствующих параметров конфигурации (ins.biotop_map, frag.econ, frag.signs); fg_reference и zon_builtin читаются при расчёте, если в конфигурации не заданы собственные справочники"
+  "_note": "biotop_map, econ, frag_signs — значения по умолчанию соответствующих параметров конфигурации (ins.biotop_map, frag.econ, frag.signs); fg_reference, zon_builtin и alien_animals читаются при расчёте, если в конфигурации не заданы собственные справочники; справочники видов (охраняемые и инвазивные растения, чужеродные животные) — resources/ref_*.csv, при их отсутствии — встроенные таблицы"
 }

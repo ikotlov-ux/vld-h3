@@ -29,9 +29,9 @@
 Птицы;Animalia;Chordata;Aves;Pelecaniformes;Ardeidae;вид;Ixobrychus minutus;Волчок, или Малая выпь;;;1;1;1;;;;;LC;22735766;1;1;ККМ;
 Птицы;Animalia;Chordata;Aves;Pelecaniformes;Ardeidae;вид;Ardea cinerea;Серая цапля;;;0;3;0 (гор.) 3 (пр.);;;;;LC;22696993;0;3;ККМ;
 Птицы;Animalia;Chordata;Aves;Anseriformes;Anatidae;вид;Anas crecca;Чирок-свистунок;;;1;1;1;;;;;LC;22680321;1;1;ККМ;
-Птицы;Animalia;Chordata;Aves;Anseriformes;Anatidae;вид;Anas querquedula;Чирок-трескунок;;;1;1;1;;;;;LC;22680313;1;1;ККМ;принятое имя по GBIF: Spatula querquedula
-Птицы;Animalia;Chordata;Aves;Anseriformes;Anatidae;вид;Anas strepera;Серая утка;;;1;1;1;;;;;LC;22680149;1;1;ККМ;принятое имя по GBIF: Mareca strepera strepera
-Птицы;Animalia;Chordata;Aves;Anseriformes;Anatidae;вид;Anas clypeata;Широконоска;;;1;1;1;;;;;LC;22680247;1;1;ККМ;принятое имя по GBIF: Spatula clypeata
+Птицы;Animalia;Chordata;Aves;Anseriformes;Anatidae;вид;Anas querquedula;Чирок-трескунок;Spatula querquedula;;1;1;1;;;;;LC;22680313;1;1;ККМ;принятое имя по GBIF: Spatula querquedula
+Птицы;Animalia;Chordata;Aves;Anseriformes;Anatidae;вид;Anas strepera;Серая утка;Mareca strepera strepera;;1;1;1;;;;;LC;22680149;1;1;ККМ;принятое имя по GBIF: Mareca strepera strepera
+Птицы;Animalia;Chordata;Aves;Anseriformes;Anatidae;вид;Anas clypeata;Широконоска;Spatula clypeata;;1;1;1;;;;;LC;22680247;1;1;ККМ;принятое имя по GBIF: Spatula clypeata
 Птицы;Animalia;Chordata;Aves;Anseriformes;Anatidae;вид;Aythya ferina;Красноголовый нырок;;;1;1;1;;;;;VU;22680358;1;1;ККМ;
 Птицы;Animalia;Chordata;Aves;Anseriformes;Anatidae;вид;Aythya fuligula;Хохлатая чернеть;;;3;3;3;;;;;LC;22680391;3;3;ККМ;
 Птицы;Animalia;Chordata;Aves;Anseriformes;Anatidae;вид;Bucephala clangula;Гоголь;;;1;1;1;;;;;LC;22680455;1;1;ККМ;
@@ -46,7 +46,7 @@
 Птицы;Animalia;Chordata;Aves;Falconiformes;Falconidae;вид;Falco peregrinus;Сапсан;;;1;1;1;;;1;309;LC;45354964;1;1;ККМ;"ККРФ: номинативный подвид F. p. peregrinus, популяции Центрального ФО — кат. 1 (приказ № 162); все подвиды и популяции: номинативный п/вид - F. p. peregrinus (популяции Северо-Западного, Центрального и Приволжского федеральных округов, за исключением Республики Башкортостан) — кат. 1; все другие подвиды и остальные популяции номинативного подвида — кат. 3"
 Птицы;Animalia;Chordata;Aves;Falconiformes;Falconidae;вид;Falco subbuteo;Чеглок;;;2;2;2;;;;;LC;22696460;2;2;ККМ;
 Птицы;Animalia;Chordata;Aves;Falconiformes;Falconidae;вид;Falco tinnunculus;Обыкновенная пустельга;;Пустельга;3;3;3;;;;;LC;22696362;3;3;ККМ;
-Птицы;Animalia;Chordata;Aves;Galliformes;Phasianidae;вид;Bonasa bonasia;Рябчик;;;0;3;0 (гор.) 3 (пр.);;;;;LC;22679494;0;3;ККМ;принятое имя по GBIF: Tetrastes bonasia
+Птицы;Animalia;Chordata;Aves;Galliformes;Phasianidae;вид;Bonasa bonasia;Рябчик;Tetrastes bonasia;;0;3;0 (гор.) 3 (пр.);;;;;LC;22679494;0;3;ККМ;принятое имя по GBIF: Tetrastes bonasia
 Птицы;Animalia;Chordata;Aves;Galliformes;Phasianidae;вид;Perdix perdix;Серая куропатка;;;2;2;2;;;;;LC;22678911;2;2;ККМ;
 Птицы;Animalia;Chordata;Aves;Galliformes;Phasianidae;вид;Coturnix coturnix;Перепел;;;1;1;1;;;;;LC;22678944;1;1;ККМ;
 Птицы;Animalia;Chordata;Aves;Gruiformes;Rallidae;вид;Porzana porzana;Погоныш;;;1;1;1;;;;;LC;22692676;1;1;ККМ;
@@ -60,10 +60,10 @@
 Птицы;Animalia;Chordata;Aves;Charadriiformes;Scolopacidae;вид;Actitis hypoleucos;Перевозчик;;;1;1;1;;;;;LC;22693264;1;1;ККМ;
 Птицы;Animalia;Chordata;Aves;Charadriiformes;Scolopacidae;вид;Gallinago gallinago;Бекас;;;1;1;1;;;;;LC;22693097;1;1;ККМ;
 Птицы;Animalia;Chordata;Aves;Charadriiformes;Scolopacidae;вид;Scolopax rusticola;Вальдшнеп;;;1;3;1 (гор.) 3 (пр.);;;;;LC;22693052;1;3;ККМ;
-Птицы;Animalia;Chordata;Aves;Charadriiformes;Laridae;вид;Larus ridibundus;Озёрная чайка;;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Chroicocephalus ridibundus
+Птицы;Animalia;Chordata;Aves;Charadriiformes;Laridae;вид;Larus ridibundus;Озёрная чайка;Chroicocephalus ridibundus;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Chroicocephalus ridibundus
 Птицы;Animalia;Chordata;Aves;Charadriiformes;Laridae;вид;Larus canus;Сизая чайка;;;2;2;2;;;;;LC;22694308;2;2;ККМ;
 Птицы;Animalia;Chordata;Aves;Charadriiformes;Laridae;вид;Sterna hirundo;Речная крачка;;;2;2;2;;;;;LC;22694623;2;2;ККМ;
-Птицы;Animalia;Chordata;Aves;Charadriiformes;Laridae;вид;Chlidonias nigra;Чёрная крачка;;;3;3;3;;;;;LC;22694787;3;3;ККМ;принятое имя по GBIF: Chlidonias niger niger
+Птицы;Animalia;Chordata;Aves;Charadriiformes;Laridae;вид;Chlidonias nigra;Чёрная крачка;Chlidonias niger niger;;3;3;3;;;;;LC;22694787;3;3;ККМ;принятое имя по GBIF: Chlidonias niger niger
 Птицы;Animalia;Chordata;Aves;Columbiformes;Columbidae;вид;Columba palumbus;Вяхирь;;;3;3;3;;;;;LC;22690103;3;3;ККМ;
 Птицы;Animalia;Chordata;Aves;Columbiformes;Columbidae;вид;Columba oenas;Клинтух;;;0;0;0;;;;;LC;22690088;0;0;ККМ;
 Птицы;Animalia;Chordata;Aves;Cuculiformes;Cuculidae;вид;Cuculus canorus;Кукушка;;Обыкновенная кукушка;2;3;2 (гор.) 3 (пр.);;;;;LC;22683873;2;3;ККМ;
@@ -80,7 +80,7 @@
 Птицы;Animalia;Chordata;Aves;Piciformes;Picidae;вид;Picus viridis;Зелёный дятел;;;0;3;0 (гор.) 3 (пр.);;;;;LC;22725022;0;3;ККМ;
 Птицы;Animalia;Chordata;Aves;Piciformes;Picidae;вид;Picus canus;Седой дятел;;;1;1;1;;;;;LC;22726503;1;1;ККМ;
 Птицы;Animalia;Chordata;Aves;Piciformes;Picidae;вид;Dryocopus martius;Желна;;;2;3;2 (гор.) 3 (пр.);;;;;LC;22681382;2;3;ККМ;
-Птицы;Animalia;Chordata;Aves;Piciformes;Picidae;вид;Dendrocopos medius;Средний пёстрый дятел;;;1;1;1;;;;;NE;;1;1;ККМ;"принятое имя по GBIF: Dendrocoptes medius; в данных VLD как Leiopicus medius"
+Птицы;Animalia;Chordata;Aves;Piciformes;Picidae;вид;Dendrocopos medius;Средний пёстрый дятел;"Dendrocoptes medius; Leiopicus medius";;1;1;1;;;;;NE;;1;1;ККМ;"принятое имя по GBIF: Dendrocoptes medius; в данных VLD как Leiopicus medius"
 Птицы;Animalia;Chordata;Aves;Piciformes;Picidae;вид;Dendrocopos leucotos;Белоспинный дятел;;;5;5;5;;;;;LC;22727124;5;5;ККМ;
 Птицы;Animalia;Chordata;Aves;Piciformes;Picidae;вид;Picoides tridactylus;Трёхпалый дятел;;;2;2;2;;;;;LC;22727137;2;2;ККМ;
 Птицы;Animalia;Chordata;Aves;Passeriformes;Hirundinidae;вид;Riparia riparia;Береговушка, или Береговая ласточка;;;1;1;1;;;;;LC;103815961;1;1;ККМ;
@@ -99,7 +99,7 @@
 Птицы;Animalia;Chordata;Aves;Passeriformes;Locustellidae;вид;Locustella naevia;Обыкновенный сверчок;;;1;1;1;;;;;LC;22714657;1;1;ККМ;
 Птицы;Animalia;Chordata;Aves;Passeriformes;Acrocephalidae;вид;Acrocephalus scirpaceus;Тростниковая камышевка;;;1;1;1;;;;;LC;22714722;1;1;ККМ;
 Птицы;Animalia;Chordata;Aves;Passeriformes;Acrocephalidae;вид;Acrocephalus arundinaceus;Дроздовидная камышевка;;;1;1;1;;;;;LC;104317670;1;1;ККМ;
-Птицы;Animalia;Chordata;Aves;Passeriformes;Acrocephalidae;вид;Hippolais caligata;Северная бормотушка;;;3;3;3;;;;;LC;22714891;3;3;ККМ;принятое имя по GBIF: Iduna caligata
+Птицы;Animalia;Chordata;Aves;Passeriformes;Acrocephalidae;вид;Hippolais caligata;Северная бормотушка;Iduna caligata;;3;3;3;;;;;LC;22714891;3;3;ККМ;принятое имя по GBIF: Iduna caligata
 Птицы;Animalia;Chordata;Aves;Passeriformes;Sylviidae;вид;Sylvia nisoria;Ястребиная славка;;;3;3;3;;;;;LC;22716937_2;3;3;ККМ;
 Птицы;Animalia;Chordata;Aves;Passeriformes;Muscicapidae;вид;Ficedula albicollis;Мухоловка-белошейка;;;2;2;2;;;;;LC;22709315;2;2;ККМ;
 Птицы;Animalia;Chordata;Aves;Passeriformes;Muscicapidae;вид;Saxicola rubetra;Луговой чекан;;;3;3;3;;;;;LC;22710156;3;3;ККМ;
@@ -108,8 +108,8 @@
 Птицы;Animalia;Chordata;Aves;Passeriformes;Aegithalidae;вид;Aegithalos caudatus;Ополовник, или Длиннохвостая синица;;;3;3;3;;;;;LC;103871923;3;3;ККМ;
 Птицы;Animalia;Chordata;Aves;Passeriformes;Remizidae;вид;Remiz pendulinus;Обыкновенный ремез;;;2;2;2;;;;;LC;155249960;2;2;ККМ;
 Птицы;Animalia;Chordata;Aves;Passeriformes;Paridae;вид;Parus montanus;Пухляк, или Буроголовая гаичка;;;2;3;2 (гор.) 3 (пр.);;;;;LC;155139697_1;2;3;ККМ;
-Птицы;Animalia;Chordata;Aves;Passeriformes;Paridae;вид;Parus ater;Московка;;;2;3;2 (гор.) 3 (пр.);;;;;LC;22735965;2;3;ККМ;принятое имя по GBIF: Periparus ater
-Птицы;Animalia;Chordata;Aves;Passeriformes;Paridae;вид;Parus cyanus;Князек или Белая лазоревка;;;0;0;0;;;3;370;LC;22735985;0;0;ККМ;"ККРФ: номинативный подвид: Parus cyanus cyanus; принятое имя по GBIF: Cyanistes cyanus"
+Птицы;Animalia;Chordata;Aves;Passeriformes;Paridae;вид;Parus ater;Московка;Periparus ater;;2;3;2 (гор.) 3 (пр.);;;;;LC;22735965;2;3;ККМ;принятое имя по GBIF: Periparus ater
+Птицы;Animalia;Chordata;Aves;Passeriformes;Paridae;вид;Parus cyanus;Князек или Белая лазоревка;Cyanistes cyanus;;0;0;0;;;3;370;LC;22735985;0;0;ККМ;"ККРФ: номинативный подвид: Parus cyanus cyanus; принятое имя по GBIF: Cyanistes cyanus"
 Птицы;Animalia;Chordata;Aves;Passeriformes;Fringillidae;вид;Loxia curvirostra;Клест-еловик;;;2;2;2;;;;;LC;22720646;2;2;ККМ;
 Пресмыкающиеся;Animalia;Chordata;Reptilia;;Anguidae;вид;Anguis colchica;Веретеница колхидская;A. fragilis;ломкая;0;1;0 (гор.) 1 (пр.);;;;;NE;;0;1;ККМ;
 Пресмыкающиеся;Animalia;Chordata;Reptilia;;Lacertidae;вид;Lacerta agilis;Прыткая ящерица;;;1;4;1 (гор.) 4 (пр.);;;;226;LC;157288;1;4;ККМ;"ККРФ: только подвиды или популяции вне Москвы: № 226: Прыткая ящерица - Lacerta agilis (грузинская прыткая ящерица - L. a. grusinica — кат. 2; мзымтинская прыткая ящерица - L. a. mzymtensis — кат. 1)"
@@ -128,10 +128,10 @@
 Лучепёрые рыбы;Animalia;Chordata;Actinopterygii;Acipenseriformes;Acipenseridae;вид;Acipenser ruthenus;Стерлядь;;;4;4;4;;;;165;EN;227;4;4;ККМ;"ККРФ: только подвиды или популяции вне Москвы: № 165: Стерлядь - Acipenser ruthenus (популяция басс. реки Днепр — кат. 1; популяция басс. реки Дон — кат. 2; популяция басс. верхней и средней Камы (Пермский край, Кировская обл.) — кат. 5; популяция басс. реки Сура — кат. 2; популяция басс. реки Урал — кат. 2; популяция басс. реки Ангара — кат. 1)"
 Лучепёрые рыбы;Animalia;Chordata;Actinopterygii;Cypriniformes;Cyprinidae;вид;Chondrostoma variabile;Волжский подуст;Ch. nasus;обыкновенный;1;1;1;;;;;LC;135569;1;1;ККМ;
 Лучепёрые рыбы;Animalia;Chordata;Actinopterygii;Cypriniformes;Cyprinidae;вид;Leuciscus leuciscus;Елец;;;2;;2 (гор.);только пр.;;;;LC;11887;2;6;ККМ;
-Лучепёрые рыбы;Animalia;Chordata;Actinopterygii;Cypriniformes;Cyprinidae;вид;Leuciscus cephalus;Голавль;;;2;;2 (гор.);только пр.;;;;LC;61205;2;6;ККМ;принятое имя по GBIF: Squalius cephalus
+Лучепёрые рыбы;Animalia;Chordata;Actinopterygii;Cypriniformes;Cyprinidae;вид;Leuciscus cephalus;Голавль;Squalius cephalus;;2;;2 (гор.);только пр.;;;;LC;61205;2;6;ККМ;принятое имя по GBIF: Squalius cephalus
 Лучепёрые рыбы;Animalia;Chordata;Actinopterygii;Cypriniformes;Cyprinidae;вид;Leuciscus idus;Язь;;;1;2;1 (гор.) 2 (пр.);;;;;LC;11884;1;2;ККМ;
 Лучепёрые рыбы;Animalia;Chordata;Actinopterygii;Cypriniformes;Cyprinidae;вид;Scardinius erythrophthalmus;Краснопёрка;;;2;2;2;;;;;LC;19946;2;2;ККМ;
-Лучепёрые рыбы;Animalia;Chordata;Actinopterygii;Cypriniformes;Cyprinidae;вид;Aspius aspius;Жерех;;;2;2;2;;;;;LC;2178;2;2;ККМ;принятое имя по GBIF: Leuciscus aspius
+Лучепёрые рыбы;Animalia;Chordata;Actinopterygii;Cypriniformes;Cyprinidae;вид;Aspius aspius;Жерех;Leuciscus aspius;;2;2;2;;;;;LC;2178;2;2;ККМ;принятое имя по GBIF: Leuciscus aspius
 Лучепёрые рыбы;Animalia;Chordata;Actinopterygii;Cypriniformes;Cyprinidae;вид;Phoxinus phoxinus;Обыкновенный, или речной, гольян;;;1;;1 (гор.);только пр.;;;;LC;17067;1;6;ККМ;
 Лучепёрые рыбы;Animalia;Chordata;Actinopterygii;Cypriniformes;Cyprinidae;вид;Tinca tinca;Линь;;;2;2;2;;;;;LC;21912;2;2;ККМ;
 Лучепёрые рыбы;Animalia;Chordata;Actinopterygii;Cypriniformes;Cyprinidae;вид;Carassius carassius;Золотой, или обыкновенный, карась;;;1;4;1 (гор.) 4 (пр.);;;;;LC;3849;1;4;ККМ;
@@ -166,7 +166,7 @@
 Насекомые;Animalia;Arthropoda;Insecta;Orthoptera;Tettigoniidae;вид;Tettigonia caudata;Кузнечик хвостатый;;;2;2;2;;;;;NE;;2;2;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Orthoptera;Tettigoniidae;вид;Roeseliana roeselii;Скачок зелёный, или Скачок Рёзеля;M. roeselii;;5;5;5;;;;;NE;;5;5;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Orthoptera;Tettigoniidae;вид;Metrioptera brachyptera;Скачок короткокрылый;;;2;2;2;;;;;NE;;2;2;ККМ;
-Насекомые;Animalia;Arthropoda;Insecta;Orthoptera;Tettigoniidae;вид;Metrioptera bicolor;Скачок двухцветный;;;2;3;2 (гор.) 3 (пр.);;;;;;;2;3;ККМ;принятое имя по GBIF: Bicolorana bicolor bicolor
+Насекомые;Animalia;Arthropoda;Insecta;Orthoptera;Tettigoniidae;вид;Metrioptera bicolor;Скачок двухцветный;Bicolorana bicolor bicolor;;2;3;2 (гор.) 3 (пр.);;;;;;;2;3;ККМ;принятое имя по GBIF: Bicolorana bicolor bicolor
 Насекомые;Animalia;Arthropoda;Insecta;Orthoptera;Tettigoniidae;вид;Pholidoptera griseoaptera;Кустолюбка пепельная;Ph. cinerea;;3;4;3 (гор.) 4 (пр.);;;;;NE;;3;4;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Orthoptera;Acrididae;вид;Myrmeleotettix maculatus;Копьеуска пятнистая;;;0;0;0;;;;;NE;;0;0;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Orthoptera;Acrididae;вид;Stethophyma grossum;Кобылка большая болотная;;;2;4;2 (гор.) 4 (пр.);;;;;NE;;2;4;ККМ;
@@ -179,11 +179,11 @@
 Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Carabidae;вид;Cylindera germanica;Скакун германский;;;0;0;0;;;;;NE;;0;0;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Carabidae;вид;Leistus ferrugineus;Плотинник ржавый;;;3;;3 (гор.);;;;;NE;;3;;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Carabidae;вид;Carabus cancellatus;Жужелица красноногая;;;2;2;2;;;;;NE;;2;2;ККМ;
-Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Carabidae;вид;Carabus clathratus;Жужелица золотистоямчатая;;;0;0;0;;;;;;;0;0;ККМ;принятое имя по GBIF: Carabus clatratus clatratus
+Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Carabidae;вид;Carabus clathratus;Жужелица золотистоямчатая;Carabus clatratus clatratus;;0;0;0;;;;;;;0;0;ККМ;принятое имя по GBIF: Carabus clatratus clatratus
 Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Carabidae;вид;Carabus coriaceus;Жужелица шагреневая;;;3;;3 (гор.);;;;;NE;;3;;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Carabidae;вид;Carabus glabratus;Жужелица гладкая;;;2;2;2;;;;;NE;;2;2;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Carabidae;вид;Cychrus caraboides;Цихрус чёрный;;;2;2;2;;;;;NE;;2;2;ККМ;
-Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Carabidae;вид;Trechus rivularis;Трехус речной;;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Epaphius rivularis
+Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Carabidae;вид;Trechus rivularis;Трехус речной;Epaphius rivularis;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Epaphius rivularis
 Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Carabidae;вид;Pterostichus aterrimus;Птеростих чернейший;;;1;1;1;;;;;NE;;1;1;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Carabidae;вид;Ophonus stictus;Офонус тёмный;;;1;1;1;;;;;NE;;1;1;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Carabidae;вид;Panagaeus cruxmajor;Жужелица большой крестоносец;;;1;1;1;;;;;NE;;1;1;ККМ;
@@ -217,7 +217,7 @@
 Насекомые;Animalia;Arthropoda;Insecta;Hymenoptera;Halictidae;вид;Dufourea minuta;Дюфурея малая;;;1;1;1;;;;;NE;;1;1;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Hymenoptera;Halictidae;вид;Rophites quinquespinosus;Рофит пятииглый;;;2;2;2;;;;;NE;;2;2;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Hymenoptera;Halictidae;вид;Halictus quadricinctus;Галикт четырёхполосый;;;2;2;2;;;;;NE;;2;2;ККМ;
-Насекомые;Animalia;Arthropoda;Insecta;Hymenoptera;Halictidae;вид;Seladonia leucahenea;Галикт бело-золотистый;;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Halictus leucaheneus
+Насекомые;Animalia;Arthropoda;Insecta;Hymenoptera;Halictidae;вид;Seladonia leucahenea;Галикт бело-золотистый;Halictus leucaheneus;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Halictus leucaheneus
 Насекомые;Animalia;Arthropoda;Insecta;Hymenoptera;Melittidae;вид;Dasypoda hirtipes;Мохноногая пчела;;;3;3;3;;;;;NE;;3;3;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Hymenoptera;Melittidae;вид;Macropis fulvipes;Макропис желтоногий;;;2;2;2;;;;;NE;;2;2;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Hymenoptera;Melittidae;вид;Melitta haemorrhoidalis;Мелитта красноватая;;;3;3;3;;;;;NE;;3;3;ККМ;
@@ -268,7 +268,7 @@
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Pieridae;род;Leptidea;Виды рода Беляночка;;;2;4;2 (гор.) 4 (пр.);;;;;;;2;4;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Pieridae;вид;Anthocharis cardamines;Зорька, или Аврора;;;3;;3 (гор.);;;;;NE;;3;;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Pararge aegeria;Краеглазка эгерия;;;3;5;3 (гор.) 5 (пр.);;;;;NE;;3;5;ККМ;
-Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Coenonympha glycerion;Сенница глицерион;;;3;;3 (гор.);;;;;NE;;3;;ККМ;принятое имя по GBIF: Coenonympha iphis
+Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Coenonympha glycerion;Сенница глицерион;Coenonympha iphis;;3;;3 (гор.);;;;;NE;;3;;ККМ;принятое имя по GBIF: Coenonympha iphis
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Coenonympha arcania;Сенница аркания;;;2;2;2;;;;;NE;;2;2;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Hyponephele lycaon;Бархатница ликаон;;;2;3;2 (гор.) 3 (пр.);;;;;NE;;2;3;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Lopinga achine;Краеглазка ахина;;;0;3;0 (гор.) 3 (пр.);;;;;NE;;0;3;ККМ;
@@ -278,7 +278,7 @@
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Apatura ilia;Переливница малая, или тополёвая;;;3;;3 (гор.);;;;;NE;;3;;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Limenitis camilla;Ленточник камилла;;;2;;2 (гор);;;;;;;2;;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Limenitis populi;Ленточник тополёвый;;;2;;2 (гор.);;;;;NE;;2;;ККМ;
-Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Nymphalis vau-album;Многоцветница, или Углокрыльница, v-белое;;;3;3;3;;;;;NE;;3;3;ККМ;принятое имя по GBIF: Polygonia vaualbum
+Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Nymphalis vau-album;Многоцветница, или Углокрыльница, v-белое;Polygonia vaualbum;;3;3;3;;;;;NE;;3;3;ККМ;принятое имя по GBIF: Polygonia vaualbum
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Nymphalis xanthomelas;Многоцветница чёрно-жёлтая;;;3;5;3 (гор.) 5 (пр.);;;;;NE;;3;5;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Nymphalis antiopa;Траурница;;;2;3;2 (гор.) 3 (пр.);;;;;LC;174452;2;3;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Euphydryas aurinia;Шашечница авриния;;;0;2;0 (гор.) 2 (пр.);;;;;NE;;0;2;ККМ;
@@ -287,32 +287,32 @@
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Melitaea diamina;Шашечница диамина;;;0;3;0 (гор.) 3 (пр.);;;;;NE;;0;3;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Clossiana eunomia;Перламутровка эвномия;;;0;1;0 (гор.) 1 (пр.);;;;;;;0;1;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Clossiana euphrosyne;Перламутровка эвфросина;;;1;1;1;;;;;NE;;1;1;ККМ;
-Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Clossiana selene;Перламутровка селена;;;2;;2 (гор.);;;;;NE;;2;;ККМ;принятое имя по GBIF: Boloria selene
+Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Clossiana selene;Перламутровка селена;Boloria selene;;2;;2 (гор.);;;;;NE;;2;;ККМ;принятое имя по GBIF: Boloria selene
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Clossiana dia;Перламутровка диа;;;1;3;1 (гор.) 3 (пр.);;;;;NE;;1;3;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Boloria aquilonaris;Перламутровка северная;;;1;1;1;;;;;NE;;1;1;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Brenthis ino;Перламутровка таволжанка, или ино;;;2;;2 (гор.);;;;;NE;;2;;ККМ;
-Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Argynnis laodice;Перламутровка зеленоватая, или лаодика;;;0;0;0;;;;;NE;;0;0;ККМ;принятое имя по GBIF: Argyronome laodice
+Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Argynnis laodice;Перламутровка зеленоватая, или лаодика;Argyronome laodice;;0;0;0;;;;;NE;;0;0;ККМ;принятое имя по GBIF: Argyronome laodice
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Argynnis paphia;Перламутровка большая лесная;;;2;;2 (гор.);;;;;NE;;2;;ККМ;
-Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Argynnis adippe;Перламутровка адиппа;;;2;;2 (гор.);;;;;NE;;2;;ККМ;принятое имя по GBIF: Fabriciana adippe
-Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Argynnis niobe;Перламутровка ниоба;;;1;1;1;;;;;NE;;1;1;ККМ;принятое имя по GBIF: Fabriciana niobe
-Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Argynnis aglaja;Перламутровка аглая;;;2;;2 (гор.);;;;;NE;;2;;ККМ;принятое имя по GBIF: Speyeria aglaja
+Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Argynnis adippe;Перламутровка адиппа;Fabriciana adippe;;2;;2 (гор.);;;;;NE;;2;;ККМ;принятое имя по GBIF: Fabriciana adippe
+Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Argynnis niobe;Перламутровка ниоба;Fabriciana niobe;;1;1;1;;;;;NE;;1;1;ККМ;принятое имя по GBIF: Fabriciana niobe
+Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Nymphalidae;вид;Argynnis aglaja;Перламутровка аглая;Speyeria aglaja;;2;;2 (гор.);;;;;NE;;2;;ККМ;принятое имя по GBIF: Speyeria aglaja
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Thecla betulae;Зефир берёзовый;;;3;3;3;;;;;NE;;3;3;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Quercusia quercus;Зефир дубовый;;;2;2;2;;;;;NE;;2;2;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Nordmannia ilicis;Хвостатка падубовая;;;0;3;0 (гор.) 3 (пр.);;;;;NE;;0;3;ККМ;
-Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Nordmannia w-album;Хвостатка w-белое, или вязовая;;;3;3;3;;;;;NE;;3;3;ККМ;принятое имя по GBIF: Satyrium w-album
+Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Nordmannia w-album;Хвостатка w-белое, или вязовая;Satyrium w-album;;3;3;3;;;;;NE;;3;3;ККМ;принятое имя по GBIF: Satyrium w-album
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Lycaena dispar;Червонец непарный;;;3;5;3 (гор.) 5 (пр.);;;;;NT;12433;3;5;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Lycaena virgaureae;Червонец огненный;;;3;3;3;;;;;NE;;3;3;ККМ;
-Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Lycaena tityrus;Червонец бурый, или титир;;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Loweia tityrus
+Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Lycaena tityrus;Червонец бурый, или титир;Loweia tityrus;;2;2;2;;;;;NE;;2;2;ККМ;принятое имя по GBIF: Loweia tityrus
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Lycaena alciphron;Червонец фиолетовый, или алкифрон;;;1;1;1;;;;;NE;;1;1;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Lycaena hippothoe;Червонец щавелевый;;;1;1;1;;;;;;;1;1;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Lycaena phlaeas;Червонец пятнистый;;;2;2;2;;;;;NE;;2;2;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Callophrys rubi;Малинница;;;1;1;1;;;;;NE;;1;1;ККМ;
-Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Cupido argiades;Голубянка горошковая, или аргиад;;;3;3;3;;;;;NE;;3;3;ККМ;принятое имя по GBIF: Elkalyce argiades
+Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Cupido argiades;Голубянка горошковая, или аргиад;Elkalyce argiades;;3;3;3;;;;;NE;;3;3;ККМ;принятое имя по GBIF: Elkalyce argiades
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Cupido minimus;Голубянка малая;;;1;1;1;;;;;NE;;1;1;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Glaucopsyche alexis;Голубянка алексис;;;2;2;2;;;;;NE;;2;2;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Eumedonia eumedon;Голубянка эвмедон;;;1;3;1 (гор.) 3 (пр.);;;;;NE;;1;3;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Plebejus argus;Голубянка аргус;;;3;3;3;;;;;NE;;3;3;ККМ;
-Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Argiades optilete;Голубянка торфяниковая;Plebejus optilete;;1;1;1;;;;;NE;;1;1;ККМ;принятое имя по GBIF: Vacciniina optilete
+Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Lycaenidae;вид;Argiades optilete;Голубянка торфяниковая;"Plebejus optilete; Vacciniina optilete";;1;1;1;;;;;NE;;1;1;ККМ;принятое имя по GBIF: Vacciniina optilete
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Geometridae;вид;Stegania cararia;Осиновая пяденица жёлтая;;;1;1;1;;;;;NE;;1;1;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Geometridae;вид;Thera juniperata;Тера можжевельниковая;;;2;2;2;;;;;NE;;2;2;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Geometridae;вид;Ecliptopera capitata;Пяденица головастая;;;2;2;2;;;;;NE;;2;2;ККМ;
@@ -323,7 +323,7 @@
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Brahmaeidae;вид;Lemonia dumi;Лемония терновниковая, или осенний шелкопряд салатный;;;0;0;0;;;;;NE;;0;0;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Endromidae;вид;Endromis versicolora;Березовый шелкопряд;;;1;1;1;;;;;NE;;1;1;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Saturniidae;вид;Aglia tau;Павлиноглазка рыжая;;;1;1;1;;;;;NE;;1;1;ККМ;
-Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Saturniidae;вид;Eudia pavonia;Павлиноглазка малая;;;1;1;1;;;;;NE;;1;1;ККМ;принятое имя по GBIF: Saturnia pavonia
+Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Saturniidae;вид;Eudia pavonia;Павлиноглазка малая;Saturnia pavonia;;1;1;1;;;;;NE;;1;1;ККМ;принятое имя по GBIF: Saturnia pavonia
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Sphingidae;вид;Hemaris tityus;Шмелевидка скабиозовая;;;0;0;0;;;;;NE;;0;0;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Sphingidae;вид;Hemaris fuciformis;Шмелевидка жимолостная;;;0;0;0;;;;;NE;;0;0;ККМ;
 Насекомые;Animalia;Arthropoda;Insecta;Lepidoptera;Sphingidae;вид;Proserpinus proserpina;Прозерпина;;;0;0;0;;;;;DD;18366;0;0;ККМ;
@@ -361,7 +361,7 @@
 Птицы;Animalia;Chordata;Aves;Galliformes;Phasianidae;вид;Lyrurus tetrix;Тетерев;;;;;;да;;;;LC;22679480;6;6;Прил. 4;
 Птицы;Animalia;Chordata;Aves;Columbiformes;Columbidae;вид;Streptopelia turtur;Обыкновенная горлица;;;;;;да;;2;363;VU;22690419;6;6;Прил. 4;исключён из ККМ в 2022 г. (Прил. 3 к 79-ПП в ред. 1235-ПП), включён в Прил. 4
 Птицы;Animalia;Chordata;Aves;Strigiformes;Strigidae;вид;Athene noctua;Домовый сыч;;;;;;да;;;;LC;22689328;6;6;Прил. 4;исключён из ККМ в 2022 г. (Прил. 3 к 79-ПП в ред. 1235-ПП), включён в Прил. 4
-Птицы;Animalia;Chordata;Aves;Piciformes;Picidae;вид;Dendrocopos minor;Малый пёстрый дятел;;;;;;да;;;;LC;22681076;6;6;Прил. 4;"принятое имя по GBIF: Dryobates minor; в данных VLD как Dryobates minor"
+Птицы;Animalia;Chordata;Aves;Piciformes;Picidae;вид;Dendrocopos minor;Малый пёстрый дятел;Dryobates minor;;;;;да;;;;LC;22681076;6;6;Прил. 4;"принятое имя по GBIF: Dryobates minor; в данных VLD как Dryobates minor"
 Птицы;Animalia;Chordata;Aves;Passeriformes;Corvidae;вид;Garrulus glandarius;Сойка;;;;;;да;;;;LC;103723684;6;6;Прил. 4;
 Птицы;Animalia;Chordata;Aves;Passeriformes;Corvidae;вид;Corvus frugilegus;Грач;;;;;;да;;;;LC;22705983;6;6;Прил. 4;
 Птицы;Animalia;Chordata;Aves;Passeriformes;Corvidae;вид;Corvus corax;Ворон;;;;;;да;;;;LC;22706068;6;6;Прил. 4;
@@ -373,14 +373,14 @@
 Птицы;Animalia;Chordata;Aves;Passeriformes;Muscicapidae;вид;Luscinia luscinia;Обыкновенный соловей;;;;;;да;;;;LC;22709691;6;6;Прил. 4;
 Птицы;Animalia;Chordata;Aves;Passeriformes;Muscicapidae;вид;Luscinia svecica;Варакушка;;;;;;да;;;;LC;22709707;6;6;Прил. 4;
 Птицы;Animalia;Chordata;Aves;Passeriformes;Fringillidae;вид;Spinus spinus;Чиж;;;;;;да;;;;LC;22720354;6;6;Прил. 4;
-Птицы;Animalia;Chordata;Aves;Passeriformes;Fringillidae;вид;Caprodacus erythrinus;Обыкновенная чечевица;;;;;;да;;;;LC;22720556;6;6;Прил. 4;в данных VLD как Carpodacus erythrinus
+Птицы;Animalia;Chordata;Aves;Passeriformes;Fringillidae;вид;Caprodacus erythrinus;Обыкновенная чечевица;Carpodacus erythrinus;;;;;да;;;;LC;22720556;6;6;Прил. 4;в данных VLD как Carpodacus erythrinus
 Птицы;Animalia;Chordata;Aves;Passeriformes;Fringillidae;вид;Pyrrhula pyrrhula;Обыкновенный снегирь;;;;;;да;;;;LC;22720671;6;6;Прил. 4;
 Птицы;Animalia;Chordata;Aves;Passeriformes;Emberizidae;вид;Emberiza citrinella;Обыкновенная овсянка;;;;;;да;;;;LC;22720878;6;6;Прил. 4;
 Птицы;Animalia;Chordata;Aves;Passeriformes;Emberizidae;вид;Emberiza schoeniclus;Камышовая овсянка;;;;;;да;;;;LC;22721012;6;6;Прил. 4;
 Птицы;Animalia;Chordata;Aves;Passeriformes;Fringillidae;вид;Coccothraustes coccothraustes;Обыкновенный дубонос;;;;;;да;;;;LC;22720681;6;6;Прил. 4;
 Земноводные;Animalia;Chordata;Amphibia;Anura;Ranidae;вид;Pelophylax ridibundus;Озёрная лягушка;;;;;;да;;;;LC;58705;6;6;Прил. 4;
 Земноводные;Animalia;Chordata;Amphibia;Anura;Ranidae;вид;Pelophylax lessonae;Прудовая лягушка;;;;;;да;;;;LC;88416883;6;6;Прил. 4;
-Земноводные;Animalia;Chordata;Amphibia;Anura;Ranidae;вид;Pelophylax esculentus;Гибридная зелёная лягушка (съедобная, или водяная, лягушка);;;;;;да;;;;LC;88416883;6;6;Прил. 4;принятое имя по GBIF: Pelophylax lessonae
+Земноводные;Animalia;Chordata;Amphibia;Anura;Ranidae;вид;Pelophylax esculentus;Гибридная зелёная лягушка (съедобная, или водяная, лягушка);Pelophylax lessonae;;;;;да;;;;LC;88416883;6;6;Прил. 4;принятое имя по GBIF: Pelophylax lessonae
 Пресмыкающиеся;Animalia;Chordata;Reptilia;;Emydidae;вид;Emys orbicularis;Болотная черепаха;;;;;;да;;;211;NT;7717;6;6;Прил. 4;ККРФ: только подвиды или популяции вне Москвы: № 211: Колхидская болотная черепаха - Emys orbicularis colchica
 Лучепёрые рыбы;Animalia;Chordata;Actinopterygii;Cypriniformes;Cyprinidae;вид;Gobio gobio;Пескарь обыкновенный;;;;;;да;;;;LC;184448;6;6;Прил. 4;
 Лучепёрые рыбы;Animalia;Chordata;Actinopterygii;Cypriniformes;Cobitidae;вид;Cobitis taenia;Обыкновенная щиповка;;;;;;да;;;;LC;5037;6;6;Прил. 4;
@@ -431,7 +431,7 @@
 Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Carabidae;вид;Syntomus truncatellus;Синтомус обрубленный;;;;;;да;;;;NE;;6;6;Прил. 4;
 Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Carabidae;вид;Microlestes maurus;Микролестес чёрный;;;;;;да;;;;NE;;6;6;Прил. 4;
 Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Scarabaeidae;вид;Oryctes nasicornis;Жук-носорог обыкновенный;;;;;;да;;;;NE;;6;6;Прил. 4;
-Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Scarabaeidae;вид;Aphodius bimaculatus;Афодий двупятнистый;;;;;;да;;2;81;NE;;6;6;Прил. 4;принятое имя по GBIF: Acrossus bimaculatus
+Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Scarabaeidae;вид;Aphodius bimaculatus;Афодий двупятнистый;Acrossus bimaculatus;;;;;да;;2;81;NE;;6;6;Прил. 4;принятое имя по GBIF: Acrossus bimaculatus
 Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Scarabaeidae;вид;Osmoderma barnabita;Отшельник обыкновенный;;;;;;да;;2;82;NT;157901;6;6;Прил. 4;
 Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Buprestidae;вид;Chalcophora mariana;Златка большая сосновая;;;;;;да;;;;NE;;6;6;Прил. 4;
 Насекомые;Animalia;Arthropoda;Insecta;Coleoptera;Buprestidae;вид;Dicerca furcata;Дицерка вильчатая;;;;;;да;;;;NE;;6;6;Прил. 4;

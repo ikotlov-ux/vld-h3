@@ -43,7 +43,7 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 APP_NAME = "VLD-H3"
 APP_TITLE = "VLD-H3: Ценность – Нагрузка – Нарушенность"
 HERE = Path(__file__).resolve().parent
@@ -127,11 +127,11 @@ BUILTIN_OOPT = [
 
 # Частные показатели (прил. В ТЗ)
 V_COMPONENTS = ["v_ins", "v_mam", "v_anam", "v_fish", "v_bird", "v_aqua", "v_rare", "v_cap", "v_zon", "v_qbs"]
-D_COMPONENTS = ["d_inv", "d_frag"]
-INT_FIELDS = ["V", "L", "D", "V_arch", "D_arch", "n_V", "n_D", "calc_year", "load_cat", "inv_n",
+D_COMPONENTS = ["d_inv", "d_frag", "d_alien"]
+INT_FIELDS = ["V", "L", "D", "V_arch", "D_arch", "n_V", "n_D", "calc_year", "load_cat", "inv_n", "alien_n",
               "rare_raw", "cap_raw", "zon_raw", "v_phyt", "v_zpl", "v_zbn"] + V_COMPONENTS + D_COMPONENTS
 INT_FIELDS += ["n_eco", "photo_n", "infra_n", "photo_cat", "infra_cat", "l_sum", "l_raw", "l_cat5"]
-RAW_FIELDS = ["eco_code", "eco_share", "n_eco", "rare_raw", "cap_raw", "cap_ha", "zon_raw", "inv_n", "load_cat",
+RAW_FIELDS = ["eco_code", "eco_share", "n_eco", "rare_raw", "cap_raw", "cap_ha", "zon_raw", "inv_n", "alien_n", "load_cat",
               "mam_n", "anam_n", "fish_n", "bird_n", "ins_raw", "ins_bio", "qbs_raw", "qbs_dist", "frag_raw",
               "photo_n", "infra_n", "photo_cat", "infra_cat", "l_sum", "l_raw", "l_cat5"]
 
@@ -628,12 +628,25 @@ class AquaCfg:
     shore: float = P(0.0, "Береговая полоса, м", "", "float")
 
 
+RARE_SCALES = {"kkm": "Красная книга города Москвы (гор.; для ООПТ списка — пр.)", "kkrf": "Красная книга РФ",
+               "iucn": "Красный список МСОП (EX, EW → 0; CR → 1; EN → 2; VU → 3; NT → 4)"}
+RARE_SOURCES = {"data_ref": "из находок, при отсутствии — из справочника", "ref_data": "из справочника, при отсутствии — из находок",
+                "data": "только из находок", "ref": "только из справочника"}
+IUCN_RANK = {"EX": 0, "EW": 0, "CR": 1, "EN": 2, "VU": 3, "NT": 4}
+
+
 @dataclass
 class RareCfg:
     """Редкие виды сосудистых растений"""
-    files: list = P([], "Находки", "Точки или таблица с координатами и категорией КК Москвы.", "files", filetypes=PT_TYPES)
-    cat_field: str = P("", "Поле категории", "Пусто — автоподбор (Rare, категория, category).", "text")
-    recode: dict = P({"1": 1, "2": 1, "3": 2, "4": 2, "5": 2, "6": 2}, "Категория → балл", "6 — виды Приложения (п. 8.7.1).", "dict")
+    files: list = P([], "Находки", "Точки или таблица с координатами, названием вида и (или) категорией КК Москвы.", "files", filetypes=PT_TYPES)
+    cat_field: str = P("", "Поле категории", "Пусто — автоподбор (Rare, категория, категория ККМ, category).", "text")
+    species_field: str = P("", "Поле вида", "Пусто — автоподбор (латинское и русское название).", "text")
+    scale: str = P("kkm", "Шкала категорий", "ККРФ и МСОП берутся только из справочника.", "choice", choices=RARE_SCALES)
+    source: str = P("data_ref", "Источник категории", "Для шкалы ККМ; виды только Приложения 4 к 79-ПП — код 6.", "choice", choices=RARE_SOURCES)
+    pr_oopt: list = P([], "ООПТ присоединённых территорий", "Коды ООПТ, для которых берётся категория ККМ «пр.»; остальные — «гор.».", "list")
+    groups: list = P(["Сосудистые растения"], "Группы справочника", "Находки видов других групп исключаются (решение от 11.11.2026). Пусто — все группы.", "list")
+    ref_files: list = P([], "Справочник охраняемых видов", "Пусто — resources/ref_protected_plants.csv или встроенный (451 таксон).", "files", filetypes=TAB_TYPES)
+    recode: dict = P({"0": 1, "1": 1, "2": 1, "3": 2, "4": 2, "5": 2, "6": 2}, "Категория → балл", "6 — виды Приложения (п. 8.7.1).", "dict")
     method: str = P("hex", "Способ", "", "choice", choices={"hex": "по гексагону", "polygon": "по выделу D2"})
     buffer: float = P(0.0, "Буфер на неточность координат, м", "0–30 м.", "float")
     absent: str = P("3", "Нет находок", "п. 8.7.3.", "choice", choices={"3": "балл 3", "na": "н/д"})
@@ -666,12 +679,39 @@ class LoadCfg:
     ready: str = P("", "Готовый слой нагрузки", "Таблица/слой с h3_id и load_cat (1–3 или 1–5) либо l_raw (п. 9.2).", "file", filetypes=TAB_TYPES)
 
 
+INV_REF_MODES = {"ref": "виды справочника (369-ПП, ТОП-100, Чёрная книга)", "pp369": "только перечень 369-ПП",
+                 "all": "все находки без справочника"}
+
+
 @dataclass
 class InvCfg:
     """Инвазивные растения"""
     files: list = P([], "Находки", "Точки (одна точка — одно растение).", "files", filetypes=PT_TYPES)
     value: str = P("count", "Значение", "п. 10.1.1.", "choice", choices={"count": "число точек", "sum": "сумма поля численности", "species": "число видов"})
     count_field: str = P("", "Поле численности", "", "text")
+    ref_mode: str = P("ref", "Отбор по справочнику", "Находки видов вне справочника не учитываются.", "choice", choices=INV_REF_MODES)
+    species_field: str = P("", "Поле вида", "Пусто — автоподбор (латинское и русское название).", "text")
+    ref_files: list = P([], "Справочник инвазивных растений", "Пусто — resources/ref_invasive_plants.csv или встроенный (69 таксонов).", "files", filetypes=TAB_TYPES)
+
+
+ALIEN_ENV = {"water": "водные виды — по водоёму", "water_semi": "водные и околоводные виды — по водоёму",
+             "none": "все виды — только свой гексагон"}
+
+
+@dataclass
+class AlienCfg:
+    """Чужеродные инвазивные виды животных"""
+    use_block_files: bool = P(True, "Находки из блоков ценности", "Файлы млекопитающих, амфибий и рептилий и рыб (без повторов).", "bool")
+    files: list = P([], "Дополнительные находки", "Таблицы или слои с полем вида (например, учёт птиц, зообентос по станциям).", "files", filetypes=PT_TYPES)
+    ref_files: list = P([], "Справочник чужеродных видов", "Пусто — resources/ref_alien_animals.csv или встроенный (15 видов). Поля: вид (латынь), вид (русск.), синонимы (латынь) и (русск.) через «;», среда (водный / околоводный / наземный).", "files", filetypes=TAB_TYPES)
+    species_field: str = P("", "Поле вида", "Пусто — автоподбор (латинское и русское название).", "text")
+    exclude_fg: bool = P(True, "Исключать из ФГ", "Находки видов справочника не учитываются в ФГ млекопитающих, амфибий и рептилий и рыб.", "bool")
+    spread: str = P("water", "Перенос на гексагоны", "Наземные виды — гексагон находки; водные — окрестность в пределах контура водоёма.", "choice", choices=ALIEN_ENV)
+    radius: float = P(100.0, "Окрестность для водоёмов, м", "Переводится в число колец H3 (100 м при разрешении 11 — 2 кольца); учитываются гексагоны окрестности, пересекающие водоём находки.", "float")
+    t1: float = P(1.0, "Порог t1", "Число видов n < t1 → 1; t1 ≤ n < t2 → 2; n ≥ t2 → 3 (0 → 1; 1 → 2; ≥ 2 → 3).", "float")
+    t2: float = P(2.0, "Порог t2", "", "float")
+    absent: str = P("1", "Гексагон без находок", "В ООПТ, где животные учитывались; ООПТ без учётов — н/д.", "choice", choices={"1": "балл 1", "na": "н/д"})
+    table_out: bool = P(True, "Записать таблицу находок", "CSV: вид, справочный вид, среда, водоём, число гексагонов.", "bool")
 
 
 @dataclass
@@ -751,7 +791,7 @@ MAP_COMP = {"v_ins": "насекомые", "v_mam": "млекопитающие 
             "v_bird": "птицы", "v_aqua": "гидробионты", "v_phyt": "фитопланктон", "v_zpl": "зоопланктон",
             "v_zbn": "зообентос", "v_rare": "редкие виды растений", "v_cap": "ёмкость выдела",
             "v_zon": "зональность экосистем", "v_qbs": "QBS почв", "d_inv": "инвазивные растения",
-            "d_frag": "фрагментация", "photo_cat": "фотографии (5 категорий)", "infra_cat": "рекреационные объекты (5 категорий)"}
+            "d_frag": "фрагментация", "d_alien": "чужеродные инвазивные виды животных", "photo_cat": "фотографии (5 категорий)", "infra_cat": "рекреационные объекты (5 категорий)"}
 PAIR_PAL_CHOICES = {"cube": "срез куба CIELAB", **{k: k for k in PAL9}, "custom": "пользовательская (поле «Пользовательские 9 цветов»)"}
 BASEMAPS = {"OpenStreetMap.Mapnik": "OpenStreetMap (осветлённая)", "Esri.WorldGrayCanvas": "Esri World Gray Canvas (светло-серая)",
             "OpenStreetMap.HOT": "OpenStreetMap HOT", "CartoDB.Positron": "CartoDB Positron (требует ключ API)", "none": "без подложки"}
@@ -867,6 +907,7 @@ class Config:
     qbs: QbsCfg = field(default_factory=QbsCfg)
     recload: LoadCfg = field(default_factory=LoadCfg)
     inv: InvCfg = field(default_factory=InvCfg)
+    alien: AlienCfg = field(default_factory=AlienCfg)
     frag: FragCfg = field(default_factory=FragCfg)
     maps: MapCfg = field(default_factory=MapCfg)
     mapstyle: MapStyleCfg = field(default_factory=MapStyleCfg)
@@ -888,6 +929,10 @@ class Config:
             for sf in fields(sub):
                 if sf.name in src:
                     setattr(sub, sf.name, _coerce(src[sf.name], getattr(sub, sf.name)))
+        old_d = ((d or {}).get("agg_D") or {}).get("components")
+        if isinstance(old_d, list) and sorted(old_d) == ["d_frag", "d_inv"]:
+            cfg.agg_D.components = list(D_COMPONENTS)
+            log.info("агрегация D: в набор параметров прежней версии добавлен показатель d_alien (чужеродные виды животных)")
         for sec in ("mam", "anam", "fish"):
             sub = getattr(cfg, sec)
             if sub.method not in ("A", "B"):
@@ -919,7 +964,7 @@ SECTION_TITLES = {
     "bird": ("Птицы", 2), "aqua": ("Гидробионты", 2), "rare": ("Редкие виды растений", 2),
     "cap": ("Ёмкость выдела", 2), "zon": ("Зональность", 2), "qbs": ("QBS почв", 2),
     "recload": ("Нагрузка: фотографии и объекты", 3),
-    "inv": ("Инвазивные растения", 4), "frag": ("Фрагментация", 4),
+    "inv": ("Инвазивные растения", 4), "alien": ("Чужеродные инвазивные виды животных", 4), "frag": ("Фрагментация", 4),
     "agg_V": ("Агрегация V", 5), "quant_V": ("Квантование V", 5),
     "quant_L": ("Квантование L", 5), "agg_D": ("Агрегация D", 5), "quant_D": ("Квантование D", 5),
     "output": ("Выходные данные", 6), "archive": ("Архив годичных результатов", 6),
@@ -1719,7 +1764,7 @@ COUNT_NAMES = ["численность", "число особей", "count", "in
 TAXON_NAMES = ["группа таксономическая", "таксономическая группа", "сист. группа", "систематическая группа", "таксон",
                "taxon", "класс", "class"]
 WATER_NAME_NAMES = ["водный объект", "водоём", "водоем", "водный объект (название)", "water_body", "waterbody"]
-CAT_NAMES = ["rare", "категория", "категория кк", "категория (ккм, 2022)", "category", "кк", "cat"]
+CAT_NAMES = ["rare", "категория", "категория кк", "категория (ккм, 2022)", "категория ккм", "category", "кк", "cat"]
 GENUS_SYNONYMS = {"sylvaemus": "apodemus", "clethrionomys": "myodes", "percottus": "perccottus",
                   "neovison": "neogale"}
 FG_LABELS = {
@@ -1770,6 +1815,552 @@ FG_REFERENCE = {
         "Sander lucioperca": (1, "судак"), "Tinca tinca": (2, "линь"),
     },
 }
+# Чужеродные инвазивные виды животных (решение от 12.11.2026): латинское название, русское, синонимы, группа, среда
+ALIEN_ANIMALS = [
+    ["Neogale vison", "американская норка", "Neovison vison; Mustela vison; норка американская", "млекопитающие", "околоводный"],
+    ["Ondatra zibethicus", "ондатра", "Ondatra zibethica; Fiber zibethicus", "млекопитающие", "околоводный"],
+    ["Rattus norvegicus", "серая крыса", "пасюк; крыса серая", "млекопитающие", "наземный"],
+    ["Canis familiaris", "собака", "Canis lupus familiaris; собака домашняя; собака бродячая; бродячая собака", "млекопитающие", "наземный"],
+    ["Felis catus", "домашняя кошка", "Felis silvestris catus; кошка; кошка домашняя", "млекопитающие", "наземный"],
+    ["Mus musculus", "домовая мышь", "мышь домовая", "млекопитающие", "наземный"],
+    ["Tadorna ferruginea", "огарь", "красная утка", "птицы", "околоводный"],
+    ["Columba livia", "сизый голубь", "Columba livia domestica; голубь сизый", "птицы", "наземный"],
+    ["Trachemys scripta", "красноухая черепаха", "Trachemys scripta elegans; Pseudemys scripta; черепаха красноухая", "пресмыкающиеся", "водный"],
+    ["Carassius auratus", "серебряный карась", "Carassius gibelio; Carassius auratus gibelio; карась серебряный", "рыбы", "водный"],
+    ["Neogobius melanostomus", "бычок-кругляк", "Neogobius melanogaster; Apollonia melanostoma; кругляк; бычок кругляк", "рыбы", "водный"],
+    ["Perccottus glenii", "ротан", "Percottus glenii; Perccottus glehni; ротан-головешка", "рыбы", "водный"],
+    ["Cyprinus carpio", "карп", "сазан; карп обыкновенный", "рыбы", "водный"],
+    ["Hypophthalmichthys nobilis", "пёстрый толстолобик", "Aristichthys nobilis; толстолобик пёстрый", "рыбы", "водный"],
+    ["Physella acuta", "физа заострённая", "Physa acuta; Haitia acuta; Costatella acuta", "моллюски", "водный"],
+]
+# Охраняемые растения и грибы (ККМ 2022, Прил. 4 к 79-ПП, ККРФ, МСОП; справочник от 12.11.2026):
+# латынь, русское, синонимы (латынь), синонимы (русск.), группа, ранг, семейство, ККМ гор., ККМ пр., Прил. 4, ККРФ, МСОП
+PROTECTED_PLANTS = [
+    ["Lycopodium annotinum", "Плаун годичный", "Spinulum annotinum annotinum; Spinulum annotinum", "", "Сосудистые растения", "вид", "Lycopodiaceae", "1", "1", "", "", ""],
+    ["Lycopodium clavatum", "Плаун булавовидный", "", "", "Сосудистые растения", "вид", "Lycopodiaceae", "1", "1", "", "", "NE"],
+    ["Huperzia selago", "Баранец обыкновенный", "", "", "Сосудистые растения", "вид", "Lycopodiaceae", "0", "0", "", "", "NE"],
+    ["Equisetum ramosissimum", "Хвощ ветвистый", "", "", "Сосудистые растения", "вид", "Equisetaceae", "4", "4", "", "", "LC"],
+    ["Equisetum variegatum", "Хвощ пёстрый", "", "", "Сосудистые растения", "вид", "Equisetaceae", "1", "1", "", "", "NE"],
+    ["Thelypteris palustris", "Телиптерис болотный", "", "", "Сосудистые растения", "вид", "Thelypteridaceae", "3", "3", "", "", "LC"],
+    ["Matteuccia struthiopteris", "Страусник обыкновенный", "", "", "Сосудистые растения", "вид", "Onocleaceae", "3", "3", "", "", "LC"],
+    ["Polystichum braunii", "Многорядник Брауна", "", "", "Сосудистые растения", "вид", "Dryopteridaceae", "1", "1", "", "", "NE"],
+    ["Dryopteris cristata", "Щитовник гребенчатый", "", "", "Сосудистые растения", "вид", "Dryopteridaceae", "3", "3", "", "", "NE"],
+    ["Dryopteris expansa", "Щитовник распростёртый", "", "", "Сосудистые растения", "вид", "Dryopteridaceae", "3", "3", "", "", "NE"],
+    ["Botrychium lunaria", "Гроздовник полулунный", "", "", "Сосудистые растения", "вид", "Ophioglossaceae", "1", "1", "", "", "NE"],
+    ["Juniperus communis", "Можжевельник обыкновенный", "", "", "Сосудистые растения", "вид", "Cupressaceae", "1", "1", "", "", "LC"],
+    ["Nymphaea candida", "Кувшинка белоснежная", "", "", "Сосудистые растения", "вид", "Nymphaeaceae", "3", "3", "", "", "NE"],
+    ["Corydalis cava", "Хохлатка полая", "", "", "Сосудистые растения", "вид", "Papaveraceae", "2", "2", "", "", "NE"],
+    ["Corydalis intermedia", "Хохлатка промежуточная", "", "", "Сосудистые растения", "вид", "Papaveraceae", "2", "2", "", "", "NE"],
+    ["Corydalis marschalliana", "Хохлатка Маршалла", "Corydalis cava", "", "Сосудистые растения", "вид", "Papaveraceae", "2", "2", "", "", "NE"],
+    ["Caltha palustris", "Калужница болотная", "", "", "Сосудистые растения", "вид", "Ranunculaceae", "3", "3", "", "", "LC"],
+    ["Trollius europaeus", "Купальница европейская", "", "", "Сосудистые растения", "вид", "Ranunculaceae", "2", "3", "", "", "NE"],
+    ["Aconitum septentrionale", "Борец северный, или высокий", "", "", "Сосудистые растения", "вид", "Ranunculaceae", "1", "3", "", "", "NE"],
+    ["Anemonoides nemorosa", "Ветреница дубравная", "Anemone nemorosa", "", "Сосудистые растения", "вид", "Ranunculaceae", "2", "2", "", "", "NE"],
+    ["Hepatica nobilis", "Печёночница благородная", "", "", "Сосудистые растения", "вид", "Ranunculaceae", "1", "1", "", "", "NE"],
+    ["Ranunculus lingua", "Лютик языколистный, или длиннолистный", "", "", "Сосудистые растения", "вид", "Ranunculaceae", "2", "2", "", "", "LC"],
+    ["Drosera rotundifolia", "Росянка круглолистная", "", "", "Сосудистые растения", "вид", "Droseraceae", "2", "2", "", "", "LC"],
+    ["Bistorta major", "Горец змеиный, или раковые шейки", "Bistorta officinalis officinalis; Bistorta officinalis", "", "Сосудистые растения", "вид", "Polygonaceae", "3", "3", "", "", ""],
+    ["Coccyganthe flos-cuculi", "Горицвет кукушкин", "Silene flos-cuculi", "", "Сосудистые растения", "вид", "Caryophyllaceae", "5", "5", "", "", "NE"],
+    ["Viscaria vulgaris", "Смолка обыкновенная", "Steris viscaria", "", "Сосудистые растения", "вид", "Caryophyllaceae", "3", "", "", "", "NE"],
+    ["Melandrium dioicum", "Дрёма двудомная", "Silene dioica dioica", "", "Сосудистые растения", "вид", "Caryophyllaceae", "3", "", "", "", ""],
+    ["Dianthus deltoides", "Гвоздика травянка", "", "", "Сосудистые растения", "вид", "Caryophyllaceae", "2", "3", "", "", "NE"],
+    ["Dianthus fischeri", "Гвоздика Фишера", "Dianthus chinensis", "", "Сосудистые растения", "вид", "Caryophyllaceae", "3", "3", "", "", "NE"],
+    ["Dianthus superbus", "Гвоздика пышная", "", "", "Сосудистые растения", "вид", "Caryophyllaceae", "1", "1", "", "", "NE"],
+    ["Jovibarba globifera", "Бородник шароносный, или молодило побегоносное", "Sempervivum globiferum globiferum", "", "Сосудистые растения", "вид", "Crassulaceae", "1", "1", "", "", ""],
+    ["Geranium robertianum", "Герань Роберта", "", "", "Сосудистые растения", "вид", "Geraniaceae", "2", "2", "", "", "NE"],
+    ["Circaea alpina", "Двулепестник альпийский", "", "", "Сосудистые растения", "вид", "Onagraceae", "2", "2", "", "", "NE"],
+    ["Polygala amarella", "Истод горьковатый", "", "", "Сосудистые растения", "вид", "Polygalaceae", "0", "0", "", "", "NE"],
+    ["Polygala comosa", "Истод хохлатый", "", "", "Сосудистые растения", "вид", "Polygalaceae", "1", "1", "", "", "NE"],
+    ["Polygala vulgaris", "Истод обыкновенный", "", "", "Сосудистые растения", "вид", "Polygalaceae", "1", "1", "", "", "NE"],
+    ["Anthyllis vulneraria", "Язвенник обыкновенный", "", "", "Сосудистые растения", "вид", "Fabaceae", "2", "2", "", "", "NE"],
+    ["Astragalus arenarius", "Астрагал песчаный", "", "", "Сосудистые растения", "вид", "Fabaceae", "2", "2", "", "", "LC"],
+    ["Astragalus danicus", "Астрагал датский", "", "", "Сосудистые растения", "вид", "Fabaceae", "2", "2", "", "", "NE"],
+    ["Astragalus glycyphyllos", "Астрагал солодколистный", "", "", "Сосудистые растения", "вид", "Fabaceae", "2", "2", "", "", "NE"],
+    ["Vicia cassubica", "Горошек кашубский", "", "", "Сосудистые растения", "вид", "Fabaceae", "1", "1", "", "", "NE"],
+    ["Lathyrus niger", "Чина чёрная", "", "", "Сосудистые растения", "вид", "Fabaceae", "1", "1", "", "", "LC"],
+    ["Lathyrus vernus", "Чина весенняя, или сочевичник весенний", "", "", "Сосудистые растения", "вид", "Fabaceae", "3", "3", "", "", "LC"],
+    ["Fragaria viridis", "Земляника зелёная, или луговая", "", "", "Сосудистые растения", "вид", "Rosaceae", "3", "3", "", "", "NE"],
+    ["Filipendula vulgaris", "Таволга обыкновенная, или лабазник обыкновенный", "", "", "Сосудистые растения", "вид", "Rosaceae", "2", "2", "", "", "NE"],
+    ["Betula humilis", "Берёза приземистая", "", "", "Сосудистые растения", "вид", "Betulaceae", "0", "0", "", "", "LC"],
+    ["Viola tricolor", "Фиалка трёхцветная", "", "", "Сосудистые растения", "вид", "Violaceae", "2", "2", "", "", "NE"],
+    ["Daphne mezereum", "Волчье лыко обыкновенное", "", "", "Сосудистые растения", "вид", "Thymelaeaceae", "2", "2", "", "", "NE"],
+    ["Polemonium caeruleum", "Синюха голубая", "", "", "Сосудистые растения", "вид", "Polemoniaceae", "2", "2", "", "", "NE"],
+    ["Primula veris", "Первоцвет весенний", "", "", "Сосудистые растения", "вид", "Primulaceae", "3", "3", "", "", "NE"],
+    ["Hypopitys monotropa", "Подъельник обыкновенный", "", "", "Сосудистые растения", "вид", "Ericaceae", "2", "3", "", "", "NE"],
+    ["Ledum palustre", "Багульник болотный", "", "", "Сосудистые растения", "вид", "Ericaceae", "2", "2", "", "", ""],
+    ["Andromeda polifolia", "Подбел обыкновенный", "", "", "Сосудистые растения", "вид", "Ericaceae", "1", "1", "", "", "LC"],
+    ["Chamaedaphne calyculata", "Болотный мирт, или Хамедафна обыкновенная", "", "", "Сосудистые растения", "вид", "Ericaceae", "2", "2", "", "", "LC"],
+    ["Vaccinium uliginosum", "Голубика", "", "", "Сосудистые растения", "вид", "Ericaceae", "2", "2", "", "", "NE"],
+    ["Oxycoccus palustris", "Клюква болотная", "Vaccinium oxycoccos", "", "Сосудистые растения", "вид", "Ericaceae", "2", "2", "", "", "LC"],
+    ["Calluna vulgaris", "Вереск обыкновенный", "", "", "Сосудистые растения", "вид", "Ericaceae", "1", "1", "", "", "NE"],
+    ["Sanicula europaea", "Подлесник европейский", "", "", "Сосудистые растения", "вид", "Apiaceae", "5", "5", "", "", "NE"],
+    ["Eryngium planum", "Синеголовник плосколистный", "", "", "Сосудистые растения", "вид", "Apiaceae", "3", "3", "", "", "NE"],
+    ["Linnaea borealis", "Линнея северная", "", "", "Сосудистые растения", "вид", "Caprifoliaceae", "1", "1", "", "", "NE"],
+    ["Campanula bononiensis", "Колокольчик болонский", "", "", "Сосудистые растения", "вид", "Campanulaceae", "2", "2", "", "", "NE"],
+    ["Campanula cervicaria", "Колокольчик олений, или жёстковолосистый", "", "", "Сосудистые растения", "вид", "Campanulaceae", "1", "1", "", "", "NE"],
+    ["Campanula latifolia", "Колокольчик широколистный", "", "", "Сосудистые растения", "вид", "Campanulaceae", "3", "3", "", "", "NE"],
+    ["Campanula patula", "Колокольчик раскидистый", "", "", "Сосудистые растения", "вид", "Campanulaceae", "5", "5", "", "", "NE"],
+    ["Campanula persicifolia", "Колокольчик персиколистный", "", "", "Сосудистые растения", "вид", "Campanulaceae", "3", "3", "", "", "NE"],
+    ["Campanula rotundifolia", "Колокольчик круглолистный", "", "", "Сосудистые растения", "вид", "Campanulaceae", "3", "3", "", "", "NE"],
+    ["Campanula trachelium", "Колокольчик крапиволистный", "", "", "Сосудистые растения", "вид", "Campanulaceae", "3", "3", "", "", "NE"],
+    ["Eupatorium cannabinum", "Посконник коноплёвый", "", "", "Сосудистые растения", "вид", "Asteraceae", "4", "4", "", "", "NE"],
+    ["Antennaria dioica", "Кошачья лапка двудомная", "", "", "Сосудистые растения", "вид", "Asteraceae", "1", "1", "", "", "NE"],
+    ["Anthemis tinctoria", "Пупавка красильная", "Cota tinctoria tinctoria; Cota tinctoria", "", "Сосудистые растения", "вид", "Asteraceae", "3", "3", "", "", ""],
+    ["Crepis sibirica", "Скерда сибирская", "", "", "Сосудистые растения", "вид", "Asteraceae", "1", "1", "", "", "NE"],
+    ["Ligularia sibirica", "Бузульник сибирский", "", "", "Сосудистые растения", "вид", "Asteraceae", "0", "0", "", "", "NE"],
+    ["Carlina vulgaris", "Колючник обыкновенный", "Carlina biebersteinii", "", "Сосудистые растения", "вид", "Asteraceae", "2", "4", "", "", "NE"],
+    ["Omphalodes scorpioides", "Омфалодес ползучий, или пупочник", "Memoremea scorpioides", "", "Сосудистые растения", "вид", "Boraginaceae", "2", "2", "", "", "NE"],
+    ["Nonea pulla", "Нонея тёмно-бурая", "", "", "Сосудистые растения", "вид", "Boraginaceae", "1", "1", "", "", "NE"],
+    ["Pulmonaria obscura", "Медуница неясная", "", "", "Сосудистые растения", "вид", "Boraginaceae", "3", "3", "", "", "NE"],
+    ["Myosotis palustris", "Незабудка болотная", "Myosotis scorpioides", "", "Сосудистые растения", "вид", "Boraginaceae", "3", "3", "", "", "NE"],
+    ["Lithospermum officinale", "Воробейник лекарственный", "", "", "Сосудистые растения", "вид", "Boraginaceae", "2", "2", "", "", "NE"],
+    ["Veronica teucrium", "Вероника широколистная", "", "", "Сосудистые растения", "вид", "Plantaginaceae", "2", "2", "", "", "NE"],
+    ["Pedicularis kaufmannii", "Мытник Кауфмана", "", "", "Сосудистые растения", "вид", "Orobanchaceae", "1", "1", "", "", "NE"],
+    ["Pedicularis palustris", "Мытник болотный", "", "", "Сосудистые растения", "вид", "Orobanchaceae", "1", "1", "", "", "LC"],
+    ["Nepeta pannonica", "Котовник голый, или венгерский", "Nepeta nuda nuda", "", "Сосудистые растения", "вид", "Lamiaceae", "2", "2", "", "", ""],
+    ["Thymus loevyanus", "Тимьян, или чабрец, Лёви", "Thymus odoratissimus", "", "Сосудистые растения", "вид", "Lamiaceae", "2", "2", "", "", "NE"],
+    ["Thymus marschallianus", "Тимьян, или чабрец, Маршалла", "", "", "Сосудистые растения", "вид", "Lamiaceae", "1", "1", "", "", "NE"],
+    ["Thymus pulegioides", "Тимьян, или чабрец, блошиный", "", "", "Сосудистые растения", "вид", "Lamiaceae", "1", "1", "", "", "NE"],
+    ["Centaurium erythraea", "Золототысячник обыкновенный", "", "", "Сосудистые растения", "вид", "Gentianaceae", "1", "1", "", "", "LC"],
+    ["Gentiana cruciata", "Горечавка крестовидная", "", "", "Сосудистые растения", "вид", "Gentianaceae", "2", "2", "", "", "NE"],
+    ["Gentiana pneumonanthe", "Горечавка лёгочная", "", "", "Сосудистые растения", "вид", "Gentianaceae", "1", "1", "", "", "NE"],
+    ["Scheuchzeria palustris", "Шейхцерия болотная", "", "", "Сосудистые растения", "вид", "Scheuchzeriaceae", "1", "1", "", "", "LC"],
+    ["Allium angulosum", "Лук угловатый", "", "", "Сосудистые растения", "вид", "Amaryllidaceae", "4", "4", "", "", "NE"],
+    ["Allium oleraceum", "Лук огородный", "", "", "Сосудистые растения", "вид", "Amaryllidaceae", "2", "2", "", "", "NE"],
+    ["Allium rotundum", "Лук круглый, или Вальдштейна", "", "", "Сосудистые растения", "вид", "Amaryllidaceae", "2", "2", "", "", "NE"],
+    ["Polygonatum multiflorum", "Купена многоцветковая", "", "", "Сосудистые растения", "вид", "Asparagaceae", "3", "3", "", "", "NE"],
+    ["Polygonatum odoratum", "Купена душистая, или лекарственная", "", "", "Сосудистые растения", "вид", "Asparagaceae", "2", "2", "", "", "NE"],
+    ["Iris pseudacorus", "Касатик, или ирис жёлтый, или аировидный", "", "", "Сосудистые растения", "вид", "Iridaceae", "3", "3", "", "", "LC"],
+    ["Iris sibirica", "Касатик, или ирис, сибирский", "", "", "Сосудистые растения", "вид", "Iridaceae", "1", "1", "", "", "NE"],
+    ["Gladiolus imbricatus", "Шпажник черепитчатый", "", "", "Сосудистые растения", "вид", "Iridaceae", "1", "1", "", "", "NE"],
+    ["Dactylorhiza baltica", "Пальчатокоренник балтийский", "Dactylorhiza majalis baltica", "", "Сосудистые растения", "вид", "Orchidaceae", "2", "2", "", "", ""],
+    ["Dactylorhiza fuchsii", "Пальчатокоренник Фукса", "Dactylorhiza maculata fuchsii", "", "Сосудистые растения", "вид", "Orchidaceae", "1", "2", "", "", ""],
+    ["Dactylorhiza incarnata", "Пальчатокоренник мясо-красный", "", "", "Сосудистые растения", "вид", "Orchidaceae", "3", "3", "", "", "NE"],
+    ["Dactylorhiza maculata", "Пальчатокоренник пятнистый", "", "", "Сосудистые растения", "вид", "Orchidaceae", "0", "0", "", "", "NE"],
+    ["Platanthera bifolia", "Любка двулистная", "", "", "Сосудистые растения", "вид", "Orchidaceae", "1", "2", "", "", "NE"],
+    ["Platanthera chlorantha", "Любка зеленоцветковая", "", "", "Сосудистые растения", "вид", "Orchidaceae", "1", "1", "", "", "NE"],
+    ["Epipactis helleborine", "Дремлик широколистный", "", "", "Сосудистые растения", "вид", "Orchidaceae", "5", "5", "", "", "NE"],
+    ["Epipactis palustris", "Дремлик болотный", "", "", "Сосудистые растения", "вид", "Orchidaceae", "1", "1", "", "", "LC"],
+    ["Listera ovata", "Тайник яйцевидный", "Neottia ovata", "", "Сосудистые растения", "вид", "Orchidaceae", "2", "2", "", "", "NE"],
+    ["Neottia nidus-avis", "Гнездовка настоящая", "", "", "Сосудистые растения", "вид", "Orchidaceae", "3", "3", "", "", "LC"],
+    ["Corallorhiza trifida", "Ладьян трёхнадрезный", "", "", "Сосудистые растения", "вид", "Orchidaceae", "2", "2", "", "", "NE"],
+    ["Goodyera repens", "Гудайера ползучая", "", "", "Сосудистые растения", "вид", "Orchidaceae", "1", "1", "", "", "NE"],
+    ["Malaxis monophyllos", "Мякотница однолистная", "", "", "Сосудистые растения", "вид", "Orchidaceae", "1", "1", "", "", "NE"],
+    ["Sparganium minimum", "Ежеголовник малый", "", "", "Сосудистые растения", "вид", "Typhaceae", "1", "1", "", "", "NE"],
+    ["Nardus sricta", "Белоус торчащий", "", "", "Сосудистые растения", "вид", "Poaceae", "2", "2", "", "", "NE"],
+    ["Eriophorum polystachyon", "Пушица многоколосковая", "", "", "Сосудистые растения", "вид", "Cyperaceae", "3", "3", "", "", "NE"],
+    ["Eriophorum vaginatum", "Пушица влагалищная", "", "", "Сосудистые растения", "вид", "Cyperaceae", "2", "2", "", "", "LC"],
+    ["Carex atherodes", "Осока прямоколосая", "", "", "Сосудистые растения", "вид", "Cyperaceae", "3", "3", "", "", "LC"],
+    ["Carex lasiocarpa", "Осока пушистоплодная", "", "", "Сосудистые растения", "вид", "Cyperaceae", "2", "2", "", "", "LC"],
+    ["Carex limosa", "Осока топяная", "", "", "Сосудистые растения", "вид", "Cyperaceae", "2", "2", "", "", "LC"],
+    ["Avenella flexuosa", "Овсик извилистый, или щучка извилистая", "", "", "Сосудистые растения", "вид", "Poaceae", "2", "2", "", "", "NE"],
+    ["Bromopsis benekenii", "Кострец Бенекена", "Bromus benekenii", "", "Сосудистые растения", "вид", "Poaceae", "4", "4", "", "", "NE"],
+    ["Festuca altissima", "Овсяница высокая, или лесная", "", "", "Сосудистые растения", "вид", "Poaceae", "2", "2", "", "", "NE"],
+    ["Festuca valesiaca", "Овсяница валлисская, или типчак", "", "", "Сосудистые растения", "вид", "Poaceae", "2", "2", "", "", "NE"],
+    ["Glyceria nemoralis", "Манник дубравный", "", "", "Сосудистые растения", "вид", "Poaceae", "2", "2", "", "", "LC"],
+    ["Hierochlo odorata", "Зубровка душистая", "Anthoxanthum nitens", "", "Сосудистые растения", "вид", "Poaceae", "3", "3", "", "", "NE"],
+    ["Leersia oryzoides", "Леерсия рисовидная", "", "", "Сосудистые растения", "вид", "Poaceae", "3", "3", "", "", "LC"],
+    ["Melica picta", "Перловник пестрый", "", "", "Сосудистые растения", "вид", "Poaceae", "4", "4", "", "", "NE"],
+    ["Phleum phleoides", "Тимофеевка степная", "", "", "Сосудистые растения", "вид", "Poaceae", "2", "2", "", "", "NE"],
+    ["Poa remota", "Мятлик расставленный", "", "", "Сосудистые растения", "вид", "Poaceae", "2", "2", "", "", "NE"],
+    ["Sieglingia decumbens", "Зиглингия лежачая", "Danthonia decumbens", "", "Сосудистые растения", "вид", "Poaceae", "4", "4", "", "", "NE"],
+    ["Anthoceros agrestis", "Антоцерос пашенный", "", "", "Моховидные", "вид", "Anthocerotaceae", "2", "2", "", "", "NE"],
+    ["Rhodobryum roseum", "Родобриум розетковидный", "", "", "Моховидные", "вид", "Bryaceae", "3", "3", "", "", "NE"],
+    ["Plagiomnium undulatum", "Плагиомниум волнистый", "", "", "Моховидные", "вид", "Mniaceae", "3", "3", "", "", "NE"],
+    ["Warnstorfia exannulata", "Варнсторфия бесколечковая", "Sarmentypnum exannulatum", "", "Моховидные", "вид", "Calliergonaceae", "2", "2", "", "", "NE"],
+    ["Anomodon longifolius", "Аномодон длиннолистный", "Anomodontella longifolia", "", "Моховидные", "вид", "Anomodontaceae", "1", "1", "", "", "NE"],
+    ["Anomodon attenuatus", "Аномодон утонченный", "Pseudanomodon attenuatus", "", "Моховидные", "вид", "Neckeraceae", "1", "1", "", "", "NE"],
+    ["Rhynchostegium murale", "Ринхостегиум стенной", "", "", "Моховидные", "вид", "Brachytheciaceae", "2", "2", "", "", "NE"],
+    ["Ptilium crista-castrensis", "Птилиум гребенчатый", "", "", "Моховидные", "вид", "Pylaisiaceae", "1", "3", "", "", "NE"],
+    ["Leucodon sciuroides", "Левкодон беличий", "", "", "Моховидные", "вид", "Leucodontaceae", "3", "3", "", "", "NE"],
+    ["Homalia trichomanoides", "Гомалия трихомановидная", "", "", "Моховидные", "вид", "Neckeraceae", "3", "3", "", "", "NE"],
+    ["Plagiothecium latebricola", "Плагиотециум скрытный", "", "", "Моховидные", "вид", "Plagiotheciaceae", "2", "2", "", "", "NE"],
+    ["Seligeria pusilla", "Зелигерия крошечная", "", "", "Моховидные", "вид", "Seligeriaceae", "0", "2", "", "", "NE"],
+    ["Dicranella cerviculata", "Дикранелла зобатая", "", "", "Моховидные", "вид", "Dicranellaceae", "2", "2", "", "", "NE"],
+    ["Dicranum bonjeanii", "Дикранум Бонжана", "", "", "Моховидные", "вид", "Dicranaceae", "1", "1", "", "", "NE"],
+    ["Dicranum viride", "Дикранум зелёный", "", "", "Моховидные", "вид", "Dicranaceae", "1", "1", "", "2", "NE"],
+    ["Dicranum polysetum", "Дикранум многоножковый", "", "", "Моховидные", "вид", "Dicranaceae", "3", "3", "", "", "NE"],
+    ["Syntrichia ruralis", "Синтрихия сельская", "", "", "Моховидные", "вид", "Pottiaceae", "3", "3", "", "", "NE"],
+    ["Atrichum flavisetum", "Атрихум жёлтоножковый", "", "", "Моховидные", "вид", "Polytrichaceae", "3", "3", "", "", "NE"],
+    ["Sphagnum fimbriatum", "Сфагнум бахромчатый", "", "", "Моховидные", "вид", "Sphagnaceae", "3", "3", "", "", "NE"],
+    ["Sphagnum magellanicum", "Сфагнум магелланский", "", "", "Моховидные", "вид", "Sphagnaceae", "3", "3", "", "", "NE"],
+    ["Sphagnum fallax", "Сфагнум обманчивый", "", "", "Моховидные", "вид", "Sphagnaceae", "3", "3", "", "", "NE"],
+    ["Sphagnum subsecundum", "Сфагнум однобокий", "", "", "Моховидные", "вид", "Sphagnaceae", "3", "3", "", "", "NE"],
+    ["Metzgeria furcata", "Метцгерия вильчатая", "", "", "Моховидные", "вид", "Metzgeriaceae", "0", "0", "", "", "NE"],
+    ["Radula complanata", "Радула сплющенная", "", "", "Моховидные", "вид", "Radulaceae", "5", "5", "", "", "NE"],
+    ["Lepidozia reptans", "Лепидозия ползучая", "", "", "Моховидные", "вид", "Lepidoziaceae", "1", "1", "", "", "NE"],
+    ["Thorea hispida", "Торея реснитчатая", "", "", "Водоросли", "вид", "Thoreaceae", "2", "2", "", "3", "NE"],
+    ["Bangia atropurpurea", "Бангия чёрно-пурпурная, или бангиядульцис чёрно-пурпурный", "Bangiadulcis atropurpurea", "", "Водоросли", "вид", "Bangiaceae", "4", "4", "", "", "NE"],
+    ["Chara globularis", "Хара шаровидная, или ломкая", "Chara fragilis", "", "Водоросли", "вид", "Characeae", "2", "2", "", "", "NE"],
+    ["Cladonia arbuscula", "Кладония лесная", "", "", "Лишайники", "вид", "Cladoniaceae", "1", "4", "", "", "NE"],
+    ["Cladonia botrytes", "Кладония гроздевидная", "", "", "Лишайники", "вид", "Cladoniaceae", "2", "4", "", "", "NE"],
+    ["Cladonia cariosa", "Кладония трухлявая", "", "", "Лишайники", "вид", "Cladoniaceae", "1", "4", "", "", "NE"],
+    ["Cladonia furcata", "Кладония вильчатая", "", "", "Лишайники", "вид", "Cladoniaceae", "1", "5", "", "", "NE"],
+    ["Cladonia macilenta", "Кладония тощая", "", "", "Лишайники", "вид", "Cladoniaceae", "2", "2", "", "", "NE"],
+    ["Cladonia stellaris", "Кладония звёздчатая", "", "", "Лишайники", "вид", "Cladoniaceae", "0", "1", "", "", "NE"],
+    ["Cladonia turgida", "Кладония вздутая", "", "", "Лишайники", "вид", "Cladoniaceae", "0", "4", "", "", "NE"],
+    ["Cladonia borealis", "Кладония северная", "", "", "Лишайники", "вид", "Cladoniaceae", "1", "1", "", "", "NE"],
+    ["Cladonia rangiferina", "Кладония оленья", "", "", "Лишайники", "вид", "Cladoniaceae", "1", "3", "", "", "NE"],
+    ["Lecanora muralis", "Леканора настенная, или Протопармелиопсис настенный", "Protoparmeliopsis muralis", "", "Лишайники", "вид", "Lecanoraceae", "3", "3", "", "", "NE"],
+    ["Hypogymnia tubulosa", "Гипогимния трубчатая", "", "", "Лишайники", "вид", "Parmeliaceae", "2", "2", "", "", "NE"],
+    ["Melanelixia subargentifera", "Меланеликсия серебристоносная", "", "", "Лишайники", "вид", "Parmeliaceae", "2", "2", "", "", "NE"],
+    ["Parmelina tiliacea", "Пармелина липовая", "", "", "Лишайники", "вид", "Parmeliaceae", "1", "1", "", "", "NE"],
+    ["Cetraria islandica", "Цетрария исландская, или Исландский мох", "", "", "Лишайники", "вид", "Parmeliaceae", "1", "3", "", "", "NE"],
+    ["Evernia mesomorpha", "Эверния мезоморфная", "", "", "Лишайники", "вид", "Parmeliaceae", "1", "2", "", "", "NE"],
+    ["Evernia prunastri", "Эверния сливовая, или Дубовый мох", "", "", "Лишайники", "вид", "Parmeliaceae", "3", "3", "", "", "NE"],
+    ["Parmeliopsis ambigua", "Пармелиопсис сомнительный", "", "", "Лишайники", "вид", "Parmeliaceae", "3", "5", "", "", "LC"],
+    ["Usnea hirta", "Уснея жёсткая", "", "", "Лишайники", "вид", "Parmeliaceae", "1", "2", "", "", "NE"],
+    ["Usnea subfloridana", "Уснея почти цветущая", "", "", "Лишайники", "вид", "Parmeliaceae", "1", "2", "", "", "NE"],
+    ["Bryoria capillaris", "Бриория волосовидная", "", "", "Лишайники", "вид", "Parmeliaceae", "1", "1", "", "", "NE"],
+    ["Bryoria fuscescens", "Бриория буроватая", "", "", "Лишайники", "вид", "Parmeliaceae", "1", "1", "", "", "NE"],
+    ["Bryoria implexa", "Бриория переплетённая", "", "", "Лишайники", "вид", "Parmeliaceae", "0", "1", "", "", "NE"],
+    ["Flavoparmelia caperata", "Флавопармелия морщинистая, или козья", "", "", "Лишайники", "вид", "Parmeliaceae", "1", "1", "", "", "LC"],
+    ["Pseudevernia furfuracea", "Псевдэверния зернистая", "", "", "Лишайники", "вид", "Parmeliaceae", "1", "1", "", "", "NE"],
+    ["Ramalina europaea", "Рамалина европейская", "", "", "Лишайники", "вид", "Ramalinaceae", "1", "1", "", "", "NE"],
+    ["Ramalina farinacea", "Рамалина мучнистая", "", "", "Лишайники", "вид", "Ramalinaceae", "1", "2", "", "", "NE"],
+    ["Ramalina pollinaria", "Рамалина пыльцеватая", "", "", "Лишайники", "вид", "Ramalinaceae", "1", "2", "", "", "NE"],
+    ["Stereocaulon tomentosum", "Стереокаулон войлочный", "", "", "Лишайники", "вид", "Stereocaulaceae", "1", "1", "", "", "NE"],
+    ["Peltigera canina", "Пельтигера собачья", "", "", "Лишайники", "вид", "Peltigeraceae", "0", "3", "", "", "NE"],
+    ["Peltigera neckeri", "Пельтигера Неккера", "", "", "Лишайники", "вид", "Peltigeraceae", "3", "3", "", "", "NE"],
+    ["Peltigera neopolydactyla", "Пельтигера новомногопалая", "", "", "Лишайники", "вид", "Peltigeraceae", "3", "3", "", "", "NE"],
+    ["Peltigera rufescens", "Пельтигера рыжеватая", "", "", "Лишайники", "вид", "Peltigeraceae", "3", "3", "", "", "NE"],
+    ["Graphis scripta", "Графис письменный", "", "", "Лишайники", "вид", "Graphidaceae", "2", "4", "", "", "NE"],
+    ["Anaptychia ciliaris", "Анаптихия реснитчатая", "", "", "Лишайники", "вид", "Physciaceae", "0", "1", "", "", "NE"],
+    ["Multiclavula mucida", "Мультиклавула слизистая", "", "", "Лишайники", "вид", "Hydnaceae", "1", "1", "", "", "NE"],
+    ["Ionomidotis irregularis", "Иономидотис неправильный", "Diplocarpa irregularis", "", "Грибы", "вид", "Cordieritidaceae", "3", "3", "", "", "NE"],
+    ["Sclerencoelia fascicularis", "Склерэнцелия пучковая", "Encoelia fascicularis", "Энцелия", "Грибы", "вид", "Sclerotiniaceae", "3", "3", "", "", "NE"],
+    ["Leotia lubrica", "Леоция студенистая", "", "", "Грибы", "вид", "Leotiaceae", "3", "3", "", "", "NE"],
+    ["Bulgaria inquinans", "Булгария пачкающая", "", "", "Грибы", "вид", "Phacidiaceae", "3", "3", "", "", "NE"],
+    ["Ophiocordyceps entomorrhiza", "Офиокордицепс серо-пепельный", "Cordyceps entomorrhiza", "Кордицепс", "Грибы", "вид", "Ophiocordycipitaceae", "3", "3", "", "", "NE"],
+    ["Xylaria friesii", "Ксилярия Фриза", "", "", "Грибы", "вид", "Xylariaceae", "2", "2", "", "", "NE"],
+    ["Polyporus umbellatus", "Трутовик разветвленный", "", "", "Грибы", "вид", "Polyporaceae", "3", "3", "", "", "NE"],
+    ["Climacodon septentrionalis", "Климакодон северный", "", "", "Грибы", "вид", "Meruliaceae", "3", "3", "", "", "NE"],
+    ["Grifola frondosa", "Грифола курчавая, или Гриб-баран", "", "", "Грибы", "вид", "Grifolaceae", "2", "2", "", "3", "NE"],
+    ["Sparassis crispa", "Спарассис курчавый, или Грибная капуста", "", "", "Грибы", "вид", "Sparassidaceae", "2", "2", "", "3", "NE"],
+    ["Gyroporus castaneus", "Гиропор каштановый, или каштановый гриб", "", "", "Грибы", "вид", "Gyroporaceae", "2", "2", "", "", "NE"],
+    ["Neoboletus luridiformis", "Дубовик крапчатый", "Boletus luridiformis", "", "Грибы", "вид", "Boletaceae", "3", "3", "", "", "LC"],
+    ["Suillellus luridus", "Дубовик обыкновенный", "Boletus luridus", "", "Грибы", "вид", "Boletaceae", "2", "2", "", "", "NE"],
+    ["Leccinum holopus", "Подберёзовик болотный", "", "", "Грибы", "вид", "Boletaceae", "2", "2", "", "", "LC"],
+    ["Leucocybe connata", "Лейкоцибе, или Рядовка, сросшаяся", "Lyophyllum connatum", "Лиофиллум скученный", "Грибы", "вид", "Tricholomataceae", "2", "2", "", "", "NE"],
+    ["Mycena strobilicola", "Мицена шишколюбивая, или весенняя", "", "", "Грибы", "вид", "Mycenaceae", "1", "1", "", "", "NE"],
+    ["Chrysomphalina grossula", "Хризомфалина крыжовенная", "", "толстенькая", "Грибы", "вид", "Hygrophoraceae", "3", "3", "", "", "NE"],
+    ["Pluteus salicinus", "Плютей ивовый", "", "", "Грибы", "вид", "Pluteaceae", "3", "3", "", "", "NE"],
+    ["Cortinarius pholideus", "Паутинник чешуйчатый", "", "", "Грибы", "вид", "Cortinariaceae", "0", "0", "", "", "NE"],
+    ["Cortinarius triumphans", "Паутинник триумфальный, или жёлтый", "Phlegmacium triumphans", "", "Грибы", "вид", "Cortinariaceae", "2", "2", "", "", "NE"],
+    ["Cortinarius violaceus", "Паутинник фиолетовый", "", "", "Грибы", "вид", "Cortinariaceae", "4", "4", "", "", "NE"],
+    ["Galerina hypnorum", "Галерина моховая", "", "", "Грибы", "вид", "Hymenogastraceae", "3", "3", "", "", "NE"],
+    ["Galerina paludosa", "Галерина болотная", "", "", "Грибы", "вид", "Hymenogastraceae", "3", "3", "", "", "NE"],
+    ["Leratiomyces squamosus", "Лерациомицес чешуйчатый", "", "", "Грибы", "вид", "Strophariaceae", "3", "3", "", "", "NE"],
+    ["Hericium coralloides", "Ежовик коралловидный", "", "", "Грибы", "вид", "Hericiaceae", "3", "3", "", "", "NE"],
+    ["Albatrellus ovinus", "Трутовик овечий", "", "", "Грибы", "вид", "Albatrellaceae", "3", "3", "", "", "NE"],
+    ["Russula virescens", "Сыроежка зеленоватая", "", "", "Грибы", "вид", "Russulaceae", "3", "3", "", "", "LC"],
+    ["Ditangium cerasi", "Дитангиум вишневый", "Craterocolla cerasi", "Кратероколла вишнёвая", "Грибы", "вид", "Sebacinaceae", "3", "3", "", "", "NE"],
+    ["Pseudohydnum gelatinosum", "Ложноежовик студенистый", "", "Тремеллодон", "Грибы", "вид", "", "3", "3", "", "", "NE"],
+    ["Helicogloea compressa", "Хеликоглое сжатая", "Leucogloea compressa", "Лейкоглое", "Грибы", "вид", "Phleogenaceae", "3", "3", "", "", "NE"],
+    ["Lycogala conicum", "Ликогала коническая", "", "", "Грибы", "вид", "Tubiferaceae", "3", "3", "", "", "NE"],
+    ["Hemitrichia serpula", "Хемитрихия змеевидная", "", "", "Грибы", "вид", "Arcyriaceae", "3", "3", "", "", "NE"],
+    ["Cystopteris fragilis", "Пузырник ломкий", "", "", "Сосудистые растения", "вид", "Cystopteridaceae", "", "", "да", "", "NE"],
+    ["Phegopteris connectilis", "Фегоптерис связывающий, или буковый", "", "", "Сосудистые растения", "вид", "Thelypteridaceae", "", "", "да", "", "NE"],
+    ["Pinus silvestris", "Сосна обыкновенная (жизнеспособный самосевный подрост)", "", "", "Сосудистые растения", "вид", "Pinaceae", "", "", "да", "", "LC"],
+    ["Picea abies", "Ель европейская (жизнеспособный самосевный подрост)", "", "", "Сосудистые растения", "вид", "Pinaceae", "", "", "да", "", "LC"],
+    ["Typha angustifolia", "Рогоз узколистный", "", "", "Сосудистые растения", "вид", "Typhaceae", "", "", "да", "", "LC"],
+    ["Typha intermedia", "Рогоз промежуточный", "", "", "Сосудистые растения", "вид", "Typhaceae", "", "", "да", "", "NE"],
+    ["Sparganium glomeratum", "Ежеголовник скученный", "", "", "Сосудистые растения", "вид", "Typhaceae", "", "", "да", "", "NE"],
+    ["Potamogeton friesii", "Рдест Фриса", "", "", "Сосудистые растения", "вид", "Potamogetonaceae", "", "", "да", "", "LC"],
+    ["Potamogeton pusillus", "Рдест маленький", "", "", "Сосудистые растения", "вид", "Potamogetonaceae", "", "", "да", "", "LC"],
+    ["Potamogeton trichoides", "Рдест волосовидный", "", "", "Сосудистые растения", "вид", "Potamogetonaceae", "", "", "да", "", "LC"],
+    ["Potamogeton gramineus", "Рдест злаковый", "", "", "Сосудистые растения", "вид", "Potamogetonaceae", "", "", "да", "", "LC"],
+    ["Potamogeton obtusifolius", "Рдест туполистный", "", "", "Сосудистые растения", "вид", "Potamogetonaceae", "", "", "да", "", "LC"],
+    ["Potamogeton praelongus", "Рдест длиннейший", "", "", "Сосудистые растения", "вид", "Potamogetonaceae", "", "", "да", "", "LC"],
+    ["Zannichellia palustris", "Дзанникеллия болотная", "", "", "Сосудистые растения", "вид", "Potamogetonaceae", "", "", "да", "", "LC"],
+    ["Triglochin palustre", "Триостренник болотный", "Triglochin palustris", "", "Сосудистые растения", "вид", "Juncaginaceae", "", "", "да", "", "LC"],
+    ["Alisma gramineum", "Частуха злаковидная", "", "", "Сосудистые растения", "вид", "Alismataceae", "", "", "да", "", "DD"],
+    ["Butomus umbellatus", "Сусак зонтичный", "", "", "Сосудистые растения", "вид", "Butomaceae", "", "", "да", "", "LC"],
+    ["Stratiotes aloides", "Телорез алоэвидный", "", "", "Сосудистые растения", "вид", "Hydrocharitaceae", "", "", "да", "", "LC"],
+    ["Hierochloe repens", "Зубровка ползучая, или степная", "Anthoxanthum repens", "", "Сосудистые растения", "вид", "Poaceae", "", "", "да", "", "NE"],
+    ["Trisetum sibiricum", "Трищетинник сибирский", "Sibirotrisetum sibiricum", "", "Сосудистые растения", "вид", "Poaceae", "", "", "да", "", "NE"],
+    ["Beckmannia eruciformis", "Бекмания обыкновенная", "", "", "Сосудистые растения", "вид", "Poaceae", "", "", "да", "", "LC"],
+    ["Koeleria cristata", "Тонконог гребенчатый", "", "", "Сосудистые растения", "вид", "Poaceae", "", "", "да", "", "NE"],
+    ["Holcus lanatus", "Бухарник шерстистый", "", "", "Сосудистые растения", "вид", "Poaceae", "", "", "да", "", "NE"],
+    ["Catabrosa aquatica", "Поручейница водная", "", "", "Сосудистые растения", "вид", "Poaceae", "", "", "да", "", "LC"],
+    ["Scolochloa festucacea", "Тростянка овсяницевидная", "", "", "Сосудистые растения", "вид", "Poaceae", "", "", "да", "", "LC"],
+    ["Brachypodium pinnatum", "Коротконожка перистая", "", "", "Сосудистые растения", "вид", "Poaceae", "", "", "да", "", "NE"],
+    ["Scirpus radicans", "Камыш укореняющийся", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "NE"],
+    ["Bolboschoenus maritimus", "Камыш, или Клубнекамыш, морской", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "LC"],
+    ["Schoenoplectus lacustris", "Камыш, или Схеноплектус, озёрный", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "LC"],
+    ["Blysmus compressus", "Поточник сжатый", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "LC"],
+    ["Eleocharis mamillata", "Болотница сосочковая", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "NE"],
+    ["Carex acutiformis", "Осока заострённая", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "LC"],
+    ["Carex appropinquata", "Осока сближенная", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "LC"],
+    ["Carex diandra", "Осока двутычинковая", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "LC"],
+    ["Carex ericetorum", "Осока верещатниковая", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "NE"],
+    ["Carex flava", "Осока жёлтая", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "LC"],
+    ["Carex juncella", "Осока ситничковая, или вилюйская", "Carex nigra juncea", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "LC"],
+    ["Carex muricata", "Осока колючковатая", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "NE"],
+    ["Carex riparia", "Осока береговая", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "LC"],
+    ["Carex vaginata", "Осока влагалищная", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "LC"],
+    ["Carex disperma", "Осока двусемянная", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "NE"],
+    ["Carex globularis", "Осока шаровидная", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "NE"],
+    ["Carex montana", "Осока горная", "", "", "Сосудистые растения", "вид", "Cyperaceae", "", "", "да", "", "NE"],
+    ["Juncus alpinoarticulatus", "Ситник альпийский", "", "", "Сосудистые растения", "вид", "Juncaceae", "", "", "да", "", "LC"],
+    ["Juncus conglomeratus", "Ситник скученный", "", "", "Сосудистые растения", "вид", "Juncaceae", "", "", "да", "", "LC"],
+    ["Luzula pallescens", "Ожика бледноватая", "", "", "Сосудистые растения", "вид", "Juncaceae", "", "", "да", "", "NE"],
+    ["Gagea erubescens", "Гусиный лук краснеющий", "Gagea fragifera", "", "Сосудистые растения", "вид", "Liliaceae", "", "", "да", "", "NE"],
+    ["Allium ursinum", "Лук медвежий, или черемша", "", "", "Сосудистые растения", "вид", "Amaryllidaceae", "", "", "да", "", "NE"],
+    ["Salix acutifolia", "Ива остролистная, или верба", "", "", "Сосудистые растения", "вид", "Salicaceae", "", "", "да", "", "LC"],
+    ["Salix phylicifolia", "Ива филиколистная, или двуцветная", "", "", "Сосудистые растения", "вид", "Salicaceae", "", "", "да", "", "LC"],
+    ["Salix vinogradovii", "Ива Виноградова", "", "", "Сосудистые растения", "вид", "Salicaceae", "", "", "да", "", "NE"],
+    ["Thesium arvense", "Ленец полевой", "", "", "Сосудистые растения", "вид", "Thesiaceae", "", "", "да", "", ""],
+    ["Montia fontana", "Монция ручейная", "", "", "Сосудистые растения", "вид", "Montiaceae", "", "", "да", "", "LC"],
+    ["Stellaria alsine", "Звездчатка топяная", "", "", "Сосудистые растения", "вид", "Caryophyllaceae", "", "", "да", "", "NE"],
+    ["Stellaria crassifolia", "Звездчатка толстолистная", "", "", "Сосудистые растения", "вид", "Caryophyllaceae", "", "", "да", "", "NE"],
+    ["Silene nutans", "Смолёвка поникшая", "", "", "Сосудистые растения", "вид", "Caryophyllaceae", "", "", "да", "", "NE"],
+    ["Silene tatarica", "Смолёвка татарская", "", "", "Сосудистые растения", "вид", "Caryophyllaceae", "", "", "да", "", "NE"],
+    ["Scleranthus perennis", "Дивала многолетняя", "", "", "Сосудистые растения", "вид", "Caryophyllaceae", "", "", "да", "", "NE"],
+    ["Cucubalus baccifer", "Волдырник ягодоносный", "Silene baccifera", "", "Сосудистые растения", "вид", "Caryophyllaceae", "", "", "да", "", "NE"],
+    ["Gypsophila muralis", "Качим постенный", "Psammophiliella muralis", "", "Сосудистые растения", "вид", "Caryophyllaceae", "", "", "да", "", "NE"],
+    ["Nuphar lutea", "Кубышка жёлтая", "", "", "Сосудистые растения", "вид", "Nymphaeaceae", "", "", "да", "", "LC"],
+    ["Thalictrum minus", "Василисник малый", "", "", "Сосудистые растения", "вид", "Ranunculaceae", "", "", "да", "", "NE"],
+    ["Thalictrum simplex", "Василисник простой", "", "", "Сосудистые растения", "вид", "Ranunculaceae", "", "", "да", "", "NE"],
+    ["Barbarea stricta", "Сурепица прямая", "", "", "Сосудистые растения", "вид", "Brassicaceae", "", "", "да", "", "NE"],
+    ["Arabis pendula", "Резуха повислая", "", "", "Сосудистые растения", "вид", "Brassicaceae", "", "", "да", "", ""],
+    ["Arabis sagittata", "Резуха стреловидная", "", "", "Сосудистые растения", "вид", "Brassicaceae", "", "", "да", "", "NE"],
+    ["Rubus nessensis", "Куманика, или Ежевика несская, или Куманика", "Rubus polonicus", "", "Сосудистые растения", "вид", "Rosaceae", "", "", "да", "", "NE"],
+    ["Sanguisorba officinalis", "Кровохлёбка лекарственная", "", "", "Сосудистые растения", "вид", "Rosaceae", "", "", "да", "", "LC"],
+    ["Agrimonia pilosa", "Репешок волосистый", "", "", "Сосудистые растения", "вид", "Rosaceae", "", "", "да", "", "NE"],
+    ["Prunus spinosa", "Слива колючая, или терн", "", "", "Сосудистые растения", "вид", "Rosaceae", "", "", "да", "", "LC"],
+    ["Trifolium aureum", "Клевер, или Златощитник, золотистый", "", "", "Сосудистые растения", "вид", "Fabaceae", "", "", "да", "", "NE"],
+    ["Trifolium spadieum", "Клевер, или Златощитник, каштановый", "", "", "Сосудистые растения", "вид", "Fabaceae", "", "", "да", "", "NE"],
+    ["Coronilla varia", "Вязель разноцветный", "", "", "Сосудистые растения", "вид", "Fabaceae", "", "", "да", "", "NE"],
+    ["Oxalis acetosella", "Кислица обыкновенная", "", "", "Сосудистые растения", "вид", "Oxalidaceae", "", "", "да", "", "NE"],
+    ["Linum catharticum", "Лён слабительный", "", "", "Сосудистые растения", "вид", "Linaceae", "", "", "да", "", "NE"],
+    ["Callitriche hermaphroditica", "Болотник обоеполый", "", "", "Сосудистые растения", "вид", "Plantaginaceae", "", "", "да", "", "LC"],
+    ["Hypericum hirsutum", "Зверобой волосистый", "", "", "Сосудистые растения", "вид", "Hypericaceae", "", "", "да", "", "NE"],
+    ["Lavatera thuringiaca", "Хатьма тюрингенская", "", "", "Сосудистые растения", "вид", "Malvaceae", "", "", "да", "", ""],
+    ["Viola canina", "Фиалка собачья", "", "", "Сосудистые растения", "вид", "Violaceae", "", "", "да", "", "NE"],
+    ["Viola collina", "Фиалка холмовая", "", "", "Сосудистые растения", "вид", "Violaceae", "", "", "да", "", "NE"],
+    ["Viola hirta", "Фиалка опушенная", "", "", "Сосудистые растения", "вид", "Violaceae", "", "", "да", "", "NE"],
+    ["Viola persicifolia", "Фиалка персиколистная, или прудовая", "Viola stagnina", "", "Сосудистые растения", "вид", "Violaceae", "", "", "да", "", "NE"],
+    ["Viola riviniana", "Фиалка Ривиниуса", "", "", "Сосудистые растения", "вид", "Violaceae", "", "", "да", "", "NE"],
+    ["Viola rupestris", "Фиалка скальная, или песчаная", "", "", "Сосудистые растения", "вид", "Violaceae", "", "", "да", "", "NE"],
+    ["Viola selkirkii", "Фиалка Селькирка", "", "", "Сосудистые растения", "вид", "Violaceae", "", "", "да", "", "NE"],
+    ["Lythrum virgatum", "Дербенник прутьевидный", "", "", "Сосудистые растения", "вид", "Lythraceae", "", "", "да", "", "NE"],
+    ["Epilobium smyrneum", "Кипрей смиренский, или жилковатый", "Epilobium roseum subsessile", "", "Сосудистые растения", "вид", "Onagraceae", "", "", "да", "", ""],
+    ["Epilobium roseum", "Кипрей розовый", "", "", "Сосудистые растения", "вид", "Onagraceae", "", "", "да", "", "NE"],
+    ["Hippuris vulgaris", "Водяная сосенка обыкновенная", "", "", "Сосудистые растения", "вид", "Plantaginaceae", "", "", "да", "", "LC"],
+    ["Circaea lutetiana", "Двулепестник парижский", "", "", "Сосудистые растения", "вид", "Onagraceae", "", "", "да", "", "NE"],
+    ["Angelica archangelica", "Дудник лекарственный, или дягиль", "", "", "Сосудистые растения", "вид", "Apiaceae", "", "", "да", "", "NE"],
+    ["Conioselinum tataricum", "Гирчовник татарский", "", "", "Сосудистые растения", "вид", "Apiaceae", "", "", "да", "", "NE"],
+    ["Oenanthe aquatica", "Омежник водный", "", "", "Сосудистые растения", "вид", "Apiaceae", "", "", "да", "", "LC"],
+    ["Laserpitium prutenicum", "Гладыш прусский", "Silphiodaucus prutenicus", "", "Сосудистые растения", "вид", "Apiaceae", "", "", "да", "", "NE"],
+    ["Pyrola media", "Грушанка средняя", "", "", "Сосудистые растения", "вид", "Ericaceae", "", "", "да", "", "NE"],
+    ["Orthilia secunda", "Ортилия однобокая", "", "", "Сосудистые растения", "вид", "Ericaceae", "", "", "да", "", "NE"],
+    ["Vaccinium myrtillus", "Черника", "", "", "Сосудистые растения", "вид", "Ericaceae", "", "", "да", "", "NE"],
+    ["Vaccinium vitis-idaea", "Брусника", "", "", "Сосудистые растения", "вид", "Ericaceae", "", "", "да", "", "LC"],
+    ["Androsace filiformis", "Проломник нитевидный", "", "", "Сосудистые растения", "вид", "Primulaceae", "", "", "да", "", "NE"],
+    ["Androsace septentrionalis", "Проломник северный", "", "", "Сосудистые растения", "вид", "Primulaceae", "", "", "да", "", "NE"],
+    ["Trientalis europaea", "Седмичник европейский", "", "", "Сосудистые растения", "вид", "Primulaceae", "", "", "да", "", ""],
+    ["Menyanthes trifoliata", "Вахта трёхлистная", "", "", "Сосудистые растения", "вид", "Menyanthaceae", "", "", "да", "", "LC"],
+    ["Cynoglossun officinale", "Чернокорень лекарственный", "", "", "Сосудистые растения", "вид", "Boraginaceae", "", "", "да", "", "NE"],
+    ["Salvia nemorosa", "Шалфей дубравный, или сухостепной", "", "", "Сосудистые растения", "вид", "Lamiaceae", "", "", "да", "", "NE"],
+    ["Origanum vulgare", "Душица обыкновенная", "", "", "Сосудистые растения", "вид", "Lamiaceae", "", "", "да", "", "NE"],
+    ["Acinos arvensis", "Щебрушка полевая", "Clinopodium acinos", "", "Сосудистые растения", "вид", "Lamiaceae", "", "", "да", "", "NE"],
+    ["Verbascum lychnitis", "Коровяк метельчатый, или мучнистый", "", "", "Сосудистые растения", "вид", "Scrophulariaceae", "", "", "да", "", "NE"],
+    ["Verbascum thapsus", "Коровяк обыкновенный, или медвежье ухо", "", "", "Сосудистые растения", "вид", "Scrophulariaceae", "", "", "да", "", "NE"],
+    ["Lathraea squamaria", "Петров крест чешуйчатый", "", "", "Сосудистые растения", "вид", "Orobanchaceae", "", "", "да", "", "NE"],
+    ["Valeriana officinalis", "Валериана лекарственная", "", "", "Сосудистые растения", "вид", "Caprifoliaceae", "", "", "да", "", "NE"],
+    ["Succisa pratensis", "Сивец луговой", "", "", "Сосудистые растения", "вид", "Caprifoliaceae", "", "", "да", "", "NE"],
+    ["Inula salicina", "Девясил иволистный", "", "", "Сосудистые растения", "вид", "Asteraceae", "", "", "да", "", "NE"],
+    ["Achillea salicifolia", "Тысячелистник иволистный", "", "", "Сосудистые растения", "вид", "Asteraceae", "", "", "да", "", "NE"],
+    ["Senecio jacobaea", "Крестовник Якова", "", "", "Сосудистые растения", "вид", "Asteraceae", "", "", "да", "", "NE"],
+    ["Senecio fluviatilis", "Крестовник приречный", "Senecio sarracenicus", "", "Сосудистые растения", "вид", "Asteraceae", "", "", "да", "", "NE"],
+    ["Helichrysum arenarium", "Цмин песчаный", "", "", "Сосудистые растения", "вид", "Asteraceae", "", "", "да", "", "NE"],
+    ["Convallaria majalis", "Ландыш майский", "", "", "Сосудистые растения", "вид", "Asparagaceae", "", "", "да", "", "NE"],
+    ["Anemonoides ranunculoides", "Ветреница лютиковая", "Anemone ranunculoides", "", "Сосудистые растения", "вид", "Ranunculaceae", "", "", "да", "", "NE"],
+    ["Corydalis solida", "Хохлатка плотная", "", "", "Сосудистые растения", "вид", "Papaveraceae", "", "", "да", "", "NE"],
+    ["Leucanthemum vulgare", "Нивяник обыкновенный", "", "", "Сосудистые растения", "вид", "Asteraceae", "", "", "да", "", "NE"],
+    ["Calamagrostis neglecta", "Вейник незамеченный", "Achnatherum calamagrostis", "", "Сосудистые растения", "вид", "Poaceae", "", "", "да", "", "NE"],
+    ["Calamagrostis purpurea", "Вейник пурпурный", "", "", "Сосудистые растения", "вид", "Poaceae", "", "", "да", "", "NE"],
+    ["Ribes spicatum", "Смородина колосистая", "", "", "Сосудистые растения", "вид", "Grossulariaceae", "", "", "да", "", "NE"],
+    ["Lathyrus palustris", "Чина болотная", "", "", "Сосудистые растения", "вид", "Fabaceae", "", "", "да", "", "LC"],
+    ["Cenolophium denudatum", "Пусторёбрышник обнаженный", "Cenolophium fischeri", "", "Сосудистые растения", "вид", "Apiaceae", "", "", "да", "", "NE"],
+    ["Kadenia dubia", "Кадения сомнительная", "", "", "Сосудистые растения", "вид", "Apiaceae", "", "", "да", "", "NE"],
+    ["Utricularia intermedia", "Пузырчатка средняя", "", "", "Сосудистые растения", "вид", "Lentibulariaceae", "", "", "да", "", "LC"],
+    ["Utricularia minor", "Пузырчатка малая", "", "", "Сосудистые растения", "вид", "Lentibulariaceae", "", "", "да", "", "LC"],
+    ["Ranunculus trichophyllus", "Лютик волосистолистный", "", "", "Сосудистые растения", "вид", "Ranunculaceae", "", "", "да", "", "LC"],
+    ["Barbilophozia barbata", "Барбилофозия бородатая", "", "", "Моховидные", "вид", "Anastrophyllaceae", "", "", "да", "", "NE"],
+    ["Conocephalum conicum", "Коноцефалум конический", "", "", "Моховидные", "вид", "Conocephalaceae", "", "", "да", "", "NE"],
+    ["Fossombronia wondraczeckii", "Фоссомброния Вондрачека", "", "", "Моховидные", "вид", "Fossombroniaceae", "", "", "да", "", "NE"],
+    ["Isopaches bicrenatus", "Изопахес двугородчатый", "", "", "Моховидные", "вид", "Anastrophyllaceae", "", "", "да", "", "NE"],
+    ["Scapania irrigua", "Скапания заливаемая", "", "", "Моховидные", "вид", "Scapaniaceae", "", "", "да", "", "NE"],
+    ["Atrichum angustatum", "Атрихум суженный", "", "", "Моховидные", "вид", "Polytrichaceae", "", "", "да", "", "NE"],
+    ["Bryum cyclophyllum", "Бриум круглолистный", "Ptychostomum cyclophyllum", "", "Моховидные", "вид", "Bryaceae", "", "", "да", "", "NE"],
+    ["Bryum rubens", "Бриум краснеющий", "Rosulabryum rubens", "", "Моховидные", "вид", "Bryaceae", "", "", "да", "", "NE"],
+    ["Bryum weigelii", "Бриум Вейгеля", "", "", "Моховидные", "вид", "Bryaceae", "", "", "да", "", "NE"],
+    ["Calliergon giganteum", "Каллиэргон гигантский", "", "", "Моховидные", "вид", "Calliergonaceae", "", "", "да", "", "NE"],
+    ["Calliergon stramineum", "Каллиэргон соломенно-жёлтый", "Straminergon stramineum", "", "Моховидные", "вид", "Calliergonaceae", "", "", "да", "", "NE"],
+    ["Campylium chrysophyllum", "Кампилиум золотистолистный", "", "", "Моховидные", "вид", "Amblystegiaceae", "", "", "да", "", "NE"],
+    ["Campylium sommerfeltii", "Кампилиум Зоммерфельта", "Campylophyllopsis sommerfeltii", "", "Моховидные", "вид", "Amblystegiaceae", "", "", "да", "", "NE"],
+    ["Dicranella rufescens", "Дикранелла рыжеватая", "", "", "Моховидные", "вид", "Dicranellaceae", "", "", "да", "", "NE"],
+    ["Fissidens minutulus", "Фиссиденс мелкий", "", "", "Моховидные", "вид", "Fissidentaceae", "", "", "да", "", "NE"],
+    ["Helodium blandowii", "Гелодиум Бландова", "", "", "Моховидные", "вид", "Helodiaceae", "", "", "да", "", "NE"],
+    ["Herzogiella seligeri", "Герцогиелла Зелигера", "", "", "Моховидные", "вид", "Plagiotheciaceae", "", "", "да", "", "NE"],
+    ["Hylocomium splendens", "Гилокомиум блестящий", "", "", "Моховидные", "вид", "Hylocomiaceae", "", "", "да", "", "NE"],
+    ["Hypnum cupressiforme", "Гипнум кипарисовидный", "", "", "Моховидные", "вид", "Hypnaceae", "", "", "да", "", "NE"],
+    ["Leskeella nervosa", "Лескеелла жилковатая", "Pseudoleskeella nervosa", "", "Моховидные", "вид", "Pseudoleskeellaceae", "", "", "да", "", "NE"],
+    ["Mnium marginatum", "Мниум окаймлённый", "", "", "Моховидные", "вид", "Mniaceae", "", "", "да", "", "NE"],
+    ["Orthotrichum obtusifolium", "Ортотрихум туполистный", "Nyholmiella obtusifolia", "", "Моховидные", "вид", "Orthotrichaceae", "", "", "да", "", "NE"],
+    ["Orthotrichum speciosum", "Ортотрихум красивый", "Lewinskya speciosa", "", "Моховидные", "вид", "Orthotrichaceae", "", "", "да", "", "NE"],
+    ["Phascum cuspidatum", "Фаскум остроконечный", "Tortula acaulon", "", "Моховидные", "вид", "Pottiaceae", "", "", "да", "", "NE"],
+    ["Philonotis fontana", "Филонотис ключевой", "", "", "Моховидные", "вид", "Bartramiaceae", "", "", "да", "", "NE"],
+    ["Plagiothecium cavifolium", "Плагиотециум вогнутолистный", "", "", "Моховидные", "вид", "Plagiotheciaceae", "", "", "да", "", "NE"],
+    ["Plagiothecium nemorale", "Плагиотециум дубравный", "", "", "Моховидные", "вид", "Plagiotheciaceae", "", "", "да", "", "NE"],
+    ["Pohlia andalusica", "Полия андалузская", "", "", "Моховидные", "вид", "Mniaceae", "", "", "да", "", "NE"],
+    ["Pohlia annotina", "Полия годичная", "", "", "Моховидные", "вид", "Mniaceae", "", "", "да", "", "NE"],
+    ["Pohlia bulbifera", "Полия живородящая", "", "", "Моховидные", "вид", "Mniaceae", "", "", "да", "", "NE"],
+    ["Pohlia camptotrachela", "Полия согнутошейковая", "", "", "Моховидные", "вид", "Mniaceae", "", "", "да", "", "NE"],
+    ["Pohlia proligera", "Полия выводковая", "", "", "Моховидные", "вид", "Mniaceae", "", "", "да", "", "NE"],
+    ["Polytrichastrum formosum", "Политрихаструм красивый", "Polytrichum formosum", "", "Моховидные", "вид", "Polytrichaceae", "", "", "да", "", "NE"],
+    ["Polytrichastrum longisetum", "Политрихаструм длинноножковый", "Polytrichum longisetum", "", "Моховидные", "вид", "Polytrichaceae", "", "", "да", "", "NE"],
+    ["Polytrichum commune", "Политрихум обыкновенный", "", "", "Моховидные", "вид", "Polytrichaceae", "", "", "да", "", "NE"],
+    ["Polytrichum strictum", "Политрихум сжатый", "", "", "Моховидные", "вид", "Polytrichaceae", "", "", "да", "", "NE"],
+    ["Pottia intermedia", "Поттия промежуточная", "Tortula caucasica", "", "Моховидные", "вид", "Pottiaceae", "", "", "да", "", "NE"],
+    ["Pseudephemerum nitidum", "Псевдофемерум блестящий", "", "", "Моховидные", "вид", "Ditrichaceae", "", "", "да", "", "NE"],
+    ["Seligeria campylopoda", "Зелигерия согнутоножковая", "Blindiadelphus campylopodus", "", "Моховидные", "вид", "Seligeriaceae", "", "", "да", "", "NE"],
+    ["Serpoleskea subtilis", "Серполескея тонкая", "Pseudoamblystegium subtile", "", "Моховидные", "вид", "Amblystegiaceae", "", "", "да", "", "NE"],
+    ["Sphagnum angustifolium", "Сфагнум узколистный", "", "", "Моховидные", "вид", "Sphagnaceae", "", "", "да", "", "NE"],
+    ["Sphagnum balticum", "Сфагнум балтийский", "", "", "Моховидные", "вид", "Sphagnaceae", "", "", "да", "", "NE"],
+    ["Sphagnum capillifolium", "Сфагнум волосолистный", "", "", "Моховидные", "вид", "Sphagnaceae", "", "", "да", "", "NE"],
+    ["Sphagnum centrale", "Сфагнум центральный", "", "", "Моховидные", "вид", "Sphagnaceae", "", "", "да", "", "NE"],
+    ["Sphagnum cuspidatum", "Сфагнум остроконечный", "", "", "Моховидные", "вид", "Sphagnaceae", "", "", "да", "", "NE"],
+    ["Sphagnum flexuosum", "Сфагнум извилистый", "", "", "Моховидные", "вид", "Sphagnaceae", "", "", "да", "", "NE"],
+    ["Sphagnum platyphyllum", "Сфагнум плосколистный", "", "", "Моховидные", "вид", "Sphagnaceae", "", "", "да", "", "NE"],
+    ["Sphagnum riparium", "Сфагнум береговой", "", "", "Моховидные", "вид", "Sphagnaceae", "", "", "да", "", "NE"],
+    ["Taxiphyllum wissgrillii", "Таксифиллум Виссгрилла", "", "", "Моховидные", "вид", "Taxiphyllaceae", "", "", "да", "", "NE"],
+    ["Tetraphis pellucida", "Тетрафис прозрачный", "", "", "Моховидные", "вид", "Tetraphidaceae", "", "", "да", "", "NE"],
+    ["Thuidium philibertii", "Туидиум Филиберта", "Thuidium assimile", "", "Моховидные", "вид", "Thuidiaceae", "", "", "да", "", "NE"],
+    ["Jamesoniella autumnalis", "Джемсониелла осенняя", "Syzygiella autumnalis", "", "Моховидные", "вид", "Adelanthaceae", "", "", "да", "", "NE"],
+    ["Rhizosolenia longiseta", "Ризосоления длиннощетинковая", "", "", "Водоросли", "вид", "Rhizosoleniaceae", "", "", "да", "", "NE"],
+    ["Acanthoceras zachariasii", "Акантоцерас Захариаса", "", "", "Водоросли", "вид", "Acanthocerataceae", "", "", "да", "", "NE"],
+    ["Campylodiscus hibernicus", "Кампилодискус ирландский", "", "", "Водоросли", "вид", "Surirellaceae", "", "", "да", "", "NE"],
+    ["Phaeothamnion dichrysis", "Феотамнион двухроматофорный", "", "", "Водоросли", "вид", "Phaeothamniaceae", "", "", "да", "", ""],
+    ["Chantransia chalybea", "Шантранзия серостальная", "Audouinella chalybea", "", "Водоросли", "вид", "Audouinellaceae", "", "", "да", "", "NE"],
+    ["Chaetophora elegans", "Хетофора изящная", "Chaetophoropsis elegans", "", "Водоросли", "вид", "Chaetophoraceae", "", "", "да", "", "NE"],
+    ["Coleochaete scutata", "Колеохета щитовидная", "", "", "Водоросли", "вид", "Coleochaetaceae", "", "", "да", "", "NE"],
+    ["Tolypothrix tenuis f. lanata", "Толипотрикс тонкий", "Tolypothrix lanata", "", "Водоросли", "вид", "Tolypothrichaceae", "", "", "да", "", "NE"],
+    ["Rhipidodendron splendidum", "Рипидодендрон блестящий", "Spongomonas spec", "", "Водоросли", "вид", "Spongomonadidae", "", "", "да", "", "NE"],
+    ["Calicium abietinum", "Калициум еловый", "", "", "Лишайники", "вид", "Caliciaceae", "", "", "да", "", "NE"],
+    ["Nephromopsis chlorophylla", "Нефромопсис хлорофилловый", "", "", "Лишайники", "вид", "Parmeliaceae", "", "", "да", "", "NE"],
+    ["Chaenotheca ferruginea", "Хенотека ржаво-красная", "", "", "Лишайники", "вид", "Coniocybaceae", "", "", "да", "", "NE"],
+    ["Cladonia caespiticia", "Кладония дернистая", "", "", "Лишайники", "вид", "Cladoniaceae", "", "", "да", "", "NE"],
+    ["Cladonia digitata", "Кладония пальчатая", "", "", "Лишайники", "вид", "Cladoniaceae", "", "", "да", "", "NE"],
+    ["Cladonia coccifera", "Кладония красноголовая", "", "", "Лишайники", "вид", "Cladoniaceae", "", "", "да", "", "NE"],
+    ["Diploschistes muscorum", "Диплошистес мохолюбивый", "", "", "Лишайники", "вид", "Graphidaceae", "", "", "да", "", "NE"],
+    ["Lecanora albella", "Леканора беловатая", "", "", "Лишайники", "вид", "Lecanoraceae", "", "", "да", "", "NE"],
+    ["Lecanora chlarotera", "Леканора нежноватая", "", "", "Лишайники", "вид", "Lecanoraceae", "", "", "да", "", "NE"],
+    ["Lecidella euphorea", "Лециделла эуфора", "", "", "Лишайники", "вид", "Lecanoraceae", "", "", "да", "", "NE"],
+    ["Lecidea erythrophaea", "Лецидея тёмно-красноватая", "", "", "Лишайники", "вид", "Lecideaceae", "", "", "да", "", "NE"],
+    ["Coppinsidea sphaerella", "Коппинсидея сферовидная", "", "", "Лишайники", "вид", "Ramalinaceae", "", "", "да", "", "NE"],
+    ["Melanohalea exasperata", "Меланохалея шероховатая", "", "", "Лишайники", "вид", "Parmeliaceae", "", "", "да", "", "NE"],
+    ["Parmeliopsis hyperopta", "Пармелиопсис тёмный", "", "", "Лишайники", "вид", "Parmeliaceae", "", "", "да", "", "LC"],
+    ["Phlyctis argena", "Фликтис серебристо-белый", "", "", "Лишайники", "вид", "Phlyctidaceae", "", "", "да", "", "NE"],
+    ["Physcia aipolia", "Фисция аиполлия", "", "", "Лишайники", "вид", "Physciaceae", "", "", "да", "", "NE"],
+    ["Physconia grisea", "Фискония серая", "Poeltonia grisea", "", "Лишайники", "вид", "Physciaceae", "", "", "да", "", "NE"],
+    ["Physconia perisidiosa", "Фискония изидиозная", "", "", "Лишайники", "вид", "Physciaceae", "", "", "да", "", "NE"],
+    ["Polycauliona candelaria", "Поликаулиона восково-жёлтая [Ксантория восково-жёлтая]", "Xanthoria candelaria", "", "Лишайники", "вид", "Teloschistaceae", "", "", "да", "", "NE"],
+    ["Oxneria fallax", "Окснерия обманчивая", "", "", "Лишайники", "вид", "Teloschistaceae", "", "", "да", "", "NE"],
+    ["Anisomeridium biforme", "Анизомеридиум двуформенный", "", "", "Лишайники", "вид", "Monoblastiaceae", "", "", "да", "", "NE"],
+    ["Arthonia helvola", "Артония палевая", "", "", "Лишайники", "вид", "Arthoniaceae", "", "", "да", "", "NE"],
+    ["Enchylium limosum", "Энхилиум топяной", "", "", "Лишайники", "вид", "Collemataceae", "", "", "да", "", "NE"],
+    ["Peltigera praetextata", "Пельтигера окаймлённая", "", "", "Лишайники", "вид", "Peltigeraceae", "", "", "да", "", "NE"],
+    ["Peltigera didactyla", "Пельтигера двупалая", "", "", "Лишайники", "вид", "Peltigeraceae", "", "", "да", "", "NE"],
+    ["Platismatia glauca", "Платизмация сизая", "", "", "Лишайники", "вид", "Parmeliaceae", "", "", "да", "", "NE"],
+    ["Chaenotheca chrysocephala", "Хенотека золотистоголовая", "", "", "Лишайники", "вид", "Coniocybaceae", "", "", "да", "", "NE"],
+    ["Mycena hyemalis", "Мицена зимняя", "Phloeomana hiemalis", "", "Грибы", "вид", "Porotheleaceae", "", "", "да", "", "NE"],
+    ["Russula grisea", "Сыроежка серая", "", "", "Грибы", "вид", "Russulaceae", "", "", "да", "", "NE"],
+    ["Pluteus patricius", "Плютей чешуйчатый", "Pluteus petasatus", "", "Грибы", "вид", "Pluteaceae", "", "", "да", "", "NE"],
+    ["Morchella esculenta", "Сморчок обыкновенный", "", "", "Грибы", "вид", "Morchellaceae", "", "", "да", "", "NE"],
+    ["Gyromitra esculenta", "Строчок обыкновенный", "", "", "Грибы", "вид", "Discinaceae", "", "", "да", "", "NE"],
+    ["Gyromitra gigas", "Строчок гигантский", "", "", "Грибы", "вид", "Discinaceae", "", "", "да", "", "NE"],
+    ["Leccinum percandidum", "Подосиновик белый", "Leccinum versipelle", "", "Грибы", "вид", "Boletaceae", "", "", "да", "", "LC"],
+    ["Leccinum roseofractum", "Подберёзовик чёрный", "Leccinum scabrum", "", "Грибы", "вид", "Boletaceae", "", "", "да", "", "LC"],
+    ["Phaeolepiota aurea", "Зонтик золотистый", "", "", "Грибы", "вид", "Tricholomataceae", "", "", "да", "", "NE"],
+    ["Dictyophora duplicata", "Сетконоска сдвоенная", "Phallus indusiatus", "", "Грибы", "вид", "Phallaceae", "", "", "да", "", "NE"],
+    ["Clathrus ruber", "Решёточник красный", "", "", "Грибы", "вид", "Phallaceae", "", "", "да", "", "NE"],
+]
+# Чужеродные инвазивные растения (369-ПП, ТОП-100, Чёрная книга флоры Средней России; справочник от 12.11.2026):
+# латынь, русское, синонимы (латынь), ранг, семейство, группа по 369-ПП, ТОП-100 №, Чёрная книга
+INVASIVE_PLANTS = [
+    ["Ailanthus altissima", "Айлант высочайший", "", "вид", "Simaroubaceae", "I", "", ""],
+    ["Heracleum sosnowskyi", "Борщевик Сосновского", "", "вид", "Apiaceae", "I", "25", "да"],
+    ["Solidago canadensis", "Золотарник канадский", "", "вид", "Asteraceae", "I", "34", "да"],
+    ["Solidago gigantea", "Золотарник гигантский", "", "вид", "Asteraceae", "I", "35", "да"],
+    ["Lupinus polyphyllus", "Люпин многолистный", "", "вид", "Fabaceae", "I", "29", "да"],
+    ["Reynoutria", "Рейнутрия", "Fallopia japonica; Fallopia sachalinensis; Fallopia × bohemica; Reynoutria sp.; Reynoutria spp.", "род", "Polygonaceae", "I", "", ""],
+    ["Acer negundo", "Клён ясенелистный", "", "вид", "Sapindaceae", "II", "9", "да"],
+    ["Amorpha fruticosa", "Аморфа кустарниковая", "", "вид", "Fabaceae", "III", "", ""],
+    ["Parthenocissus inserta", "Девичий виноград", "Parthenocissus quinquefolia auct.; Parthenocissus vitacea", "вид", "Vitaceae", "III", "31", ""],
+    ["Cornus alba", "Дёрен белый", "Cornus albus; Swida alba; Thelycrania alba", "вид", "Cornaceae", "III", "", ""],
+    ["Quercus rubra", "Дуб красный", "", "вид", "Fagaceae", "III", "", ""],
+    ["Amelanchier spicata", "Ирга колосистая", "", "вид", "Rosaceae", "III", "14", "да"],
+    ["Amelanchier alnifolia", "Ирга ольхолистная", "", "вид", "Rosaceae", "III", "", "да"],
+    ["Hippophae rhamnoides", "Облепиха крушиновидная", "", "вид", "Elaeagnaceae", "III", "", "да"],
+    ["Juglans mandshurica", "Орех маньчжурский", "", "вид", "Juglandaceae", "III", "", ""],
+    ["Physocarpus opulifolius", "Пузыреплодник калинолистный", "", "вид", "Rosaceae", "III", "", ""],
+    ["Robinia pseudoacacia", "Робиния псевдоакация, белая акация", "", "вид", "Fabaceae", "III", "", ""],
+    ["Rosa rugosa", "Роза морщинистая, шиповник морщинистый", "", "вид", "Rosaceae", "III", "33", ""],
+    ["Sorbaria sorbifolia", "Рябинник рябинолистный", "", "вид", "Rosaceae", "III", "", "да"],
+    ["Prunus virginiana", "Черёмуха виргинская", "Padus virginiana", "вид", "Rosaceae", "III", "", ""],
+    ["Fraxinus pennsylvanica", "Ясень пенсильванский", "", "вид", "Oleaceae", "III", "22", "да"],
+    ["Petasites hybridus", "Белокопытник гибридный", "", "вид", "Asteraceae", "IV", "", ""],
+    ["Veronica filiformis", "Вероника нитевидная", "", "вид", "Plantaginaceae", "IV", "", ""],
+    ["Erigeron canadensis", "Мелколепестник канадский", "Conyza canadensis", "вид", "Asteraceae", "IV", "21", "да"],
+    ["Impatiens glandulifera", "Недотрога железконосная", "", "вид", "Balsaminaceae", "IV", "27", "да"],
+    ["Impatiens parviflora", "Недотрога мелкоцветковая", "", "вид", "Balsaminaceae", "IV", "28", "да"],
+    ["Helianthus tuberosus", "Подсолнечник клубненосный, топинамбур", "", "вид", "Asteraceae", "IV", "", "да"],
+    ["Adenocaulon adhaerescens", "Прилипало пристающее", "", "вид", "Asteraceae", "IV", "", ""],
+    ["Zizania latifolia", "Цицания широколистная", "", "вид", "Poaceae", "IV", "", ""],
+    ["Bidens frondosa", "Череда олиственная", "", "вид", "Asteraceae", "IV", "15", "да"],
+    ["Elodea canadensis", "Элодея канадская", "", "вид", "Hydrocharitaceae", "IV", "18", "да"],
+    ["Echinocystis lobata", "Эхиноцистис лопастной", "", "вид", "Cucurbitaceae", "IV", "17", "да"],
+    ["Amaranthus retroflexus", "Щирица запрокинутая", "", "вид", "Amaranthaceae", "", "10", "да"],
+    ["Ambrosia artemisiifolia", "Амброзия полыннолистная", "", "вид", "Asteraceae", "", "11", "да"],
+    ["Ambrosia psilostachya", "Амброзия голометельчатая", "", "вид", "Asteraceae", "", "12", ""],
+    ["Ambrosia trifida", "Амброзия трёхраздельная", "", "вид", "Asteraceae", "", "13", ""],
+    ["Cyclachaena xanthiifolia", "Циклахена дурнишниколистная", "Cyclachaena xanthifolia; Iva xanthiifolia", "вид", "Asteraceae", "", "16", "да"],
+    ["Epilobium ciliatum", "Кипрей железистостебельный", "Epilobium adenocaulon", "вид", "Onagraceae", "", "19", "да"],
+    ["Erigeron annuus", "Мелколепестник однолетний", "", "вид", "Asteraceae", "", "20", "да"],
+    ["Galinsoga parviflora", "Галинзога мелкоцветковая", "", "вид", "Asteraceae", "", "23", "да"],
+    ["Galinsoga quadriradiata", "Галинзога четырёхлучевая", "", "вид", "Asteraceae", "", "24", "да"],
+    ["Hordeum jubatum", "Ячмень гривастый", "", "вид", "Poaceae", "", "26", "да"],
+    ["Oenothera biennis", "Ослинник двулетний", "", "вид", "Onagraceae", "", "30", "да"],
+    ["Reynoutria × bohemica", "Рейнутрия богемская", "Fallopia × bohemica; Reynoutria bohemica; Reynoutria × bogemica", "гибрид", "Polygonaceae", "I (род Reynoutria)", "32", "да"],
+    ["Symphyotrichum × salignum", "Симфиотрихум иволистный", "Aster salignus; Aster × salignus; Symphyotrichum salignum", "гибрид", "Asteraceae", "", "36", "да"],
+    ["Oxalis stricta", "Кислица прямостоячая", "Xanthoxalis stricta", "вид", "Oxalidaceae", "", "37", "да"],
+    ["Amaranthus albus", "Щирица белая", "", "вид", "Amaranthaceae", "", "", "да"],
+    ["Acorus calamus", "Аир обыкновенный", "", "вид", "Acoraceae", "", "", "да"],
+    ["Matricaria discoidea", "Ромашка душистая", "Chamomilla suaveolens; Lepidochiton discoidea", "вид", "Asteraceae", "", "", "да"],
+    ["Senecio viscosus", "Крестовник клейкий", "Jacobaea viscosa", "вид", "Asteraceae", "", "", "да"],
+    ["Xanthium albinum", "Дурнишник эльбский", "Xanthium orientale subsp. riparium", "вид", "Asteraceae", "", "", "да"],
+    ["Symphytum caucasicum", "Окопник кавказский", "", "вид", "Boraginaceae", "", "", "да"],
+    ["Lepidium draba", "Кардария обыкновенная", "Cardaria draba", "вид", "Brassicaceae", "", "", "да"],
+    ["Erucastrum gallicum", "Рогачка французская", "", "вид", "Brassicaceae", "", "", "да"],
+    ["Lepidium densiflorum", "Клоповник густоцветковый", "", "вид", "Brassicaceae", "", "", "да"],
+    ["Sisymbrium wolgense", "Гулявник волжский", "", "вид", "Brassicaceae", "", "", "да"],
+    ["Atriplex tatarica", "Лебеда татарская", "", "вид", "Amaranthaceae", "", "", "да"],
+    ["Elaeagnus angustifolia", "Лох узколистный", "", "вид", "Elaeagnaceae", "", "", "да"],
+    ["Euphorbia peplus", "Молочай бутерлаковый", "", "вид", "Euphorbiaceae", "", "", "да"],
+    ["Juncus tenuis", "Ситник тонкий", "", "вид", "Juncaceae", "", "", "да"],
+    ["Elsholtzia ciliata", "Эльсгольция реснитчатая", "Elsholtzia patrinii", "вид", "Lamiaceae", "", "", "да"],
+    ["Epilobium pseudorubescens", "Кипрей ложнокраснеющий", "", "вид", "Onagraceae", "", "", "да"],
+    ["Bromus tectorum", "Костёр кровельный", "Anisantha tectorum", "вид", "Poaceae", "", "", "да"],
+    ["Festuca brevipila", "Овсяница шершаволистная", "Festuca trachyphylla", "вид", "Poaceae", "", "", "да"],
+    ["Poa supina", "Мятлик приземистый", "", "вид", "Poaceae", "", "", "да"],
+    ["Puccinellia distans", "Бескильница расставленная", "", "вид", "Poaceae", "", "", "да"],
+    ["Reynoutria japonica", "Рейнутрия японская", "Fallopia japonica; Polygonum cuspidatum", "вид", "Polygonaceae", "I (род Reynoutria)", "", "да"],
+    ["Crataegus monogyna", "Боярышник однопестичный", "", "вид", "Rosaceae", "", "", "да"],
+    ["Populus alba", "Тополь белый", "", "вид", "Salicaceae", "", "", "да"],
+]
 # Встроенная таблица зональности (прил. Г)
 ZON_BUILTIN = {110: 1, 111: 1, 112: 1, 113: 1, 121: 2, 131: 3, 132: 3, 134: 3, 135: 2, 141: 1, 142: 2, 151: 1,
                152: 2, 153: 1, 161: 3, 171: 2, 211: 2, 212: 2, 221: 2, 222: 3, 231: 2, 232: 2, 310: 2, 400: 3, 503: 3}
@@ -2001,6 +2592,123 @@ def norm_species(s) -> str:
         if toks and toks[0] in GENUS_SYNONYMS:
             toks[0] = GENUS_SYNONYMS[toks[0]]
     return " ".join(toks)
+
+
+# Справочники видов: файл пользователя → resources/<файл>.csv → встроенная таблица
+SPECIES_REFS = {
+    "protected_plants": ("ref_protected_plants.csv", "PROTECTED_PLANTS",
+                         ["вид (латынь)", "вид (русск.)", "синонимы (латынь)", "синонимы (русск.)", "группа", "ранг",
+                          "семейство", "ККМ гор.", "ККМ пр.", "Прил. 4 ККМ", "ККРФ кат.", "МСОП кат."]),
+    "invasive_plants": ("ref_invasive_plants.csv", "INVASIVE_PLANTS",
+                        ["вид (латынь)", "вид (русск.)", "синонимы (латынь)", "ранг", "семейство", "группа по 369-ПП",
+                         "ТОП-100 №", "Чёрная книга Средней России"]),
+}
+REF_FIELDS = {"lat": ["вид (латынь)"] + SPECIES_NAMES, "ru": ["вид (русск.)"] + SPECIES_RU_NAMES,
+              "syn_lat": ["синонимы (латынь)", "синонимы", "synonyms"], "syn_ru": ["синонимы (русск.)"],
+              "group": ["группа", "group"], "rank": ["ранг", "rank"], "family": ["семейство", "family"],
+              "gor": ["ккм гор.", "ккм гор"], "pr": ["ккм пр.", "ккм пр"], "app4": ["прил. 4 ккм", "прил. 4"],
+              "kkrf": ["ккрф кат.", "ккрф"], "iucn": ["мсоп кат.", "мсоп", "iucn"],
+              "pp369": ["группа по 369-пп", "369-пп"], "top100": ["топ-100 №", "топ-100"],
+              "bb": ["чёрная книга средней россии", "черная книга средней россии", "чёрная книга"]}
+HIGHER_RANKS = {"семейство", "подсемейство", "надродовой таксон", "порядок", "отряд"}
+
+
+def load_species_ref(key: str, files: list, ctx: Ctx | None = None) -> tuple[pd.DataFrame, str]:
+    """Справочник видов в едином виде (поля REF_FIELDS) и описание источника."""
+    fname, const, cols = SPECIES_REFS[key]
+    if files:
+        frames = []
+        for f in files:
+            frames.append(pd.DataFrame(read_any_table(*split_layer(f))))
+            if ctx is not None:
+                ctx.inputs.append(str(f))
+        t, src = pd.concat(frames, ignore_index=True, sort=False), "файл: " + ", ".join(Path(f).name for f in files)
+    elif (RES_DIR / fname).exists():
+        t, src = pd.read_csv(RES_DIR / fname, sep=";", dtype=str, encoding="utf-8-sig"), f"resources/{fname}"
+    else:
+        t, src = pd.DataFrame(globals()[const], columns=cols), "встроенный"
+    pick_field(t.columns, REF_FIELDS["lat"], required_label=f"вид (латынь) справочника ({src})")
+    out = pd.DataFrame(index=t.index)
+    for k, names in REF_FIELDS.items():
+        f = pick_field(t.columns, names)
+        out[k] = t[f].map(lambda v: "" if pd.isna(v) else re.sub(r"\.0$", "", str(v).strip())) if f else ""
+    out = out[out.lat.map(alien_key) != ""].reset_index(drop=True)
+    return out, src
+
+
+class SpeciesIndex:
+    """Сопоставление находок со справочником: вид (с синонимами и русскими названиями), затем род, затем семейство."""
+
+    def __init__(self, ref: pd.DataFrame):
+        self.ref, self.sp, self.genus, self.family = ref, {}, {}, {}
+        split = lambda s: [x.strip() for x in str(s or "").split(";") if x.strip()]
+        for primary in (True, False):
+            for i, r in ref.iterrows():
+                rank = str(r["rank"]).strip().lower()
+                names = [r.lat] if primary else split(r.syn_lat)
+                rus = [r.ru] if primary else split(r.syn_ru)
+                if rank == "род" or rank in HIGHER_RANKS:
+                    d = self.genus if rank == "род" else self.family
+                    for n in names:
+                        k = alien_key(n).split()
+                        if k:
+                            d.setdefault(k[0], i)
+                    for n in rus:
+                        if alien_key(n):
+                            self.sp.setdefault(alien_key(n), i)
+                    continue
+                for n in names:
+                    k = alien_key(n)
+                    if not k:
+                        continue
+                    self.sp.setdefault(k, i)
+                    if primary and len(k.split()) == 3:   # основное имя-триномен доступно и по биномену
+                        self.sp.setdefault(" ".join(k.split()[:2]), i)
+                for n in rus:
+                    if alien_key(n):
+                        self.sp.setdefault(alien_key(n), i)
+
+    def match(self, lat=None, ru=None, family=None):
+        k = alien_key(lat)
+        if k:
+            if k in self.sp:
+                return self.sp[k]
+            t = k.split()
+            if re.match(r"[a-z]", k) and len(t) == 3 and " ".join(t[:2]) in self.sp:
+                return self.sp[" ".join(t[:2])]
+        kr = alien_key(ru)
+        if kr and kr in self.sp:
+            return self.sp[kr]
+        if k and re.match(r"[a-z]", k) and k.split()[0] in self.genus:
+            return self.genus[k.split()[0]]
+        kf = alien_key(family).split()
+        if kf and kf[0] in self.family:
+            return self.family[kf[0]]
+        return None
+
+    def match_frame(self, df: pd.DataFrame, field_: str = "") -> tuple[np.ndarray, bool]:
+        sv = coalesce_fields(df, SPECIES_NAMES, field_)
+        rv = coalesce_fields(df, SPECIES_RU_NAMES)
+        fv = coalesce_fields(df, ["семейство", "family", "taxon_family_name", "taxon_family_name.x"])
+        out = np.full(len(df), None, dtype=object)
+        if sv is None and rv is None:
+            return out, False
+        cache: dict = {}
+        for i in range(len(df)):
+            key = tuple(None if s is None else s.iloc[i] for s in (sv, rv, fv))
+            if key not in cache:
+                cache[key] = self.match(*key)
+            out[i] = cache[key]
+        return out, True
+
+
+def species_label(df: pd.DataFrame, field_: str = "") -> pd.Series:
+    sv = coalesce_fields(df, SPECIES_NAMES, field_)
+    rv = coalesce_fields(df, SPECIES_RU_NAMES)
+    lab = sv.astype(object) if sv is not None else pd.Series([None] * len(df), index=df.index, dtype=object)
+    if rv is not None:
+        lab = lab.where(lab.map(lambda v: bool(alien_key(v))), rv)
+    return lab.map(lambda v: str(v).strip() if alien_key(v) else "(без названия)")
 
 
 def parse_fg(v, group: str):
@@ -2299,10 +3007,16 @@ def fg_indicator(name: str, group: str, cfg, ctx: Ctx, label: str):
         rep.update(r0)
         if not len(pts):
             return None
+    surveyed0 = set(pts.oopt_id.dropna().unique())
+    pts, r1 = drop_alien(pts, ctx, label, cfg.species_field)
+    rep.update(r1)
+    surveyed0 -= set(pts.oopt_id.dropna().unique())  # ООПТ, где все находки — чужеродные виды
+    if not len(pts):
+        return None
     pts, rep2 = fg_of_points(pts, cfg, group, ctx, label)
     rep.update(rep2)
     pts = pts[pd.notna(pts.oopt_id)].reset_index(drop=True)
-    surveyed = set(pts.oopt_id.unique())
+    surveyed = set(pts.oopt_id.unique()) | surveyed0
     g = ctx.grid
     # способ А
     cntA = fg_ring_count(pts.cell.tolist(), pts._fg.tolist(), ctx, int(cfg.k))
@@ -2598,6 +3312,11 @@ def fish_indicator(ctx: Ctx):
     rep.update(r0)
     if not len(pts):
         log.warning("рыбы: в файлах находок нет записей рыб")
+        return None
+    pts, r1 = drop_alien(pts, ctx, label, c.species_field)
+    rep.update(r1)
+    if not len(pts):
+        log.warning("рыбы: после исключения чужеродных видов записей не осталось")
         return None
     pts, rep2 = fg_of_points(pts, c, "fish", ctx, label)
     rep.update(rep2)
@@ -3171,15 +3890,91 @@ def parse_rare_cat(v):
     return int(m.group()) if m else None
 
 
+def _int_cat(v):
+    m = re.fullmatch(r"\s*(\d)\s*", str(v or ""))
+    return int(m.group(1)) if m else None
+
+
+def rare_ref_cat(r, scale: str, pr: bool):
+    """Категория вида по справочнику в выбранной шкале; виды только Приложения 4 к 79-ПП — 6."""
+    if scale == "kkrf":
+        return _int_cat(r.kkrf)
+    if scale == "iucn":
+        return IUCN_RANK.get(str(r.iucn).strip().upper())
+    v = _int_cat(r.pr if pr else r.gor)
+    if v is None:
+        a = str(r.app4).strip().lower()
+        if a == "да" or (pr and a.startswith("только пр")):
+            v = 6
+    return v
+
+
 def rare_indicator(ctx: Ctx):
     c = ctx.cfg.rare
     pts, rep = read_points(c.files, "редкие растения", ctx)
     if pts is None:
         return None
-    cf = pick_field(pts.columns, CAT_NAMES, c.cat_field, required_label="категория КК")
-    pts["_cat"] = [parse_rare_cat(v) for v in pts[cf]]
-    pts = pts[pts._cat.notna() & pd.notna(pts.oopt_id)].reset_index(drop=True)
-    surveyed = set(pts.oopt_id)
+    surveyed = set(pts.oopt_id.dropna())   # ООПТ, где проводился учёт (п. 8.7.3)
+    src = c.source if c.scale == "kkm" else "ref"
+    cf = pick_field(pts.columns, CAT_NAMES, c.cat_field)
+    if cf is None and src == "data":
+        raise VLDError("редкие растения: не найдено поле категории КК; поля: " + str(list(pts.columns)))
+    data_cat = [parse_rare_cat(v) for v in pts[cf]] if cf else [None] * len(pts)
+    ref_cat = [None] * len(pts)
+    keep = np.ones(len(pts), bool)
+    if src != "data":
+        ref, rsrc = load_species_ref("protected_plants", c.ref_files, ctx)
+        ix = SpeciesIndex(ref)
+        m, has = ix.match_frame(pts, c.species_field)
+        if not has:
+            if cf is None or src == "ref":
+                raise VLDError("редкие растения: нет поля вида для сопоставления со справочником; поля: " + str(list(pts.columns)))
+            log.warning("редкие растения: нет поля вида; категории берутся только из находок")
+        else:
+            lab = species_label(pts, c.species_field).values
+            pr_set = {str(x).strip() for x in c.pr_oopt}
+            grp = {str(x).strip().lower() for x in c.groups if str(x).strip()}
+            excl, unm, mism, filled = {}, {}, {}, 0
+            for i, j in enumerate(m):
+                if j is None:
+                    unm[lab[i]] = unm.get(lab[i], 0) + 1
+                    continue
+                r = ix.ref.loc[j]
+                if grp and str(r.group).strip().lower() not in grp:
+                    keep[i] = False
+                    excl[r.group] = excl.get(r.group, 0) + 1
+                    continue
+                ref_cat[i] = rare_ref_cat(r, c.scale, str(pts.oopt_id.iat[i]) in pr_set)
+                if c.scale == "kkm" and data_cat[i] is not None and ref_cat[i] is not None and data_cat[i] != ref_cat[i]:
+                    k = f"{r.lat}: в данных {data_cat[i]}, в справочнике {ref_cat[i]}"
+                    mism[k] = mism.get(k, 0) + 1
+            rep.update(reference=rsrc, matched=int(pd.notna(m).sum()), unmatched=dict(sorted(unm.items(), key=lambda t: -t[1])[:40]),
+                       n_unmatched=int(sum(unm.values())), excluded_groups=excl, cat_mismatch=mism)
+            if unm:
+                log.warning("редкие растения: записей вне справочника %d (%d названий)%s", sum(unm.values()), len(unm),
+                            "; категория — из находок" if src in ("data_ref", "ref_data") else "; исключены")
+            if excl:
+                log.info("редкие растения: исключены находки других групп справочника: %s", excl)
+            if mism:
+                log.warning("редкие растения: категория в находках не совпадает со справочником (%d видов): %s", len(mism),
+                            "; ".join(list(mism)[:10]))
+    if src == "data":
+        cat = data_cat
+    elif src == "ref":
+        cat = ref_cat
+    elif src == "ref_data":
+        cat = [a if a is not None else b for a, b in zip(ref_cat, data_cat)]
+    else:
+        cat = [b if b is not None else a for a, b in zip(ref_cat, data_cat)]
+    from_ref = [a is not None and (src in ("ref", "ref_data") or b is None) for a, b in zip(ref_cat, data_cat)]
+    rep["cat_from_ref"] = int(sum(f for f, k in zip(from_ref, keep) if f and k))
+    pts["_cat"] = cat
+    pts = pts[keep & pts._cat.notna() & pd.notna(pts.oopt_id)].reset_index(drop=True)
+    pts["_cat"] = pts._cat.astype(int)
+    if not len(pts):
+        log.warning("редкие растения: ни у одной находки нет категории в шкале «%s»; учтённые ООПТ получают балл «%s»",
+                    RARE_SCALES[c.scale], NA_OR_SCORE.get(c.absent, c.absent))
+    rep.update(scale=c.scale, source=src)
     g = ctx.grid
     if c.method == "polygon" and ctx.eco is not None:
         gg = geo()
@@ -3206,7 +4001,8 @@ def rare_indicator(ctx: Ctx):
                     best[cell] = min(best.get(cell, 99), cat)
         raw = g.h3_id.map(best)
     raw = pd.to_numeric(raw, errors="coerce")
-    s = raw.map(lambda v: float(c.recode.get(str(int(v)), np.nan)) if pd.notna(v) else np.nan)
+    rc = {"0": (c.recode or {}).get("1", 1), **(c.recode or {})}   # категория 0 — как 1 (параметры прежних версий)
+    s = raw.map(lambda v: float(rc.get(str(int(v)), np.nan)) if pd.notna(v) else np.nan)
     surv = g.oopt_id.isin(surveyed)
     if c.absent == "3":
         s[surv & s.isna()] = 3.0
@@ -3440,24 +4236,263 @@ def inv_indicator(ctx: Ctx):
     pts, rep = read_points(c.files, "инвазивные растения", ctx)
     if pts is None:
         return None
-    pts = pts[pd.notna(pts.oopt_id)]
+    pts = pts[pd.notna(pts.oopt_id)].reset_index(drop=True)
+    surveyed = set(pts.oopt_id)
     g = ctx.grid
+    if c.ref_mode != "all":
+        ref, rsrc = load_species_ref("invasive_plants", c.ref_files, ctx)
+        if c.ref_mode == "pp369":
+            ref = ref[ref.pp369.str.strip() != ""].reset_index(drop=True)
+        ix = SpeciesIndex(ref)
+        m, has = ix.match_frame(pts, c.species_field)
+        if not has:
+            log.warning("инвазивные растения: нет поля вида; отбор по справочнику не выполнен, учтены все находки")
+            rep["ref_filter"] = "нет поля вида"
+        else:
+            hit = pd.notna(m)
+            lab = species_label(pts, c.species_field)
+            drop = lab[~hit].value_counts()
+            pts["_ref"] = [ix.ref.lat.iat[j] if j is not None else None for j in m]
+            rep.update(reference=rsrc, ref_mode=c.ref_mode, species_in_ref=int(len(ref)),
+                       matched={str(k): int(v) for k, v in pts._ref[hit].value_counts().items()},
+                       dropped={str(k): int(v) for k, v in drop.items()})
+            if len(drop):
+                log.warning("инвазивные растения: исключены находки видов вне справочника: %d (%s)", int(drop.sum()),
+                            "; ".join(f"{k} — {v}" for k, v in list(drop.items())[:10]))
+            pts = pts[hit].reset_index(drop=True)
     if c.value == "sum":
         nf = pick_field(pts.columns, COUNT_NAMES, c.count_field, required_label="численность")
         v = to_float(pts[nf]).fillna(1).groupby(pts.cell).sum()
     elif c.value == "species":
-        sf = pick_field(pts.columns, SPECIES_NAMES, required_label="вид")
-        v = pts.groupby("cell")[sf].apply(lambda s: s.map(norm_species).nunique())
+        if "_ref" in pts:
+            v = pts.groupby("cell")["_ref"].nunique()
+        else:
+            sf = pick_field(pts.columns, SPECIES_NAMES, c.species_field, required_label="вид")
+            v = pts.groupby("cell")[sf].apply(lambda s: s.map(norm_species).nunique())
     else:
         v = pts.cell.value_counts()
     n = g.h3_id.map(v).astype(float)
-    surv = g.oopt_id.isin(set(pts.oopt_id))
+    surv = g.oopt_id.isin(surveyed)
     n[surv & n.isna()] = 0
     n[~surv] = np.nan
     rep["value"] = c.value
     rep["max_in_hex"] = float(n.max()) if n.notna().any() else None
     ctx.report("d_inv", **rep)
     return pd.DataFrame({"h3_id": g.h3_id, "inv_n": n.round()})
+
+
+# --- чужеродные инвазивные виды животных (п. 10.3) -------------------------------------------
+def alien_key(s) -> str:
+    """Ключ названия для справочника чужеродных видов: как norm_species, но латинские триномены сохраняются
+    (Canis lupus familiaris не сводится к Canis lupus)."""
+    t = str(s or "").strip().lower().replace("ё", "е")
+    if t in ("", "nan", "none"):
+        return ""
+    t = re.sub(r"\(.*?\)", " ", t)
+    t = re.sub(r"[^a-zа-я\s\-]", " ", t)
+    toks = [x for x in t.split() if x not in _SP_DROP and x not in ("f", "forma", "morpha")]
+    if toks and re.match(r"[a-z]", toks[0]):
+        toks = [x for x in toks[:3] if re.match(r"[a-z]", x)]
+        if toks and toks[0] in GENUS_SYNONYMS:
+            toks[0] = GENUS_SYNONYMS[toks[0]]
+    return " ".join(toks)
+
+
+def load_alien_ref(cfg, ctx: Ctx | None = None) -> tuple[dict, dict]:
+    """Справочник чужеродных видов: ключ названия → латинское название; латинское название → (русское, группа, среда)."""
+    rows = []
+    files = list(cfg.ref_files) or ([str(RES_DIR / "ref_alien_animals.csv")] if (RES_DIR / "ref_alien_animals.csv").exists() else [])
+    if files:
+        for f in files:
+            t = pd.DataFrame(read_any_table(Path(f)))
+            if ctx is not None:
+                ctx.inputs.append(str(f))
+            sf = pick_field(t.columns, SPECIES_NAMES, required_label=f"вид (латынь) справочника {Path(f).name}")
+            rf = pick_field(t.columns, SPECIES_RU_NAMES)
+            yf = [f for f in (pick_field(t.columns, ["синонимы", "synonyms", "синонимы (латынь)"]),
+                              pick_field(t.columns, ["синонимы (русск.)"])) if f]
+            gf = pick_field(t.columns, ["группа", "group"])
+            ef = pick_field(t.columns, ["среда", "habitat", "env"])
+            for _, r in t.iterrows():
+                if not alien_key(r[sf]):
+                    continue
+                rows.append([str(r[sf]).strip(), str(r[rf]).strip() if rf else "",
+                             "; ".join(str(r[f]) for f in yf if pd.notna(r[f])),
+                             str(r[gf]) if gf else "", str(r[ef]).strip().lower() if ef else "наземный"])
+    else:
+        rows = [list(r) for r in builtin_ref("alien_animals", ALIEN_ANIMALS)]
+    keys, info = {}, {}
+    for lat, ru, syn, grp, env in rows:
+        info[lat] = (ru, grp, env if env in ("водный", "околоводный", "наземный") else "наземный")
+        for nm in [lat, ru] + [x for x in str(syn or "").split(";")]:
+            k = alien_key(nm)
+            if k:
+                keys[k] = lat
+    return keys, info
+
+
+def alien_match(df: pd.DataFrame, keys: dict, field_: str = "") -> tuple[np.ndarray, bool]:
+    """Латинское название справочника для каждой записи (или None); второй результат — есть ли поле вида."""
+    sv = coalesce_fields(df, SPECIES_NAMES, field_)
+    rv = coalesce_fields(df, SPECIES_RU_NAMES)
+    out = np.full(len(df), None, dtype=object)
+    if sv is None and rv is None:
+        return out, False
+    cache: dict = {}
+    for i in range(len(df)):
+        for v in ((sv.iloc[i] if sv is not None else None), (rv.iloc[i] if rv is not None else None)):
+            k = alien_key(v)
+            if not k:
+                continue
+            if k not in cache:
+                hit = keys.get(k)
+                if hit is None and re.match(r"[a-z]", k) and len(k.split()) == 3:
+                    hit = keys.get(" ".join(k.split()[:2]))
+                cache[k] = hit
+            if cache[k]:
+                out[i] = cache[k]
+                break
+    return out, True
+
+
+def drop_alien(pts: pd.DataFrame, ctx: Ctx, label: str, field_: str = ""):
+    """Исключение чужеродных инвазивных видов животных из расчёта ФГ (п. 10.3.1)."""
+    c = ctx.cfg.alien
+    if not c.exclude_fg or not len(pts):
+        return pts, {}
+    keys, _ = load_alien_ref(c)
+    m, has = alien_match(pts, keys, field_)
+    if not has:
+        log.warning("%s: нет поля вида; чужеродные виды из ФГ не исключены", label)
+        return pts, {"alien_excluded": "нет поля вида"}
+    hit = pd.notna(m)
+    n = int(hit.sum())
+    if n:
+        log.info("%s: исключено записей чужеродных видов из ФГ: %d", label, n)
+    return pts[~hit].reset_index(drop=True), {"alien_excluded": {str(k): int(v) for k, v in pd.Series(m[hit]).value_counts().items()}}
+
+
+def alien_files(cfg) -> list[str]:
+    fl = []
+    if cfg.alien.use_block_files:
+        fl += list(cfg.mam.files) + list(cfg.anam.files) + list(cfg.fish.files)
+    fl += list(cfg.alien.files)
+    seen, out = set(), []
+    for f in fl:
+        k = str(Path(split_layer(f)[0]).resolve()) + "::" + str(split_layer(f)[1] or "")
+        if f and k not in seen:
+            seen.add(k)
+            out.append(f)
+    return out
+
+
+def alien_indicator(ctx: Ctx):
+    """Балл d_alien: число чужеродных инвазивных видов животных в гексагоне (п. 10.3)."""
+    c = ctx.cfg.alien
+    g_ = geo()
+    shp = g_["shapely"]
+    label = "чужеродные виды животных"
+    files = alien_files(ctx.cfg)
+    if not files:
+        return None
+    pts, rep = read_points(files, label, ctx)
+    if pts is None or not len(pts):
+        return None
+    pts = pts[pd.notna(pts.oopt_id)].reset_index(drop=True)
+    surveyed = set(pts.oopt_id.unique())
+    keys, info = load_alien_ref(c, ctx)
+    m, has = alien_match(pts, keys, c.species_field)
+    if not has:
+        log.warning("%s: в находках нет поля вида; показатель не рассчитан", label)
+        return None
+    a = pts.assign(alien=m)[pd.notna(m)].reset_index(drop=True)
+    gr = ctx.grid
+    env = np.array([info[x][2] for x in a.alien], dtype=object) if len(a) else np.array([], dtype=object)
+    spread_env = {"water": {"водный"}, "water_semi": {"водный", "околоводный"}, "none": set()}[c.spread]
+    aq = np.isin(env, list(spread_env)) if len(a) else np.zeros(0, bool)
+    spacing = ctx.edge * np.sqrt(3.0)
+    k = int(max(0, round(float(c.radius) / spacing))) if spacing > 0 else 0
+    cells_sp: dict[str, set] = {}
+    n_hex = np.ones(len(a), int)
+    wid = np.full(len(a), -1)
+    wname = np.full(len(a), "", dtype=object)
+    dist = np.full(len(a), np.nan)
+    status = np.where(aq, "нет водоёмов", "свой гексагон").astype(object)
+    W = None
+    if aq.any() and k >= 0:
+        try:
+            W, wrep = load_water(ctx, ctx.cfg.fish)
+            rep["water"] = wrep
+        except Exception as ex:  # noqa: BLE001
+            log.warning("%s: водоёмы не загружены (%s); водные виды учитываются в гексагоне находки", label, ex)
+            W = None
+    if W is not None and len(W):
+        tol = max(float(ctx.cfg.fish.tolerance), 0.0)
+        xy = shp.points(a.x.values[aq], a.y.values[aq])
+        tree = shp.STRtree(W.geometry.values)
+        (pi, wi), dd = tree.query_nearest(xy, return_distance=True, all_matches=False)
+        idx = np.where(aq)[0]
+        dist[idx[pi]] = dd
+        okw = dd <= tol
+        wid[idx[pi[okw]]] = wi[okw]
+        status[idx] = "вне водоёма"
+        status[idx[pi[okw]]] = np.where(dd[okw] <= 0.05, "в водоёме", "в допуске")
+    hx_cache: dict = {}
+    min_share = float(ctx.cfg.fish.hex_min_share)
+    for i, r in enumerate(a.itertuples()):
+        cell = r.cell
+        if wid[i] >= 0:
+            wg = W.geometry.values[wid[i]]
+            wname[i] = str(W.name.iloc[wid[i]] or "")
+            cand = [h for h in ctx.h3.grid_disk(cell, k) if h in ctx.gset and h != cell]
+            keep = [cell] if cell in ctx.gset else []
+            if cand:
+                key = (wid[i], tuple(sorted(cand)))
+                if key not in hx_cache:
+                    hg = cells_to_gdf(cand).to_crs(METRIC_CRS).geometry.values
+                    sh_ = shp.area(shp.intersection(hg, wg)) / shp.area(hg)
+                    hx_cache[key] = [h for h, s_ in zip(cand, sh_) if s_ >= max(min_share, 1e-9)]
+                keep += hx_cache[key]
+        else:
+            keep = [cell] if cell in ctx.gset else []
+        n_hex[i] = len(keep)
+        for h in keep:
+            cells_sp.setdefault(h, set()).add(r.alien)
+    n = gr.h3_id.map({h: len(v) for h, v in cells_sp.items()}).astype(float)
+    surv = gr.oopt_id.isin(surveyed)
+    n[surv & n.isna()] = 0
+    n[~surv] = np.nan
+    t1, t2 = float(c.t1), float(c.t2)
+    s = pd.Series(np.where(n >= t2, 3.0, np.where(n >= t1, 2.0, 1.0)), index=gr.index)
+    s[n.isna()] = np.nan
+    if c.absent == "na":
+        s[n == 0] = np.nan
+    if c.table_out:
+        sv = coalesce_fields(a, SPECIES_NAMES, c.species_field)
+        ctx.extra_tables = getattr(ctx, "extra_tables", {})
+        ctx.extra_tables["chuzherodnye_nahodki"] = pd.DataFrame({
+            "файл": a._src, "ООПТ": a.oopt_id, "вид (в файле)": sv.values if sv is not None else "",
+            "вид (справочник)": a.alien, "русское название": [info[x][0] for x in a.alien],
+            "среда": env, "широта": a.lat.round(6), "долгота": a.lon.round(6), "h3_id": a.cell,
+            "водоём слоя, wid": [int(W.wid.iloc[j]) if (W is not None and j >= 0) else None for j in wid],
+            "водоём слоя, название": wname, "расстояние до водоёма, м": np.round(dist, 1), "статус": status,
+            "гексагонов": n_hex})
+    by_o = {}
+    for oid in sorted(surveyed):
+        msk = gr.oopt_id == oid
+        by_o[oid] = {"hexes": int(msk.sum()), "hex_with_alien": int((n[msk] > 0).sum()),
+                     "species": {str(kk): int(vv) for kk, vv in a[a.oopt_id == oid].alien.value_counts().items()}}
+    rep.update(reference=("файл" if c.ref_files else ("resources/ref_alien_animals.csv" if (RES_DIR / "ref_alien_animals.csv").exists() else "встроенный")), species_in_ref=len(info), records=int(len(a)),
+               species={str(kk): int(vv) for kk, vv in a.alien.value_counts().items()}, spread=c.spread, rings=k,
+               radius_m=float(c.radius), status={str(kk): int(vv) for kk, vv in pd.Series(status).value_counts().items()},
+               hex_with_alien=int((n > 0).sum()), n_distribution={str(int(kk)): int(vv) for kk, vv in n.value_counts().sort_index().items()},
+               by_oopt=by_o)
+    if aq.any():
+        log.info("%s: %d находок, водных видов %d (окрестность %s м = %d кольца H3 в пределах водоёма); гексагонов с видами %d",
+                 label, len(a), int(aq.sum()), _ru_num(c.radius), k, int((n > 0).sum()))
+    _score_report(rep, s, gr)
+    ctx.report("d_alien", **rep)
+    return pd.DataFrame({"h3_id": gr.h3_id, "alien_n": n, "d_alien": s})
 
 
 # --- фрагментация (п. 10.2) -------------------------------------------------------------
@@ -3769,7 +4804,7 @@ def frag_ready(ctx: Ctx):
 def primary_requested(cfg) -> bool:
     return bool(cfg.ecosys.path or cfg.ins.ratings or cfg.mam.files or cfg.anam.files or cfg.fish.files or cfg.bird.files or
                 cfg.aqua.files or cfg.rare.files or cfg.qbs.files or cfg.recload.photos or cfg.recload.objects or
-                cfg.recload.ready or cfg.inv.files or cfg.frag.ready)
+                cfg.recload.ready or cfg.inv.files or cfg.alien.files or cfg.frag.ready)
 
 
 def compute_primary(base: pd.DataFrame, bounds, res: int, cfg, odict, prog):
@@ -3801,6 +4836,8 @@ def compute_primary(base: pd.DataFrame, bounds, res: int, cfg, odict, prog):
         steps.append(("нагрузка", lambda: load_indicator(ctx)))
     if cfg.inv.files:
         steps.append(("инвазивные растения", lambda: inv_indicator(ctx)))
+    if alien_files(cfg):
+        steps.append(("чужеродные виды животных", lambda: alien_indicator(ctx)))
     if cfg.ecosys.path or cfg.frag.ready:
         steps.append(("фрагментация", lambda: frag_indicator(ctx)))
     for k, (msg, fn) in enumerate(steps):
@@ -3928,6 +4965,7 @@ def validate_primary(cfg: Config) -> list[tuple[str, str]]:
              "птицы": cfg.bird.files,
              "гидробионты": cfg.aqua.files, "редкие растения": cfg.rare.files, "QBS": cfg.qbs.files,
              "нагрузка": cfg.recload.photos + cfg.recload.objects + [cfg.recload.ready], "инвазивные": cfg.inv.files,
+             "чужеродные виды животных": cfg.alien.files + cfg.alien.ref_files,
              "фрагментация": cfg.frag.roads + cfg.frag.buildings + [cfg.frag.ready]}
     for label, lst in files.items():
         for f in lst:
@@ -3939,6 +4977,10 @@ def validate_primary(cfg: Config) -> list[tuple[str, str]]:
         msgs.append(("ошибка", "рыбы: выбран слой водоёмов пользователя, но файл не задан"))
     if cfg.fish.files and cfg.fish.water_source == "osm":
         msgs.append(("сведения", "рыбы: водоёмы будут загружены из OpenStreetMap (нужен доступ к Overpass API) или взяты из кэша"))
+    if cfg.alien.t1 >= cfg.alien.t2:
+        msgs.append(("ошибка", "чужеродные виды животных: нужно t1 < t2"))
+    if cfg.alien.files and cfg.alien.spread != "none" and cfg.fish.water_source == "file" and not cfg.fish.water_files:
+        msgs.append(("ошибка", "чужеродные виды животных: выбран слой водоёмов пользователя (блок «Рыбы»), но файл не задан"))
     if cfg.ins.ratings and not cfg.ecosys.path:
         msgs.append(("предупреждение", "насекомые: без слоя экосистем D2 биотоп гексагона не определяется; v_ins = н/д"))
     if (cfg.frag.roads or cfg.frag.buildings) and not (cfg.ecosys.path or cfg.frag.ready):
@@ -4047,7 +5089,7 @@ def build_current(cfg: Config, odict: OoptDict, prog: Progress):
         extra_tables = getattr(ctx, "extra_tables", {})
         cols = [c for c in prim.columns if c != "h3_id"]
         base = base.drop(columns=[c for c in cols if c in base.columns]).merge(prim, on="h3_id", how="left")
-        log.info("частные показатели по первичным данным: %s", ", ".join(c for c in cols if c in V_COMPONENTS + D_COMPONENTS + ["load_cat", "inv_n", "v_phyt", "v_zpl", "v_zbn"]))
+        log.info("частные показатели по первичным данным: %s", ", ".join(c for c in cols if c in V_COMPONENTS + D_COMPONENTS + ["load_cat", "inv_n", "alien_n", "v_phyt", "v_zpl", "v_zbn"]))
     for t in i.score_tables:
         tab = import_score_table(t)
         inputs_used.append(t)
@@ -4330,6 +5372,16 @@ def _fg_labels(t1, t2, start=1):
     return {3: rng(start, t1i) + " ФГ", 2: rng(t1i + 1, t2i) + " ФГ", 1: f"{t2i + 1} и более ФГ"}
 
 
+def _alien_labels(t1, t2):
+    """Подписи классов d_alien по порогам числа видов (целые значения)."""
+    import math
+    lo1, lo2 = max(math.ceil(t1), 1), max(math.ceil(t2), math.ceil(t1) + 1)
+
+    def rng(a, b):
+        return f"{a} вид" if a == b == 1 else (f"{a}" if a == b else f"{a}–{b}") + (" вид" if b == 1 else " вида" if b < 5 else " видов")
+    return {1: "нет" if lo1 == 1 else f"0–{lo1 - 1}", 2: rng(lo1, lo2 - 1), 3: f"{lo2} и более"}
+
+
 def _bin_labels(bins, unit):
     out, lo = {}, 0
     for i, b in enumerate(bins):
@@ -4390,6 +5442,10 @@ def map_legend_spec(name: str, cfg: Config) -> tuple[str, dict[int, str]]:
     elif name == "d_frag":
         title = "Фрагментация"
         lab = {1: "низкая", 2: "средняя", 3: "высокая"}
+    elif name == "d_alien":
+        title = "Чужеродные инвазивные виды животных"
+        a = cfg.alien
+        lab = _alien_labels(a.t1, a.t2)
     elif name == "photo_cat":
         title = "Нагрузка: фотографии с геотегами"
         lab = _bin_labels(cfg.recload.photo_bins, "фото")
@@ -5727,6 +6783,7 @@ def selftest2(config: str, work: str, v4: str | None = None) -> dict:
     c6.fish.water_source = "file"
     c6.fish.water_files = [str(fw)]
     c6.fish.name_tolerance = 100.0
+    c6.alien.exclude_fg = False  # здесь ротан, карп и кругляк проверяются как рыбы ФГ
     pr6, ctx6 = compute_primary(g2, b2, 11, c6, odict, lambda f, m: None)
     rf_ = ctx6.reports.get("v_fish", {})
     ra_ = ctx6.reports.get("v_anam", {})
@@ -5750,6 +6807,52 @@ def selftest2(config: str, work: str, v4: str | None = None) -> dict:
        f"выбор водоёма по названию: Cyprinus carpio → {wn_.get('Cyprinus carpio')}; "
        f"ФГ амфибий и рептилий {sorted(ra_.get('fg_codes', {}))}; исключено из v_anam {ra_.get('excluded_other_block')}, "
        f"из v_fish {rf_.get('excluded_other_block')}; водных гексагонов {rf_.get('water_hexes')}")
+    # П9б. Чужеродные инвазивные виды животных: исключение из ФГ, перенос, баллы, н/д
+    pa = [(x0 + 60, y0 + 60, "Perccottus glenii", "лучеперые рыбы"),
+          (x0 + 70, y0 + 70, "Carassius carassius", "лучеперые рыбы"),
+          (x0 + 50, y0 + 50, "Esox lucius", "лучеперые рыбы"),
+          (x0 + 300, y0 + 400, "Trachemys scripta elegans", "рептилии"),
+          (x0 + 40, y0 + 200, "Rana arvalis", "амфибии")]
+    lo_, la_ = _tg.transform(np.array([q[0] for q in pa]), np.array([q[1] for q in pa]))
+    fa = syn / "nizshie_alien.csv"
+    pd.DataFrame({"lat (широта)": la_, "long (долгота)": lo_, "вид (латинское название)": [q[2] for q in pa],
+                  "группа таксономическая": [q[3] for q in pa]}).to_csv(fa, index=False)
+    pm = [(x0 + 300, y0 + 400, "Canis lupus familiaris"), (x0 + 600, y0 + 400, "Rattus norvegicus"),
+          (x0 + 900, y0 + 400, "Canis lupus"), (x0 + 900, y0 + 700, "Sciurus vulgaris")]
+    lo_, la_ = _tg.transform(np.array([q[0] for q in pm]), np.array([q[1] for q in pm]))
+    fm = syn / "mam_alien.csv"
+    pd.DataFrame({"Широта": la_, "Долгота": lo_, "вид": [q[2] for q in pm]}).to_csv(fm, index=False)
+    c7 = Config()
+    c7.project = copy.deepcopy(c.project)
+    c7.inputs = copy.deepcopy(c.inputs)
+    c7.project.oopt_select = ["BIT", "IZM"]
+    c7.mam.files, c7.anam.files, c7.fish.files = [str(fm)], [str(fa)], [str(fa)]
+    c7.fish.water_source, c7.fish.water_files = "file", [str(fw)]
+    b7, g7 = grid_for(c7, ["BIT", "IZM"])
+    pr7, ctx7 = compute_primary(g7, b7, 11, c7, odict, lambda f, m: None)
+    r7 = ctx7.reports.get("d_alien", {})
+    P7 = pr7.set_index("h3_id")
+    hx = lambda x, y: gg["h3"].latlng_to_cell(*Transformer_to_geo(x, y)[::-1], 11)  # noqa: E731
+    hP, hL, hR, hW = hx(x0 + 60, y0 + 60), hx(x0 + 300, y0 + 400), hx(x0 + 600, y0 + 400), hx(x0 + 900, y0 + 400)
+    pond1 = wl.geometry.iloc[0]
+    wet = [h for h in P7.index[P7.alien_n.fillna(0) > 0] if h not in (hL, hR)]
+    hg_ = cells_to_gdf(wet).to_crs(METRIC_CRS).geometry.values if wet else []
+    share_ok = all(gg["shapely"].area(gg["shapely"].intersection(q, pond1)) / q.area >= c7.fish.hex_min_share for q in hg_)
+    ring_ok = all(gg["h3"].grid_distance(hP, h) <= 2 for h in wet)
+    izm = P7[P7.index.isin(g7.h3_id[g7.oopt_id == "IZM"])]
+    ex_m = ctx7.reports.get("v_mam", {}).get("alien_excluded", {})
+    ex_a = ctx7.reports.get("v_anam", {}).get("alien_excluded", {})
+    ex_f = ctx7.reports.get("v_fish", {}).get("alien_excluded", {})
+    cond7 = (P7.d_alien.get(hP) == 2 and P7.d_alien.get(hL) == 3 and P7.d_alien.get(hR) == 2 and P7.d_alien.get(hW) == 1
+             and len(wet) > 1 and share_ok and ring_ok and izm.d_alien.isna().all() and len(izm) > 0
+             and set(r7.get("species", {})) == {"Perccottus glenii", "Trachemys scripta", "Canis familiaris", "Rattus norvegicus"}
+             and ex_m == {"Canis familiaris": 1, "Rattus norvegicus": 1} and ex_a == {"Trachemys scripta": 1}
+             and ex_f == {"Perccottus glenii": 1})
+    ok("П9б чужеродные виды животных", cond7,
+       f"d_alien: водоём {P7.d_alien.get(hP)}, суша 2 вида {P7.d_alien.get(hL)}, суша 1 вид {P7.d_alien.get(hR)}, без видов {P7.d_alien.get(hW)}; "
+       f"гексагонов водоёма с ротаном {len(wet)} (доля воды ≥ {c7.fish.hex_min_share}: {share_ok}, ≤ 2 колец: {ring_ok}); "
+       f"IZM н/д {izm.d_alien.isna().all()}; виды {r7.get('species')}; исключено из ФГ: млекопитающие {ex_m}, "
+       f"амфибии и рептилии {ex_a}, рыбы {ex_f}")
     (work_p / "selftest2_report.json").write_text(json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")
     return res
 
@@ -6159,10 +7262,13 @@ def main(argv=None) -> int:
                    "presets": PRESETS, "thresholds_2025": THRESHOLDS_2025, "h3_table": H3_TABLE,
                    "fg_reference": {g: {sp: list(v) for sp, v in d.items()} for g, d in FG_REFERENCE.items()},
                    "zon_builtin": {str(k): v for k, v in ZON_BUILTIN.items()},
+                   "alien_animals": ALIEN_ANIMALS,
                    "biotop_map": BIOTOP_MAP_DEFAULT, "econ": ECON_DEFAULT, "frag_signs": FRAG_SIGNS_DEFAULT,
                    "_note": "biotop_map, econ, frag_signs — значения по умолчанию соответствующих параметров "
-                            "конфигурации (ins.biotop_map, frag.econ, frag.signs); fg_reference и zon_builtin "
-                            "читаются при расчёте, если в конфигурации не заданы собственные справочники"}
+                            "конфигурации (ins.biotop_map, frag.econ, frag.signs); fg_reference, zon_builtin и alien_animals "
+                            "читаются при расчёте, если в конфигурации не заданы собственные справочники; справочники видов "
+                            "(охраняемые и инвазивные растения, чужеродные животные) — resources/ref_*.csv, "
+                            "при их отсутствии — встроенные таблицы"}
             Path(args.out).write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
             print(args.out)
         elif args.cmd == "maps":
