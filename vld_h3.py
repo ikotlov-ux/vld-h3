@@ -43,7 +43,7 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 APP_NAME = "VLD-H3"
 APP_TITLE = "VLD-H3: Ценность – Нагрузка – Нарушенность"
 HERE = Path(__file__).resolve().parent
@@ -156,6 +156,12 @@ BUILTIN_PARENT = {"BIR": "TSA"}
 # Частные показатели (прил. В ТЗ)
 V_COMPONENTS = ["v_ins", "v_mam", "v_anam", "v_fish", "v_bird", "v_aqua", "v_rare", "v_cap", "v_zon", "v_qbs"]
 D_COMPONENTS = ["d_inv", "d_frag", "d_alien"]
+# Показатели, выключенные по умолчанию (решение от 12.11.2026): рыбы входят в «низшие позвоночные» (v_anam),
+# птицы — до получения данных орнитолога
+V_OFF_DEFAULT = ["v_fish", "v_bird"]
+V_DEFAULT = [c for c in V_COMPONENTS if c not in V_OFF_DEFAULT]
+# Способ Б (IDW по единицам учёта) временно отключён (решение от 12.11.2026); код сохранён
+METHOD_B_ENABLED = False
 INT_FIELDS = ["V", "L", "D", "V_arch", "D_arch", "n_V", "n_D", "calc_year", "load_cat", "inv_n", "alien_n",
               "rare_raw", "cap_raw", "zon_raw", "v_phyt", "v_zpl", "v_zbn"] + V_COMPONENTS + D_COMPONENTS
 INT_FIELDS += ["n_eco", "photo_n", "infra_n", "photo_cat", "infra_cat", "l_sum", "l_raw", "l_cat5"]
@@ -582,6 +588,11 @@ FG_REF_MODES = {"override": "дополняет встроенный; при р�
                 "only": "заменяет встроенный"}
 
 
+def _mchoices(d: dict) -> dict:
+    """Варианты способа расчёта: способ Б — только при METHOD_B_ENABLED."""
+    return d if METHOD_B_ENABLED else {k: v for k, v in d.items() if k != "B"}
+
+
 def _fg_defaults(**kw):
     return lambda: FgCfg(**kw)
 
@@ -595,7 +606,7 @@ class FgCfg:
     species_field: str = P("", "Поле вида", "Пусто — автоподбор.", "text")
     fg_field: str = P("", "Поле ФГ", "Пусто — автоподбор; при пустом значении ФГ берётся по виду.", "text")
     groups: list = P([], "Учитываемые ФГ", "Коды ФГ; пусто — все.", "list")
-    method: str = P("A", "Способ", "Выбирает пользователь (п. 8.3.2). Рекомендация по ООПТ (Б — при ≥ 30 единицах учёта, п. 8.3.4) выводится кнопкой «Проверить данные» и в журнале расчёта.", "choice", choices={"A": "А — прямой подсчёт в окрестности", "B": "Б — IDW числа ФГ"})
+    method: str = P("A", "Способ", "Способ Б временно отключён (решение от 12.11.2026); расчёт — способом А (п. 8.3.2).", "choice", choices=_mchoices({"A": "А — прямой подсчёт в окрестности", "B": "Б — IDW числа ФГ"}))
     k: int = P(10, "Способ А: колец H3", "k = 10 — 331 ячейка (≈ 67 га при разрешении 11).", "int", min=0, max=50)
     unit_res: int = P(8, "Способ Б: разрешение единиц учёта", "Ячейки H3 более грубого разрешения.", "int", min=5, max=10)
     unit_field: str = P("", "Способ Б: поле единицы учёта", "Пусто — ячейки H3.", "text")
@@ -612,6 +623,8 @@ class FgCfg:
     b_closed: str = P("left", "Способ Б: границы", "", "choice", choices={"left": "x < t1 → 3; t1 ≤ x < t2 → 2; x ≥ t2 → 1", "right": "x ≤ t1 → 3; t1 < x ≤ t2 → 2; x > t2 → 1"})
 
 
+# Синонимы названий водоёмов (решение от 12.11.2026, пруды Кускова)
+WATER_SYNONYMS = {"Лесной пруд": "Собачий пруд", "Пруд Радуга": "Радужные пруды"}
 OVERPASS_URLS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter",
                  "https://maps.mail.ru/osm/tools/overpass/api/interpreter"]
 OSM_LINE_WIDTH = {"river": 10.0, "canal": 6.0, "stream": 3.0, "ditch": 1.5, "drain": 1.5}
@@ -634,10 +647,11 @@ class FishCfg:
     osm_refresh: bool = P(False, "Обновить кэш OSM", "Иначе используется ранее загруженный слой того же охвата.", "bool")
     line_width: dict = P(dict(OSM_LINE_WIDTH), "Ширина линейных водотоков, м", "Если в OSM нет тега width; линии водотоков внутри полигонов водоёмов не учитываются.", "dict")
     tolerance: float = P(30.0, "Допуск совпадения точки с водоёмом, м", "Точки дальше допуска исключаются и перечисляются в таблице сверки. В пределах допуска предпочитается водоём с тем же названием.", "float")
-    name_tolerance: float = P(0.0, "Допуск при совпадении названия, м", "0 — не применяется; иначе точка дальше основного допуска принимается, если в этом радиусе есть водоём с тем же названием.", "float")
+    name_tolerance: float = P(150.0, "Допуск при совпадении названия, м", "0 — не применяется; иначе точка дальше основного допуска принимается, если в этом радиусе есть водоём с тем же названием (150 м — решение от 12.11.2026).", "float")
+    water_synonyms: dict = P(dict(WATER_SYNONYMS), "Синонимы названий водоёмов", "Название в находках = название в слое; пары считаются одним водоёмом при сверке.", "dict")
     point_water_field: str = P("", "Поле водного объекта в находках", "Сверка названий; пусто — автоподбор («водный объект»).", "text")
     hex_min_share: float = P(0.02, "Минимальная доля воды в гексагоне", "Гексагоны с меньшей долей площади водоёмов не оцениваются.", "float")
-    method: str = P("A", "Способ", "Выбирает пользователь; рекомендация по 30 единицам учёта — в «Проверить данные» и журнале.", "choice", choices={"A": "А — число ФГ в водоёме", "B": "Б — IDW числа ФГ единиц учёта (только гексагоны водоёмов)"})
+    method: str = P("A", "Способ", "Способ Б временно отключён; расчёт — способом А.", "choice", choices=_mchoices({"A": "А — число ФГ в водоёме", "B": "Б — IDW числа ФГ единиц учёта (только гексагоны водоёмов)"}))
     unit_res: int = P(8, "Способ Б: разрешение единиц учёта", "", "int", min=5, max=10)
     unit_field: str = P("", "Способ Б: поле единицы учёта", "Пусто — ячейки H3.", "text")
     idw_k: int = P(12, "IDW: ближайших единиц", "", "int", min=1, max=100)
@@ -661,7 +675,7 @@ class UnitCfg:
     files: list = P([], "Единицы учёта", "Точки с готовым числом ФГ (fg_n) или баллом (score), п. 8.5.3.", "files", filetypes=PT_TYPES)
     value_field: str = P("", "Поле значения", "Пусто — автоподбор (fg_n, n_fg, score, балл).", "text")
     kind: str = P("fg_n", "Содержание поля", "", "choice", choices={"fg_n": "число ФГ", "score": "балл 1–3"})
-    method: str = P("A", "Способ", "", "choice", choices={"A": "А — максимум в окрестности", "B": "Б — IDW"})
+    method: str = P("A", "Способ", "Способ Б временно отключён.", "choice", choices=_mchoices({"A": "А — максимум в окрестности", "B": "Б — IDW"}))
     k: int = P(10, "Способ А: колец H3", "", "int", min=0, max=50)
     idw_k: int = P(12, "IDW: ближайших единиц", "", "int", min=1, max=100)
     power: float = P(2.0, "IDW: степень", "", "float")
@@ -843,7 +857,7 @@ MAP_MAIN = {"V": "V — ценность", "L": "L — нагрузка", "D": "
             "LxD": "L × D", "VLD": "V × L × D (куб CIELAB)", "VxD_zones": "V × D — матрица решений",
             "VxL_zones": "V × L — матрица решений", "LxD_zones": "L × D — матрица решений",
             "VLD_zones": "V × L × D — матрица решений"}
-MAP_COMP = {"v_ins": "насекомые", "v_mam": "млекопитающие (число ФГ)", "v_anam": "амфибии и рептилии (число ФГ)",
+MAP_COMP = {"v_ins": "насекомые", "v_mam": "млекопитающие (число ФГ)", "v_anam": "низшие позвоночные (число ФГ)",
             "v_fish": "рыбы (число ФГ)",
             "v_bird": "птицы", "v_aqua": "гидробионты", "v_phyt": "фитопланктон", "v_zpl": "зоопланктон",
             "v_zbn": "зообентос", "v_rare": "редкие виды растений", "v_cap": "ёмкость выдела",
@@ -906,9 +920,9 @@ class MapPalCfg:
     pal_V: str = P("Светофор", "Палитра V", "", "choice", choices={k: k for k in PAL3})
     rev_V: bool = P(False, "Обратить палитру V", "", "bool")
     pal_L: str = P("Светофор", "Палитра L", "", "choice", choices={k: k for k in PAL3})
-    rev_L: bool = P(False, "Обратить палитру L", "1 — зелёный, 3 — красный.", "bool")
+    rev_L: bool = P(True, "Обратить палитру L", "Вкл. — 1 зелёный, 3 красный (как в 2025 г.).", "bool")
     pal_D: str = P("Светофор", "Палитра D", "", "choice", choices={k: k for k in PAL3})
-    rev_D: bool = P(False, "Обратить палитру D", "1 — зелёный, 3 — красный.", "bool")
+    rev_D: bool = P(True, "Обратить палитру D", "Вкл. — 1 зелёный, 3 красный (как в 2025 г.).", "bool")
     pal_comp: str = P("Светофор", "Палитра частных показателей (3 класса)", "", "choice", choices={k: k for k in PAL3})
     rev_comp: bool = P(False, "Обратить палитру частных показателей", "", "bool")
     pal5: str = P("YlOrRd", "Палитра 5 категорий нагрузки", "photo_cat, infra_cat.", "choice", choices={k: k for k in PAL5})
@@ -922,8 +936,16 @@ class MapPalCfg:
     zones_file: str = P("", "Матрицы решений (CSV)", "Столбцы matrix, code, zone, color; пусто — встроенные шаблоны V × D и V × L. Шаблон: команда zones-template.", "file", filetypes=IMG_TYPES)
 
 
+@dataclass
+class AnamCfg(FgCfg):
+    """Низшие позвоночные (амфибии, рептилии, рыбы)"""
+    with_fish: bool = P(True, "Включать рыб", "Как в 2025 г.: находки рыб учитываются вместе с амфибиями и рептилиями "
+                        "в окне способа А (решение от 12.11.2026). Выкл. — рыбы отделяются (блок «Рыбы», п. 8.4а).", "bool")
+    taxon_field: str = P("", "Поле таксономической группы", "Пусто — автоподбор; используется при отделении рыб.", "text")
+
+
 def _anam():
-    return FgCfg(a_t1=1.0, a_t2=2.0, b_t1=1.0, b_t2=2.0, b_closed="right")
+    return AnamCfg(a_t1=1.0, a_t2=2.0, b_t1=1.0, b_t2=2.0, b_closed="right")
 
 
 def _qv():
@@ -942,7 +964,7 @@ def _ql():
 class Config:
     project: ProjectCfg = field(default_factory=ProjectCfg)
     inputs: InputsCfg = field(default_factory=InputsCfg)
-    agg_V: AggCfg = field(default_factory=lambda: AggCfg(components=[c for c in V_COMPONENTS]))
+    agg_V: AggCfg = field(default_factory=lambda: AggCfg(components=list(V_DEFAULT)))
     agg_D: AggCfg = field(default_factory=lambda: AggCfg(components=[c for c in D_COMPONENTS]))
     quant_V: QuantCfg = field(default_factory=_qv)
     quant_L: QuantCfg = field(default_factory=_ql)
@@ -956,7 +978,7 @@ class Config:
     cap: CapCfg = field(default_factory=CapCfg)
     ins: InsCfg = field(default_factory=InsCfg)
     mam: FgCfg = field(default_factory=FgCfg)
-    anam: FgCfg = field(default_factory=_anam)
+    anam: AnamCfg = field(default_factory=_anam)
     fish: FishCfg = field(default_factory=FishCfg)
     bird: UnitCfg = field(default_factory=UnitCfg)
     aqua: AquaCfg = field(default_factory=AquaCfg)
@@ -990,11 +1012,11 @@ class Config:
         if isinstance(old_d, list) and sorted(old_d) == ["d_frag", "d_inv"]:
             cfg.agg_D.components = list(D_COMPONENTS)
             log.info("агрегация D: в набор параметров прежней версии добавлен показатель d_alien (чужеродные виды животных)")
-        for sec in ("mam", "anam", "fish"):
+        for sec in ("mam", "anam", "fish", "bird"):
             sub = getattr(cfg, sec)
-            if sub.method not in ("A", "B"):
-                log.warning("%s: способ «%s» больше не поддерживается (способ выбирает пользователь); принят способ А",
-                            SECTION_TITLES.get(sec, (sec,))[0], sub.method)
+            if sub.method not in ("A", "B") or (sub.method == "B" and not METHOD_B_ENABLED):
+                log.warning("%s: способ «%s» %s; принят способ А", SECTION_TITLES.get(sec, (sec,))[0], sub.method,
+                            "временно отключён" if sub.method == "B" else "больше не поддерживается")
                 sub.method = "A"
         return cfg
 
@@ -1017,7 +1039,7 @@ class Config:
 SECTION_TITLES = {
     "project": ("Проект и сетка", 1), "inputs": ("Готовые баллы и правила входных данных", 1),
     "ecosys": ("Экосистемы (D2) и перенос на сетку", 1),
-    "ins": ("Насекомые", 2), "mam": ("Млекопитающие", 2), "anam": ("Амфибии и рептилии", 2), "fish": ("Рыбы", 2),
+    "ins": ("Насекомые", 2), "mam": ("Млекопитающие", 2), "anam": ("Низшие позвоночные (амфибии, рептилии, рыбы)", 2), "fish": ("Рыбы отдельно (выкл.)", 2),
     "bird": ("Птицы", 2), "aqua": ("Гидробионты", 2), "rare": ("Редкие виды растений", 2),
     "cap": ("Ёмкость выдела", 2), "zon": ("Зональность", 2), "qbs": ("QBS почв", 2),
     "recload": ("Нагрузка: фотографии и объекты", 3),
@@ -1086,7 +1108,7 @@ PRESETS: dict[str, dict] = {
     "2026 — базовый": {
         "project": {"calc_year": 2026, "param_set": "2026 — базовый"},
         "inputs": {"inv_rule": "main", "qbs_zero": "na"},
-        "agg_V": {"components": list(V_COMPONENTS)},
+        "agg_V": {"components": list(V_DEFAULT)},
         "quant_V": {"method": "excel_tertiles", "domain": "all", "t1": THRESHOLDS_2025["V"][0], "t2": THRESHOLDS_2025["V"][1]},
         "quant_D": {"method": "excel_tertiles", "domain": "all", "t1": THRESHOLDS_2025["D"][0], "t2": THRESHOLDS_2025["D"][1]},
         "quant_L": {"method": "direct", "bins": [1, 2]},
@@ -1908,6 +1930,8 @@ FG_REFERENCE = {
         "Sander lucioperca": (1, "судак"), "Tinca tinca": (2, "линь"),
     },
 }
+# низшие позвоночные (v_anam) включают рыб, как в 2025 г. (решение от 12.11.2026)
+FG_REFERENCE["anam"].update(FG_REFERENCE["fish"])
 # Чужеродные инвазивные виды животных (решение от 12.11.2026): латинское название, русское, синонимы, группа, среда
 ALIEN_ANIMALS = [
     ["Neogale vison", "американская норка", "Neovison vison; Mustela vison; норка американская", "млекопитающие", "околоводный"],
@@ -3165,11 +3189,11 @@ def log_recommendation(label: str, rec: dict):
 
 
 def fg_indicator(name: str, group: str, cfg, ctx: Ctx, label: str):
-    """Балл ФГ (млекопитающие, амфибии и рептилии) и исходное значение по гексагонам."""
+    """Балл ФГ (млекопитающие, низшие позвоночные) и исходное значение по гексагонам."""
     pts, rep = read_points(cfg.files, label, ctx)
     if pts is None or not len(pts):
         return None
-    if group == "anam":
+    if group == "anam" and not getattr(cfg, "with_fish", True):
         pts, r0 = split_fish(pts, False, ctx, label, getattr(cfg, "taxon_field", ""))
         rep.update(r0)
         if not len(pts):
@@ -3188,13 +3212,16 @@ def fg_indicator(name: str, group: str, cfg, ctx: Ctx, label: str):
     # способ А
     cntA = fg_ring_count(pts.cell.tolist(), pts._fg.tolist(), ctx, int(cfg.k))
     nA = g.h3_id.map(cntA).astype(float)
-    # способ Б: единицы учёта
+    # способ Б: единицы учёта (временно отключён, METHOD_B_ENABLED)
     ug = ab_units(pts, cfg, ctx)
-    nB, dmin = idw_values(ug.x.values, ug.y.values, ug.fg.values, ctx, cfg.idw_k, cfg.power, cfg.radius, cfg.min_units)
-    nB = pd.Series(nB, index=g.index)
-    share_a = {oid: round(float(nA[g.oopt_id == oid].notna().mean()), 4) for oid in surveyed if (g.oopt_id == oid).any()}
-    rec = ab_recommend(ug, pts, ctx, cfg, surveyed, share_a)
-    log_recommendation(label, rec)
+    if METHOD_B_ENABLED:
+        nB, dmin = idw_values(ug.x.values, ug.y.values, ug.fg.values, ctx, cfg.idw_k, cfg.power, cfg.radius, cfg.min_units)
+        nB = pd.Series(nB, index=g.index)
+        share_a = {oid: round(float(nA[g.oopt_id == oid].notna().mean()), 4) for oid in surveyed if (g.oopt_id == oid).any()}
+        rec = ab_recommend(ug, pts, ctx, cfg, surveyed, share_a)
+        log_recommendation(label, rec)
+    else:
+        nB, rec = pd.Series(np.nan, index=g.index), {}
     method = {oid: cfg.method for oid in g.oopt_id.unique()}
     useB = g.oopt_id.map(method).eq("B")
     n = pd.Series(np.where(useB, nB, nA), index=g.index)
@@ -3475,6 +3502,9 @@ def fish_indicator(ctx: Ctx):
     pts, rep = read_points(c.files, label, ctx)
     if pts is None or not len(pts):
         return None
+    if getattr(ctx.cfg.anam, "with_fish", True) and ctx.cfg.anam.files and "v_anam" in ctx.cfg.agg_V.components:
+        log.warning("рыбы: включены и блок «Рыбы отдельно», и рыбы в «Низших позвоночных» — рыбы учитываются дважды; "
+                    "выключите один из вариантов")
     pts, r0 = split_fish(pts, True, ctx, label, c.taxon_field)
     rep.update(r0)
     if not len(pts):
@@ -3508,6 +3538,13 @@ def fish_indicator(ctx: Ctx):
     if len(W):
         wnames = [[str(n)] + [x.strip() for x in str(al or "").split(";") if x.strip()]
                   for n, al in zip(W.name, W.get("alt", pd.Series([""] * len(W))))]
+        syn = [(str(a), str(b)) for a, b in (c.water_synonyms or {}).items() if str(a).strip() and str(b).strip()]
+        for wn in wnames:
+            for a, b in syn:
+                if water_names_agree(b, wn) == "да" and a not in wn:
+                    wn.append(a)
+                elif water_names_agree(a, wn) == "да" and b not in wn:
+                    wn.append(b)
         tree = shp.STRtree(W.geometry.values)
         (pi, wi), dist = tree.query_nearest(xy, return_distance=True, all_matches=False)
         near[pi], dd[pi] = wi, dist
@@ -3587,10 +3624,13 @@ def fish_indicator(ctx: Ctx):
     is_w = water_share >= float(c.hex_min_share)
     nA = pd.Series(np.where(is_w, best_fg, np.nan), index=gr.index)
     ug = ab_units(pts, c, ctx)
-    nB, _ = idw_values(ug.x.values, ug.y.values, ug.fg.values, ctx, c.idw_k, c.power, c.radius, c.min_units)
-    nB = pd.Series(np.where(is_w, nB, np.nan), index=gr.index)
-    rec = ab_recommend(ug, pts, ctx, c, surveyed)
-    log_recommendation(label, rec)
+    if METHOD_B_ENABLED:
+        nB, _ = idw_values(ug.x.values, ug.y.values, ug.fg.values, ctx, c.idw_k, c.power, c.radius, c.min_units)
+        nB = pd.Series(np.where(is_w, nB, np.nan), index=gr.index)
+        rec = ab_recommend(ug, pts, ctx, c, surveyed)
+        log_recommendation(label, rec)
+    else:
+        nB, rec = pd.Series(np.nan, index=gr.index), {}
     useB = c.method == "B"
     n = nB if useB else nA
     if c.rule == "tertiles":
@@ -4977,6 +5017,14 @@ def frag_ready(ctx: Ctx):
     return pd.DataFrame({"h3_id": g.h3_id, "frag_raw": raw.round(6), "d_frag": cl})
 
 
+def section_enabled(cfg, sec: str) -> bool:
+    """Флажок «вкл.» раздела: хотя бы один его показатель входит в список агрегации V или D."""
+    if sec not in SECTION_COMPONENT:
+        return True
+    agg, comps = SECTION_COMPONENT[sec]
+    return bool(set(getattr(cfg, agg).components or []) & set(comps))
+
+
 def primary_requested(cfg) -> bool:
     return bool(cfg.ecosys.path or cfg.ins.ratings or cfg.mam.files or cfg.anam.files or cfg.fish.files or cfg.bird.files or
                 cfg.aqua.files or cfg.rare.files or cfg.qbs.files or cfg.recload.photos or cfg.recload.objects or
@@ -4988,33 +5036,43 @@ def compute_primary(base: pd.DataFrame, bounds, res: int, cfg, odict, prog):
     ctx = Ctx(grid=base[["h3_id", "oopt_id"]].reset_index(drop=True), bounds=bounds, res=res, cfg=cfg, odict=odict)
     parts = []
     steps = []
+
+    def on(sec, has_data):
+        """Показатель рассчитывается, если есть данные и включён флажок «вкл.» (п. 5.4)."""
+        if has_data and not section_enabled(cfg, sec):
+            log.info("%s: показатель выключен (флажок «вкл.»), не рассчитывается", SECTION_TITLES.get(sec, (sec,))[0])
+            return False
+        return bool(has_data)
+
     if cfg.ecosys.path:
         steps.append(("перенос слоя экосистем на сетку", lambda: (eco_transfer(ctx), None)[1]))
-        steps.append(("зональность", lambda: zon_indicator(ctx)))
-        steps.append(("ёмкость выделов", lambda: cap_indicator(ctx)))
-    if cfg.ins.ratings:
+        if on("zon", True):
+            steps.append(("зональность", lambda: zon_indicator(ctx)))
+        if on("cap", True):
+            steps.append(("ёмкость выделов", lambda: cap_indicator(ctx)))
+    if on("ins", cfg.ins.ratings):
         steps.append(("насекомые", lambda: ins_indicator(ctx)))
-    if cfg.mam.files:
+    if on("mam", cfg.mam.files):
         steps.append(("млекопитающие", lambda: fg_indicator("v_mam", "mam", cfg.mam, ctx, "млекопитающие")))
-    if cfg.anam.files:
-        steps.append(("амфибии и рептилии", lambda: fg_indicator("v_anam", "anam", cfg.anam, ctx, "амфибии и рептилии")))
-    if cfg.fish.files:
+    if on("anam", cfg.anam.files):
+        steps.append(("низшие позвоночные", lambda: fg_indicator("v_anam", "anam", cfg.anam, ctx, "низшие позвоночные")))
+    if on("fish", cfg.fish.files):
         steps.append(("рыбы", lambda: fish_indicator(ctx)))
-    if cfg.bird.files:
+    if on("bird", cfg.bird.files):
         steps.append(("птицы", lambda: unit_indicator("v_bird", cfg.bird, ctx, "птицы", "bird_n")))
-    if cfg.aqua.files:
+    if on("aqua", cfg.aqua.files):
         steps.append(("гидробионты", lambda: aqua_indicator(ctx)))
-    if cfg.rare.files:
+    if on("rare", cfg.rare.files):
         steps.append(("редкие растения", lambda: rare_indicator(ctx)))
-    if cfg.qbs.files:
+    if on("qbs", cfg.qbs.files):
         steps.append(("QBS почв", lambda: qbs_indicator(ctx)))
     if cfg.recload.photos or cfg.recload.objects or cfg.recload.ready:
         steps.append(("нагрузка", lambda: load_indicator(ctx)))
-    if cfg.inv.files:
+    if on("inv", cfg.inv.files):
         steps.append(("инвазивные растения", lambda: inv_indicator(ctx)))
-    if alien_files(cfg):
+    if on("alien", alien_files(cfg)):
         steps.append(("чужеродные виды животных", lambda: alien_indicator(ctx)))
-    if cfg.ecosys.path or cfg.frag.ready:
+    if on("frag", cfg.ecosys.path or cfg.frag.ready):
         steps.append(("фрагментация", lambda: frag_indicator(ctx)))
     for k, (msg, fn) in enumerate(steps):
         prog(0.12 + 0.12 * k / max(len(steps), 1), f"частные показатели: {msg}")
@@ -5045,7 +5103,7 @@ def indicator_table(ind: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-REC_BLOCKS = {"v_mam": "млекопитающие", "v_anam": "амфибии и рептилии", "v_fish": "рыбы"}
+REC_BLOCKS = {"v_mam": "млекопитающие", "v_anam": "низшие позвоночные", "v_fish": "рыбы"}
 
 
 def recommendation_table(ind: dict) -> pd.DataFrame:
@@ -5064,9 +5122,9 @@ def recommendation_table(ind: dict) -> pd.DataFrame:
 def fg_recommendations(cfg: Config) -> pd.DataFrame:
     """Рекомендация способа А/Б до расчёта: по находкам млекопитающих, амфибий и рептилий, рыб и границам ООПТ.
     Для рыб учитываются все находки в ООПТ (сверка с водоёмами — при расчёте)."""
-    blocks = [(k, lab) for k, lab in (("mam", "млекопитающие"), ("anam", "амфибии и рептилии"), ("fish", "рыбы"))
-              if getattr(cfg, k).files]
-    if not blocks:
+    blocks = [(k, lab) for k, lab in (("mam", "млекопитающие"), ("anam", "низшие позвоночные"), ("fish", "рыбы"))
+              if getattr(cfg, k).files and section_enabled(cfg, k)]
+    if not blocks or not METHOD_B_ENABLED:
         return pd.DataFrame()
     if not cfg.project.boundaries:
         raise VLDError("рекомендация А/Б: нужен слой границ ООПТ")
@@ -5083,7 +5141,7 @@ def fg_recommendations(cfg: Config) -> pd.DataFrame:
         pts, _ = read_points(c.files, lab, ctx)
         if pts is None or not len(pts):
             continue
-        if key in ("anam", "fish"):
+        if key == "fish" or (key == "anam" and not getattr(c, "with_fish", True)):
             pts, _ = split_fish(pts, key == "fish", ctx, lab, getattr(c, "taxon_field", ""))
         if not len(pts):
             continue
@@ -5139,7 +5197,7 @@ def validate_primary(cfg: Config) -> list[tuple[str, str]]:
     msgs = []
     files = {"слой экосистем D2": eco_paths(cfg.ecosys), "типология D3": [cfg.zon.typology],
              "насекомые": cfg.ins.ratings + [cfg.ins.coords], "млекопитающие": cfg.mam.files + cfg.mam.ref_files,
-             "амфибии и рептилии": cfg.anam.files + cfg.anam.ref_files,
+             "низшие позвоночные": cfg.anam.files + cfg.anam.ref_files,
              "рыбы": cfg.fish.files + cfg.fish.ref_files + (cfg.fish.water_files if cfg.fish.water_source == "file" else []),
              "птицы": cfg.bird.files,
              "гидробионты": cfg.aqua.files, "редкие растения": cfg.rare.files, "QBS": cfg.qbs.files,
@@ -5583,7 +5641,7 @@ def map_legend_spec(name: str, cfg: Config) -> tuple[str, dict[int, str]]:
             lab = {1: "высокий (SCORE_NORM > 2/3)", 2: "средний (1/3 < SCORE_NORM ≤ 2/3)", 3: "низкий (SCORE_NORM ≤ 1/3)"}
     elif name in ("v_mam", "v_anam", "v_fish"):
         fc = getattr(cfg, name[2:])
-        title = {"v_mam": "Млекопитающие", "v_anam": "Амфибии и рептилии", "v_fish": "Рыбы"}[name] + ": число ФГ"
+        title = {"v_mam": "Млекопитающие", "v_anam": "Низшие позвоночные", "v_fish": "Рыбы"}[name] + ": число ФГ"
         lab = _fg_labels(fc.a_t1, fc.a_t2) if fc.rule == "thresholds" else {1: "высокое (терцили)", 2: "среднее", 3: "низкое"}
     elif name == "v_bird":
         title = "Птицы: число ФГ"
@@ -6958,6 +7016,8 @@ def selftest2(config: str, work: str, v4: str | None = None) -> dict:
     c6.inputs = copy.deepcopy(c.inputs)
     c6.project.out_dir = str(work_p / "p9_out")
     c6.anam.files = [str(ff)]
+    c6.anam.with_fish = False   # проверяется отдельный блок рыб (выкл. по умолчанию)
+    c6.agg_V.components = list(V_DEFAULT) + ["v_fish"]
     c6.fish.files = [str(ff)]
     c6.fish.water_source = "file"
     c6.fish.water_files = [str(fw)]
@@ -6980,12 +7040,42 @@ def selftest2(config: str, work: str, v4: str | None = None) -> dict:
              and wn_.get("Cyprinus carpio") == "Четвёртый пруд" and wn_.get("Alburnus alburnus") == "Первый пруд"
              and st_.get("Neogobius melanostomus") == "по названию"
              and ra_.get("excluded_other_block") == 7 and rf_.get("excluded_other_block") == 2
-             and c6.anam.method == "A" and rf_.get("recommendation", {}).get("BIT", {}).get("recommended") == "A")
+             and c6.anam.method == "A" and not rf_.get("recommendation"))
     ok("П9а рыбы в пределах водоёмов", cond6,
        f"v_fish: пруд 1 = {vf.get(h1)}, пруд 2 = {vf.get(h2)}, суша = {vf.get(hl)}; статусы {st_}; названия {nm_}; "
        f"выбор водоёма по названию: Cyprinus carpio → {wn_.get('Cyprinus carpio')}; "
        f"ФГ амфибий и рептилий {sorted(ra_.get('fg_codes', {}))}; исключено из v_anam {ra_.get('excluded_other_block')}, "
        f"из v_fish {rf_.get('excluded_other_block')}; водных гексагонов {rf_.get('water_hexes')}")
+    # П9г. Рыбы в составе низших позвоночных (по умолчанию, как в 2025 г.); блоки «рыбы» и «птицы» выключены
+    c8 = Config.from_dict({"anam": {"method": "B"}})
+    c8.project, c8.inputs = copy.deepcopy(c.project), copy.deepcopy(c.inputs)
+    c8.anam.files = c8.fish.files = [str(ff)]
+    c8.fish.water_source, c8.fish.water_files = "file", [str(fw)]
+    pr8, ctx8 = compute_primary(g2, b2, 11, c8, odict, lambda f, m: None)
+    ra8 = ctx8.reports.get("v_anam", {})
+    va8 = pr8.set_index("h3_id").v_anam
+    cond8 = (set(ra8.get("fg_codes", {})) == {"1", "2", "3"} and "excluded_other_block" not in ra8 and "v_fish" not in ctx8.reports
+             and "v_fish" not in pr8 and c8.anam.method == "A" and va8.get(h1) == 1 and "v_bird" not in c8.agg_V.components
+             and not ra8.get("recommendation"))
+    ok("П9г рыбы в низших позвоночных", cond8,
+       f"ФГ v_anam {sorted(ra8.get('fg_codes', {}))}; балл у пруда 1 = {va8.get(h1)}; способ {c8.anam.method} (Б отключён); "
+       f"v_fish рассчитан: {'v_fish' in ctx8.reports}")
+    # П9д. Синонимы названий водоёмов: «Лесной пруд» = «Собачий пруд»
+    ws = gg["gpd"].GeoDataFrame({"name": ["Собачий пруд"]}, geometry=[sqr(x0 + 1500, y0, 120)], crs=METRIC_CRS)
+    fws = syn / "vodoemy_syn.gpkg"
+    ws.to_crs(GEO_CRS).to_file(fws, layer="w", driver="GPKG", engine="pyogrio")
+    lo_, la_ = _tg.transform(np.array([x0 + 1500 + 60, x0 + 1500 + 60]), np.array([y0 + 120 + 80, y0 + 120 + 90]))
+    fsy = syn / "nizshie_syn.csv"
+    pd.DataFrame({"lat (широта)": la_, "long (долгота)": lo_, "вид (латинское название)": ["Esox lucius", "Rutilus rutilus"],
+                  "группа таксономическая": ["лучеперые рыбы"] * 2, "водный объект": ["Лесной пруд", "Пруд Тестовый"]}).to_csv(fsy, index=False)
+    c9 = copy.deepcopy(c8)
+    c9.anam.with_fish, c9.anam.files, c9.fish.files, c9.fish.water_files = False, [], [str(fsy)], [str(fws)]
+    c9.agg_V.components = list(V_DEFAULT) + ["v_fish"]
+    _, ctx9 = compute_primary(g2, b2, 11, c9, odict, lambda f, m: None)
+    sv9 = getattr(ctx9, "extra_tables", {}).get("ryby_sverka")
+    st9 = dict(zip(sv9["вид"], sv9["статус"])) if sv9 is not None else {}
+    ok("П9д синонимы названий водоёмов", st9.get("Esox lucius") == "по названию" and st9.get("Rutilus rutilus") == "вне водоёма"
+       and c9.fish.name_tolerance == 150.0, f"статусы {st9} (80–90 м от пруда; допуск 30 м, по названию 150 м)")
     # П9б. Чужеродные инвазивные виды животных: исключение из ФГ, перенос, баллы, н/д
     pa = [(x0 + 60, y0 + 60, "Perccottus glenii", "лучеперые рыбы"),
           (x0 + 70, y0 + 70, "Carassius carassius", "лучеперые рыбы"),
@@ -7006,6 +7096,8 @@ def selftest2(config: str, work: str, v4: str | None = None) -> dict:
     c7.inputs = copy.deepcopy(c.inputs)
     c7.project.oopt_select = ["BIT", "IZM"]
     c7.mam.files, c7.anam.files, c7.fish.files = [str(fm)], [str(fa)], [str(fa)]
+    c7.anam.with_fish = False
+    c7.agg_V.components = list(V_DEFAULT) + ["v_fish"]
     c7.fish.water_source, c7.fish.water_files = "file", [str(fw)]
     b7, g7 = grid_for(c7, ["BIT", "IZM"])
     pr7, ctx7 = compute_primary(g7, b7, 11, c7, odict, lambda f, m: None)
@@ -7434,7 +7526,7 @@ def selftest4(work: str, gui: bool = True) -> dict:
     f_mam = W / "млекопитающие 2026.csv"
     mam.to_csv(f_mam, sep=";", decimal=",", index=False, encoding="cp1251")
     # амфибии и рептилии: XLSX, лист «Находки», заголовок в 3‑й строке
-    an_sp = [(k, v[1]) for k, v in FG_REFERENCE["anam"].items()]
+    an_sp = [(k, v[1]) for k, v in FG_REFERENCE["anam"].items() if k not in FG_REFERENCE["fish"]]  # без рыб
     ll = pts_in(90, polys)
     sp_i = rng.integers(len(an_sp), size=len(ll))
     pond = sq(37.603, 55.702, 80)
@@ -7519,6 +7611,8 @@ def selftest4(work: str, gui: bool = True) -> dict:
     cfg.inv.files = [f"{f_inv}::инвазивные_точки"]
     cfg.fish.files = [join_source(f_an, "Находки", 3)]
     cfg.fish.water_source, cfg.fish.water_files = "file", [str(f_w)]  # без обращения к Overpass API
+    cfg.anam.with_fish = False                       # проверяется и отдельный блок рыб (по умолчанию выкл.)
+    cfg.agg_V.components = [c for c in V_COMPONENTS if c in V_DEFAULT or c == "v_fish"]
     cfg.quant_V.method = cfg.quant_D.method = "fixed"
     cfg.output.file_name, cfg.output.extended, cfg.output.params_json = "vld_результат", True, False
     f_cfg = W / "параметры теста.json"
@@ -7600,7 +7694,7 @@ def selftest4(work: str, gui: bool = True) -> dict:
         off = "v_rare" not in app.get_config().agg_V.components
         app.use_vars["rare"].set(True)
         app._toggle_use("rare")
-        ok("П12.5 GUI: флажок «учитывать» и список показателей агрегации", off and app.get_config().agg_V.components ==
+        ok("П12.5 GUI: флажок «вкл.» и список показателей агрегации", off and app.get_config().agg_V.components ==
            Config.load(f_cfg).agg_V.components, "v_rare исключается и возвращается на прежнее место")
         app.widgets[("project", "out_dir")]["var"].set(str(out_gui))
         app.root.update()
@@ -7989,7 +8083,7 @@ def source_columns(path: str) -> list[str]:
     return [str(c) for c in read_any_table(path).columns if c != "geometry"]
 
 
-# индикаторы разделов вкладок 2 и 4 → поля агрегации (флажок «учитывать», п. 5.4)
+# индикаторы разделов вкладок 2 и 4 → поля агрегации (флажок «вкл.», п. 5.4)
 SECTION_COMPONENT = {"ins": ("agg_V", ["v_ins"]), "mam": ("agg_V", ["v_mam"]), "anam": ("agg_V", ["v_anam"]),
                      "fish": ("agg_V", ["v_fish"]), "bird": ("agg_V", ["v_bird"]),
                      "aqua": ("agg_V", ["v_aqua", "v_phyt", "v_zpl", "v_zbn"]), "rare": ("agg_V", ["v_rare"]),
@@ -8038,7 +8132,7 @@ TAB_NAMES = {1: "Проект и сетка", 2: "Ценность (V)", 3: "Н�
              5: "Агрегация и квантование", 6: "Выходные данные и архив", 7: "Карты", 8: "Проверка"}
 TAB_STUBS: dict[int, str] = {}
 LOGOS = [("ipee_ran.png", "ИПЭЭ РАН"), ("lab_biogeocenology.png", "Лаборатория биогеоценологии"),
-         ("moscow_coat_of_arms.png", "Правительство Москвы"), ("dpioos.png", "ДПиООС")]
+         ("moscow_coat_of_arms.png", "Правительство Москвы")]
 
 
 class _QueueLog(logging.Handler):
@@ -8108,7 +8202,7 @@ class ScrollFrame:
 
 
 class Section:
-    """Сворачиваемый раздел: заголовок ▸/▾, краткая сводка состояния и флажок «учитывать» (п. 5.4)."""
+    """Сворачиваемый раздел: заголовок ▸/▾, краткая сводка состояния и флажок «вкл.» (п. 5.4)."""
 
     def __init__(self, parent, title, opened=True, use_var=None, use_cmd=None):
         self.frame = ttk.Frame(parent, padding=(4, 2))
@@ -8124,7 +8218,7 @@ class Section:
         self.summary.grid(row=0, column=1, sticky="e", padx=(8, 4))
         self.use = None
         if use_var is not None:
-            self.use = ttk.Checkbutton(head, text="учитывать", variable=use_var, command=use_cmd)
+            self.use = ttk.Checkbutton(head, text="вкл.", variable=use_var, command=use_cmd)
             self.use.grid(row=0, column=2, sticky="e", padx=(4, 2))
         self.body = ttk.Frame(self.frame, padding=(14, 4))
         self.body.columnconfigure(1, weight=1)
@@ -8468,8 +8562,8 @@ class App:
                 self.use_vars[sec] = uv
             s = Section(self.tab_inner[tab], title, use_var=uv, use_cmd=(lambda s_=sec: self._toggle_use(s_)) if uv else None)
             if uv is not None:
-                Tooltip(s.use, f"Включить показатель в агрегацию {SECTION_COMPONENT[sec][0][-1]} "
-                               f"(список «Частные показатели», вкладка 5).")
+                Tooltip(s.use, f"Вкл. — показатель рассчитывается и входит в агрегацию {SECTION_COMPONENT[sec][0][-1]} "
+                               f"(список «Частные показатели», вкладка 5); выкл. — не рассчитывается.")
             self.sections[sec] = s
             sub = getattr(self.cfg, sec)
             for row, f in enumerate(fields(sub)):
@@ -8592,7 +8686,7 @@ class App:
         auto = pick_field(cols, FIELD_AUTO.get(name, [])) if FIELD_AUTO.get(name) else None
         hint.configure(text=f"автоподбор: «{auto}»" if auto else "автоподбор: не найдено")
 
-    # -- флажки «учитывать» и сводки разделов ------------------------------
+    # -- флажки «вкл.» и сводки разделов ------------------------------
     def _components(self, agg):
         v = self.widgets[(agg, "components")]["var"].get()
         return [x.strip() for x in re.split(r"[;,\n]", v) if x.strip()]

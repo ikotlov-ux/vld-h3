@@ -233,8 +233,6 @@
           "v_ins",
           "v_mam",
           "v_anam",
-          "v_fish",
-          "v_bird",
           "v_aqua",
           "v_rare",
           "v_cap",
@@ -478,6 +476,66 @@
       "Zootoca vivipara": [
         1,
         "ящерица живородящая"
+      ],
+      "Abramis brama": [
+        2,
+        "лещ"
+      ],
+      "Alburnus alburnus": [
+        3,
+        "уклейка"
+      ],
+      "Carassius auratus": [
+        2,
+        "карась серебряный"
+      ],
+      "Carassius carassius": [
+        2,
+        "карась золотой"
+      ],
+      "Cyprinus carpio": [
+        2,
+        "карп обыкновенный"
+      ],
+      "Esox lucius": [
+        1,
+        "щука"
+      ],
+      "Hypophthalmichthys nobilis": [
+        3,
+        "толстолобик пёстрый"
+      ],
+      "Leucaspius delineatus": [
+        3,
+        "верховка"
+      ],
+      "Neogobius melanostomus": [
+        1,
+        "бычок-кругляк"
+      ],
+      "Perca fluviatilis": [
+        1,
+        "окунь речной"
+      ],
+      "Perccottus glenii": [
+        1,
+        "ротан"
+      ],
+      "Rhodeus amarus": [
+        2,
+        "горчак"
+      ],
+      "Rutilus rutilus": [
+        2,
+        "плотва обыкновенная"
+      ],
+      "Sander lucioperca": [
+        1,
+        "судак"
+      ],
+      "Tinca tinca": [
+        2,
+        "линь"
       ]
     },
     "fish": {
