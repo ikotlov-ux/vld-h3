@@ -43,7 +43,7 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 APP_NAME = "VLD-H3"
 APP_TITLE = "VLD-H3: Ценность – Нагрузка – Нарушенность"
 HERE = Path(__file__).resolve().parent
@@ -123,7 +123,11 @@ BUILTIN_OOPT = [
     ("OST", "Останкино", ['Природно-исторический парк "Останкино"']),
     ("KUS", "Кусково", ["Лесопарк Кусково", 'Лесопарк "Кусково"']),
     ("STR", "Покровское-Стрешнево", ["Покровское Стрешнево", 'Природно-исторический парк "Покровское-Стрешнево"']),
+    ("BIR", "Бирюлёвский дендропарк", ["Бирюлевский дендропарк", "Бирюлёвский дендрарий", "Бирюлевский дендрарий",
+                                       "Бирюлёвский дендропарк (Царицыно)"]),
 ]
+# Разделы внутри ООПТ (п. 7.3а): раздел → ООПТ, в которую он входит
+BUILTIN_PARENT = {"BIR": "TSA"}
 
 # Частные показатели (прил. В ТЗ)
 V_COMPONENTS = ["v_ins", "v_mam", "v_anam", "v_fish", "v_bird", "v_aqua", "v_rare", "v_cap", "v_zon", "v_qbs"]
@@ -192,8 +196,13 @@ class OoptDict:
 
     def __init__(self, rows=None):
         self.rows: list[tuple[str, str, list[str]]] = []
+        self.parent: dict[str, str] = {} if rows else dict(BUILTIN_PARENT)
         for r in rows or BUILTIN_OOPT:
             self.add(r[0], r[1], list(r[2]))
+
+    def family(self, oid) -> Any:
+        """ООПТ, в которую входит раздел (п. 7.3а); для самостоятельной ООПТ — она сама."""
+        return self.parent.get(oid, oid) if oid is not None and not pd.isna(oid) else oid
 
     def add(self, oid, name, syn):
         oid = str(oid).strip().upper()
@@ -242,7 +251,8 @@ class OoptDict:
         return oid
 
     def to_frame(self) -> pd.DataFrame:
-        return pd.DataFrame([{"oopt_id": o, "oopt": n, "synonyms": "; ".join(s)} for o, n, s in self.rows])
+        return pd.DataFrame([{"oopt_id": o, "oopt": n, "synonyms": "; ".join(s), "parent": self.parent.get(o, "")}
+                             for o, n, s in self.rows])
 
     @classmethod
     def from_frame(cls, df: pd.DataFrame) -> "OoptDict":
@@ -250,6 +260,9 @@ class OoptDict:
         for _, r in df.iterrows():
             syn = [x.strip() for x in str(r.get("synonyms") or "").split(";") if x.strip()]
             d.add(r["oopt_id"], r["oopt"], syn)
+            par = str(r.get("parent") or "").strip().upper()
+            if par and par != "NAN":
+                d.parent[str(r["oopt_id"]).strip().upper()] = par
         return d
 
 
@@ -367,6 +380,7 @@ class ProjectCfg:
     name_field: str = P("", "Поле названия ООПТ", "Пусто — автоподбор (NAME, TITLE, название).", "text")
     oopt_select: list = P([], "Выбор ООПТ", "Пустой список — все ООПТ источника. Допускаются названия и идентификаторы.", "oopt_list")
     h3_res: int = P(11, "Разрешение H3", "От 7 до 13; по умолчанию 11 (≈ 2 150 м²).", "int", min=7, max=13)
+    sections: bool = P(True, "Вложенные полигоны — отдельные разделы", "Полигон, не менее чем на 90 % площади лежащий в другой ООПТ (Бирюлёвский дендропарк в Царицыне), вырезается из неё и считается отдельным разделом; учёты и рейтинги ООПТ распространяются на раздел (п. 7.3а).", "bool")
     include_boundary_cells: bool = P(False, "Включать ячейки, пересекающие границу", "По умолчанию в сетку входят ячейки, центры которых лежат внутри ООПТ.", "bool")
     out_dir: str = P("", "Папка результатов", "Пусто — папка vld_out рядом с программой.", "dir")
 
@@ -1075,7 +1089,43 @@ def read_boundaries(cfg: ProjectCfg, odict: OoptDict):
     b["oopt_id"] = [odict.resolve_or_new(n) for n in b.oopt_src]
     b["oopt"] = [odict.name(o) for o in b.oopt_id]
     b = b.dissolve(by="oopt_id", as_index=False, aggfunc={"oopt": "first", "oopt_src": "first"})
+    if cfg.sections and len(b) > 1:
+        b = cut_sections(b, odict)
     return b.to_crs(GEO_CRS)
+
+
+def cut_sections(b, odict: OoptDict, share: float = 0.9):
+    """Разделы внутри ООПТ (п. 7.3а): полигон, лежащий в другой ООПТ не менее чем на share площади,
+    вырезается из неё; связь «раздел → ООПТ» записывается в справочник."""
+    g = geo()
+    m = b.to_crs(METRIC_CRS).reset_index(drop=True)
+    area = m.geometry.area
+    sidx = m.sindex
+    child_of = {}
+    for i, gi in enumerate(m.geometry):
+        best = None
+        for j in sidx.query(gi, predicate="intersects"):
+            if j == i or area[j] <= area[i]:
+                continue
+            sh = gi.intersection(m.geometry[j]).area / area[i] if area[i] > 0 else 0
+            if sh >= share and (best is None or area[j] < area[best]):
+                best = j
+        if best is not None:
+            child_of[i] = best
+    if not child_of:
+        return b
+    geoms = list(m.geometry)
+    for i, j in child_of.items():
+        cid, pid = m.oopt_id[i], m.oopt_id[j]
+        old = odict.parent.get(cid)
+        if old and old != pid:
+            log.warning("раздел %s: в справочнике входит в %s, по геометрии — в %s; принято по геометрии", cid, old, pid)
+        odict.parent[cid] = pid
+        geoms[j] = geoms[j].difference(m.geometry[i])
+        log.info("раздел «%s» (%.1f га) вырезан из ООПТ «%s»; учёты и рейтинги ООПТ распространяются на раздел",
+                 m.oopt[i], area[i] / 1e4, m.oopt[j])
+    m = g["gpd"].GeoDataFrame(m.drop(columns="geometry"), geometry=geoms, crs=METRIC_CRS)
+    return m.to_crs(b.crs)
 
 
 def build_grid(bounds, res: int, include_boundary: bool = False):
@@ -1343,8 +1393,8 @@ def quantize(df: pd.DataFrame, value_col: str, q: QuantCfg, var: str, odict: Oop
         c, info = quantize_values(x.to_numpy(), q)
         out[:] = c
         rep["thresholds"] = info["thresholds"]
-    elif q.domain == "oopt":
-        for oid, idx in df.groupby("oopt_id").groups.items():
+    elif q.domain == "oopt":   # раздел квантуется вместе с ООПТ (п. 7.3а)
+        for oid, idx in df.groupby(df["oopt_id"].map(odict.family)).groups.items():
             c, info = quantize_values(x.loc[idx].to_numpy(), q)
             out.loc[idx] = c
             rep["groups"][oid] = info["thresholds"]
@@ -2467,8 +2517,9 @@ class Ctx:
         self.to_geo = Transformer.from_crs(METRIC_CRS, GEO_CRS, always_xy=True)
         self.bm = self.bounds.to_crs(METRIC_CRS)
         buf = float(self.cfg.ecosys.oopt_buffer)
+        self.oopt_geoms0 = {r.oopt_id: r.geometry for r in self.bm.itertuples()}
         self.oopt_geoms = {r.oopt_id: (r.geometry.buffer(buf) if buf > 0 else r.geometry) for r in self.bm.itertuples()}
-        for gm in self.oopt_geoms.values():
+        for gm in list(self.oopt_geoms.values()) + list(self.oopt_geoms0.values()):
             g["shapely"].prepare(gm)
         far = float(self.cfg.inputs.far_km) * 1000
         u = g["shapely"].union_all(list(self.bm.geometry.values)).simplify(50)
@@ -2492,16 +2543,24 @@ class Ctx:
         return np.array([f(a, b, r) for a, b in zip(lat, lon)], dtype=object)
 
     def assign_oopt(self, x, y):
+        """Сначала по полигонам, затем по полигонам с допуском (смежные ООПТ и разделы, п. 7.3а)."""
         shp = geo()["shapely"]
         out = np.full(len(x), None, dtype=object)
-        for oid, gm in self.oopt_geoms.items():
-            free = pd.isna(out)
-            if not free.any():
-                break
-            hit = shp.contains_xy(gm, x[free], y[free])
-            idx = np.where(free)[0][hit]
-            out[idx] = oid
+        for geoms in (self.oopt_geoms0, self.oopt_geoms):
+            for oid, gm in geoms.items():
+                free = pd.isna(out)
+                if not free.any():
+                    return out
+                hit = shp.contains_xy(gm, x[free], y[free])
+                idx = np.where(free)[0][hit]
+                out[idx] = oid
         return out
+
+    def fam(self, oids) -> set:
+        """ООПТ с учётом разделов (п. 7.3а): учёт в ООПТ — учёт во всех её разделах, и наоборот."""
+        fams = {self.odict.family(o) for o in oids if o is not None and not pd.isna(o)}
+        return {o for o in oids if o is not None and not pd.isna(o)} | \
+               {o for o in set(self.grid.oopt_id) if self.odict.family(o) in fams}
 
     def report(self, key, **kw):
         self.reports.setdefault(key, {}).update(kw)
@@ -2974,8 +3033,10 @@ def ab_recommend(ug, pts, ctx: Ctx, cfg, oids, share_a=None) -> dict:
     rec = {}
     areas = ctx.bm.set_index("oopt_id").geometry.area
     for oid in sorted(oids):
-        u = ug[ug.oopt_id == oid]
-        ce, med = clark_evans(u.x.values, u.y.values, float(areas.get(oid, 0)))
+        fam = ctx.odict.family(oid)
+        mem = {o for o in set(areas.index) | set(ug.oopt_id.dropna()) if ctx.odict.family(o) == fam}
+        u = ug[ug.oopt_id.isin(mem)]   # раздел — по ООПТ в целом (п. 7.3а)
+        ce, med = clark_evans(u.x.values, u.y.values, float(sum(areas.get(o, 0) for o in mem)))
         rho = (float(spearmanr(u.n_rec, u.fg).statistic)
                if len(u) > 2 and u.fg.nunique() > 1 and u.n_rec.nunique() > 1 else None)
         meth = "B" if (len(u) >= cfg.auto_units and np.isfinite(med) and med <= cfg.radius / 2) else "A"
@@ -3016,7 +3077,7 @@ def fg_indicator(name: str, group: str, cfg, ctx: Ctx, label: str):
     pts, rep2 = fg_of_points(pts, cfg, group, ctx, label)
     rep.update(rep2)
     pts = pts[pd.notna(pts.oopt_id)].reset_index(drop=True)
-    surveyed = set(pts.oopt_id.unique()) | surveyed0
+    surveyed = ctx.fam(set(pts.oopt_id.unique()) | surveyed0)
     g = ctx.grid
     # способ А
     cntA = fg_ring_count(pts.cell.tolist(), pts._fg.tolist(), ctx, int(cfg.k))
@@ -3394,7 +3455,7 @@ def fish_indicator(ctx: Ctx):
     ctx.extra_tables = getattr(ctx, "extra_tables", {})
     ctx.extra_tables["ryby_sverka"] = sv
     pts = pts.assign(wid=[int(W.wid.iloc[j]) if j >= 0 else -1 for j in near])[ok_].reset_index(drop=True)
-    surveyed = set(pts.oopt_id.unique())
+    surveyed = ctx.fam(set(pts.oopt_id.unique()))
     # гексагоны водоёмов
     hexes = cells_to_gdf(gr.h3_id).to_crs(METRIC_CRS)
     hg = hexes.geometry.values
@@ -3624,11 +3685,12 @@ def read_ecosystems(ctx: Ctx):
     d = d[pd.notna(d.oopt_id)].reset_index(drop=True)
     src_of = {}
     if d.src.nunique() > 1:
-        last = d.groupby("oopt_id").src.max()
-        keep = d.src.values == last.reindex(d.oopt_id).values
+        fam = d.oopt_id.map(ctx.odict.family)   # раздел — по слою ООПТ (п. 7.3а)
+        last = d.groupby(fam).src.max()
+        keep = d.src.values == last.reindex(fam).values
         n_drop = int((~keep).sum())
         d = d[keep].reset_index(drop=True)
-        src_of = {str(o): str(d.loc[d.oopt_id == o, "src_name"].iloc[0]) for o in last.index}
+        src_of = {str(o): str(d.loc[d.oopt_id == o, "src_name"].iloc[0]) for o in sorted(set(d.oopt_id))}
         log.info("D2: несколько файлов; по ООПТ используются: %s; заменено выделов прежних файлов: %d",
                  ", ".join(f"{o} — {n}" for o, n in src_of.items()), n_drop)
     d["fid"] = np.arange(1, len(d) + 1)
@@ -3793,6 +3855,12 @@ def ins_indicator(ctx: Ctx):
     if len(bad):
         log.warning("насекомые: не сопоставлены ООПТ %s", sorted(set(map(str, bad[of]))))
     t = t[t.oopt_id.notna()].copy()
+    have = set(t.oopt_id)
+    for oid in sorted(set(ctx.grid.oopt_id) - have):   # раздел без своих строк — рейтинг ООПТ (п. 7.3а)
+        par = ctx.odict.family(oid)
+        if par != oid and par in have:
+            t = pd.concat([t, t[t.oopt_id == par].assign(oopt_id=oid)], ignore_index=True)
+            log.info("насекомые: для раздела %s принят рейтинг ООПТ %s", oid, par)
     rows = []
     for _, r in t.iterrows():
         b = str(r[bf]).strip().lower()
@@ -3849,7 +3917,8 @@ def ins_indicator(ctx: Ctx):
             chk = []
             if of2:
                 dec = [ctx.odict.resolve(x) for x in pts[of2]]
-                chk = [{"OOZT": str(a), "в ООПТ": b} for a, b, d0 in zip(pts[of2], pts.oopt_id, dec) if b != d0]
+                fm = ctx.odict.family
+                chk = [{"OOZT": str(a), "в ООПТ": b} for a, b, d0 in zip(pts[of2], pts.oopt_id, dec) if fm(b) != fm(d0)]
             rep["plots_outside_declared_oopt"] = chk
             if ctx.eco is not None and bf2:
                 g = geo()
@@ -3914,7 +3983,7 @@ def rare_indicator(ctx: Ctx):
     pts, rep = read_points(c.files, "редкие растения", ctx)
     if pts is None:
         return None
-    surveyed = set(pts.oopt_id.dropna())   # ООПТ, где проводился учёт (п. 8.7.3)
+    surveyed = ctx.fam(set(pts.oopt_id.dropna()))   # ООПТ, где проводился учёт (п. 8.7.3, 7.3а)
     src = c.source if c.scale == "kkm" else "ref"
     cf = pick_field(pts.columns, CAT_NAMES, c.cat_field)
     if cf is None and src == "data":
@@ -4034,7 +4103,7 @@ def qbs_indicator(ctx: Ctx):
         yr = pd.to_numeric(pts[yf], errors="coerce")
         pts = pts[yr.isna() | (yr <= ctx.cfg.project.calc_year)].copy()
         yr = pd.to_numeric(pts[yf], errors="coerce")
-        last = yr.groupby(pts.oopt_id).transform("max")
+        last = yr.groupby(pts.oopt_id.map(ctx.odict.family)).transform("max")
         pts = pts[yr.isna() | (yr == last)].reset_index(drop=True)
         rep["year_by_oopt"] = {str(k): int(v) for k, v in pd.to_numeric(pts[yf], errors="coerce").groupby(pts.oopt_id).max().dropna().items()}
     hf = pick_field(pts.columns, ["ecosystemtype", "habitat_type", "тип местообитания"]) if c.habitat else None
@@ -4049,8 +4118,9 @@ def qbs_indicator(ctx: Ctx):
         hab_hex = sc_.replace({3: 2})
     from scipy.spatial import cKDTree
     xy = ctx.hex_xy
-    for oid, grp in pts.groupby("oopt_id"):
-        hx = np.where(g.oopt_id == oid)[0]
+    gfam = g.oopt_id.map(ctx.odict.family).to_numpy()
+    for oid, grp in pts.groupby(pts.oopt_id.map(ctx.odict.family)):   # раздел — вместе с ООПТ (п. 7.3а)
+        hx = np.where(gfam == oid)[0]
         if not len(hx):
             continue
         if c.method == "oopt_mean":
@@ -4237,7 +4307,7 @@ def inv_indicator(ctx: Ctx):
     if pts is None:
         return None
     pts = pts[pd.notna(pts.oopt_id)].reset_index(drop=True)
-    surveyed = set(pts.oopt_id)
+    surveyed = ctx.fam(set(pts.oopt_id))
     g = ctx.grid
     if c.ref_mode != "all":
         ref, rsrc = load_species_ref("invasive_plants", c.ref_files, ctx)
@@ -4399,7 +4469,7 @@ def alien_indicator(ctx: Ctx):
     if pts is None or not len(pts):
         return None
     pts = pts[pd.notna(pts.oopt_id)].reset_index(drop=True)
-    surveyed = set(pts.oopt_id.unique())
+    surveyed = ctx.fam(set(pts.oopt_id.unique()))
     keys, info = load_alien_ref(c, ctx)
     m, has = alien_match(pts, keys, c.species_field)
     if not has:
