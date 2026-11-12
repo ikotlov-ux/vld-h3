@@ -6,7 +6,7 @@ VLD-H3 — расчёт баллов Ценности, Нагрузки и На�
 и разнолетние выгрузки.
 
 ИПЭЭ РАН, лаборатория биогеоценологии. Техническое задание: docs/TZ_VLD_script.md
-(редакция 0.12).
+(редакция 0.22).
 
 Запуск:
     python vld_h3.py                         графический интерфейс
@@ -43,7 +43,7 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
-__version__ = "0.5.1"
+__version__ = "0.6.0"
 APP_NAME = "VLD-H3"
 APP_TITLE = "VLD-H3: Ценность – Нагрузка – Нарушенность"
 HERE = Path(__file__).resolve().parent
@@ -52,6 +52,30 @@ METRIC_CRS = "EPSG:32637"
 GEO_CRS = "EPSG:4326"
 
 log = logging.getLogger("vld_h3")
+
+
+def _setup_env():
+    """Пути к данным GDAL и PROJ для conda без активации окружения (Windows) и папка настроек matplotlib."""
+    pref = Path(sys.prefix)
+    for var, sub in (("GDAL_DATA", ("Library/share/gdal", "share/gdal")),
+                     ("PROJ_DATA", ("Library/share/proj", "share/proj")), ("PROJ_LIB", ("Library/share/proj", "share/proj"))):
+        if not os.environ.get(var):
+            for s_ in sub:
+                if (pref / s_).is_dir():
+                    os.environ[var] = str(pref / s_)
+                    break
+    if not os.environ.get("MPLCONFIGDIR"):
+        home = Path.home() / ".matplotlib"
+        try:
+            home.mkdir(exist_ok=True)
+            probe = home / ".vld_probe"
+            probe.write_text("1")
+            probe.unlink()
+        except OSError:
+            os.environ["MPLCONFIGDIR"] = str(Path(tempfile.gettempdir()) / "vld_h3_mpl")
+
+
+_setup_env()
 
 
 # ---------------------------------------------------------------------------
@@ -314,17 +338,10 @@ def read_table(path: str | Path, sheet: str | int | None = 0, layer: str | None 
     if ext in (".xlsx", ".xlsm", ".xls"):
         return pd.read_excel(p, sheet_name=sheet if sheet is not None else 0)
     if ext in (".csv", ".txt"):
-        raw = p.read_bytes()
-        for enc in ("utf-8-sig", "utf-8", "cp1251"):
-            try:
-                txt = raw.decode(enc)
-                break
-            except UnicodeDecodeError:
-                continue
-        head = txt[:5000]
-        sep = max([",", ";", "\t"], key=head.count)
+        sn = sniff_csv(p)
+        txt, sep = sn.pop("_text"), sn["sep"]
         df = pd.read_csv(io.StringIO(txt), sep=sep)
-        if sep == ";":  # десятичная запятая
+        if sn["decimal"] == ",":  # десятичная запятая
             for c in df.columns:
                 if df[c].dtype == object or str(df[c].dtype) == "str":
                     s = df[c].astype(str).str.replace(",", ".", regex=False)
@@ -336,6 +353,25 @@ def read_table(path: str | Path, sheet: str | int | None = 0, layer: str | None 
         g = geo()
         return g["gpd"].read_file(p, layer=layer, engine="pyogrio") if layer else g["gpd"].read_file(p, engine="pyogrio")
     raise VLDError(f"неподдерживаемый формат таблицы: {p.name}")
+
+
+CSV_SEP_NAMES = {",": "запятая", ";": "точка с запятой", "\t": "табуляция"}
+
+
+def sniff_csv(p: Path) -> dict:
+    """Кодировка (UTF-8-SIG, UTF-8, CP1251), разделитель («,» «;» табуляция) и десятичный знак CSV (п. 5.5)."""
+    raw = Path(p).read_bytes()
+    enc, txt = "cp1251", None
+    for e in ("utf-8-sig", "utf-8", "cp1251"):
+        try:
+            txt = raw.decode(e)
+            enc = "utf-8-sig" if e == "utf-8-sig" and raw.startswith(b"\xef\xbb\xbf") else ("utf-8" if e != "cp1251" else e)
+            break
+        except UnicodeDecodeError:
+            continue
+    head = txt[:5000]
+    sep = max([",", ";", "\t"], key=head.count)
+    return {"encoding": enc, "sep": sep, "decimal": "," if sep == ";" else ".", "_text": txt}
 
 
 def list_layers(path: str | Path) -> list[str]:
@@ -541,6 +577,11 @@ class InsCfg:
     biotop_map: dict = P(dict(BIOTOP_MAP_DEFAULT), "Тип экосистемы → BIOTOP", "Прил. Д; na — н/д.", "dict")
 
 
+FG_REF_MODES = {"override": "дополняет встроенный; при расхождении ФГ вида — по внешнему",
+                "union": "объединяется со встроенным (ФГ вида складываются, как в версии 0.5)",
+                "only": "заменяет встроенный"}
+
+
 def _fg_defaults(**kw):
     return lambda: FgCfg(**kw)
 
@@ -549,7 +590,8 @@ def _fg_defaults(**kw):
 class FgCfg:
     """Функциональные группы (млекопитающие, низшие позвоночные)"""
     files: list = P([], "Находки", "Точки или таблицы с координатами; ФГ — из поля ФГ или по справочнику «вид → ФГ».", "files", filetypes=PT_TYPES)
-    ref_files: list = P([], "Справочники «вид → ФГ» (D11)", "Пусто — встроенный справочник 2025 г.", "files", filetypes=TAB_TYPES)
+    ref_files: list = P([], "Справочники «вид → ФГ» (D11)", "Пусто — встроенный справочник 2025 г. Поля: вид (латынь) и (или) вид (русск.), ФГ (номер или название). Шаблон — кнопка «Справочники…», выгрузка встроенного.", "files", filetypes=TAB_TYPES)
+    ref_mode: str = P("override", "Внешний справочник ФГ", "Как внешний справочник D11 сочетается со встроенным (п. 8.3.1).", "choice", choices=FG_REF_MODES)
     species_field: str = P("", "Поле вида", "Пусто — автоподбор.", "text")
     fg_field: str = P("", "Поле ФГ", "Пусто — автоподбор; при пустом значении ФГ берётся по виду.", "text")
     groups: list = P([], "Учитываемые ФГ", "Коды ФГ; пусто — все.", "list")
@@ -580,6 +622,7 @@ class FishCfg:
     """Рыбы (только в пределах водоёмов)"""
     files: list = P([], "Находки", "Те же файлы, что для амфибий и рептилий: учитываются записи с таксономической группой «рыбы» или виды справочника рыб.", "files", filetypes=PT_TYPES)
     ref_files: list = P([], "Справочники «вид → ФГ» (D11)", "Пусто — встроенный: 1 хищники, 2 всеядные, 3 планктофаги.", "files", filetypes=TAB_TYPES)
+    ref_mode: str = P("override", "Внешний справочник ФГ", "Как внешний справочник D11 сочетается со встроенным (п. 8.3.1).", "choice", choices=FG_REF_MODES)
     species_field: str = P("", "Поле вида", "Пусто — автоподбор.", "text")
     fg_field: str = P("", "Поле ФГ", "Пусто — автоподбор; при пустом значении ФГ берётся по виду.", "text")
     taxon_field: str = P("", "Поле таксономической группы", "Пусто — автоподбор («группа таксономическая», «сист. группа»).", "text")
@@ -2448,13 +2491,34 @@ def to_float(s: pd.Series) -> pd.Series:
     return pd.to_numeric(t, errors="coerce")
 
 
+def split_source(path) -> tuple[Path, str | None, int | None]:
+    """«файл.gpkg::слой», «файл.xlsx::лист::строка заголовка», «файл.gpkg|layername=слой» → (путь, слой или лист, строка)."""
+    s = str(path).strip()
+    m = re.match(r"^(.*?)\|layername=([^|]*)", s)
+    if m:
+        return Path(m.group(1)), (m.group(2) or None), None
+    if "::" in s:
+        parts = s.split("::")
+        hdr = None
+        if len(parts) > 2 and parts[2].strip().isdigit():
+            hdr = int(parts[2]) or None
+        return Path(parts[0]), (parts[1] or None), hdr
+    return Path(s), None, None
+
+
 def split_layer(path) -> tuple[Path, str | None]:
     """«файл.gpkg::слой» → (путь, слой)."""
+    a, b, _ = split_source(path)
+    return a, b
+
+
+def join_source(path, sub: str | None = None, header: int | None = None) -> str:
     s = str(path)
-    if "::" in s:
-        a, b = s.rsplit("::", 1)
-        return Path(a), (b or None)
-    return Path(s), None
+    if sub or header:
+        s += "::" + (sub or "")
+        if header:
+            s += f"::{int(header)}"
+    return s
 
 
 def pick_layer(p: Path, layer: str | None = None) -> str | None:
@@ -2473,24 +2537,31 @@ def pick_layer(p: Path, layer: str | None = None) -> str | None:
     return lays[0]
 
 
-def read_any_table(p, layer: str | None = None) -> pd.DataFrame:
-    """CSV/XLSX с поиском строки заголовка по полям координат или h3_id; слои GPKG/SHP — с геометрией."""
-    p, lay = split_layer(p)
+def read_any_table(p, layer: str | None = None, header: int | None = None) -> pd.DataFrame:
+    """CSV/XLSX с поиском строки заголовка по полям координат или h3_id; слои GPKG/SHP — с геометрией.
+    Для XLSX лист и строка заголовка (с 1) задаются как «файл.xlsx::лист::строка» (п. 5.5)."""
+    p, lay, hdr = split_source(p)
     layer = layer or lay
+    header = header or hdr
     ext = p.suffix.lower()
     if ext in (".gpkg", ".shp", ".geojson", ".json"):
         return read_table(p, layer=pick_layer(p, layer))
     if ext in (".xlsx", ".xlsm", ".xls"):
         xl = pd.ExcelFile(p)
+        if layer and layer not in xl.sheet_names:
+            raise VLDError(f"{p.name}: нет листа «{layer}»; листы: {', '.join(xl.sheet_names)}")
+        if header:
+            df = pd.read_excel(xl, sheet_name=layer or 0, header=int(header) - 1)
+            return df.loc[:, [c for c in df.columns if not str(c).startswith("Unnamed")]]
         keys_ll = (set(LAT_NAMES), set(LON_NAMES))
-        for sh in xl.sheet_names:
+        for sh in ([layer] if layer else xl.sheet_names):
             raw = pd.read_excel(xl, sheet_name=sh, header=None, nrows=40)
             for i in range(len(raw)):
                 vals = {_norm_col(v) for v in raw.iloc[i].tolist() if isinstance(v, str)}
                 if (vals & keys_ll[0] and vals & keys_ll[1]) or vals & {"h3_id", "h3_polyfil", "oozt", "biotop"}:
                     df = pd.read_excel(xl, sheet_name=sh, header=i)
                     return df.loc[:, [c for c in df.columns if not str(c).startswith("Unnamed")]]
-        return pd.read_excel(xl, sheet_name=0)
+        return pd.read_excel(xl, sheet_name=layer or 0)
     return read_table(p)
 
 
@@ -2575,7 +2646,7 @@ def read_points(paths, label: str, ctx: Ctx, keep_geom: bool = False):
         if not p.exists():
             raise VLDError(f"{label}: файл не найден: {p}")
         ctx.inputs.append(str(p))
-        df = read_any_table(p, lay)
+        df = read_any_table(p0)
         info = {"rows": int(len(df))}
         if isinstance(df, g["gpd"].GeoDataFrame) and "geometry" in df and df.geometry.notna().any():
             gd = df
@@ -2678,10 +2749,10 @@ def load_species_ref(key: str, files: list, ctx: Ctx | None = None) -> tuple[pd.
     if files:
         frames = []
         for f in files:
-            frames.append(pd.DataFrame(read_any_table(*split_layer(f))))
+            frames.append(pd.DataFrame(read_any_table(f)))
             if ctx is not None:
-                ctx.inputs.append(str(f))
-        t, src = pd.concat(frames, ignore_index=True, sort=False), "файл: " + ", ".join(Path(f).name for f in files)
+                ctx.inputs.append(str(split_layer(f)[0]))
+        t, src = pd.concat(frames, ignore_index=True, sort=False), "файл: " + ", ".join(split_layer(f)[0].name for f in files)
     elif (RES_DIR / fname).exists():
         t, src = pd.read_csv(RES_DIR / fname, sep=";", dtype=str, encoding="utf-8-sig"), f"resources/{fname}"
     else:
@@ -2786,26 +2857,61 @@ def parse_fg(v, group: str):
     return s
 
 
-def load_fg_reference(group: str, files: list, ctx: Ctx):
+def load_fg_reference(group: str, files: list, ctx: Ctx | None = None, mode: str = "override"):
+    """Справочник «вид → ФГ»: встроенный (defaults.json) и внешние файлы D11 по правилу mode (FG_REF_MODES)."""
     lat, ru = {}, {}
-    for sp, (fg, rn) in builtin_ref("fg_reference", FG_REFERENCE).get(group, {}).items():
-        lat.setdefault(norm_species(sp), set()).add(fg)
-        ru.setdefault(norm_species(rn), set()).add(fg)
-    for f in files:
-        t = pd.DataFrame(read_any_table(Path(f)))
-        ctx.inputs.append(str(f))
+    if not (files and mode == "only"):
+        for sp, (fg, rn) in builtin_ref("fg_reference", FG_REFERENCE).get(group, {}).items():
+            lat.setdefault(norm_species(sp), set()).add(fg)
+            ru.setdefault(norm_species(rn), set()).add(fg)
+    ext_lat, ext_ru = {}, {}
+    for f in files or []:
+        t = pd.DataFrame(read_any_table(f))
+        if ctx is not None:
+            ctx.inputs.append(str(split_layer(f)[0]))
         sf = pick_field(t.columns, SPECIES_NAMES)
         rf = pick_field(t.columns, SPECIES_RU_NAMES)
-        ff = pick_field(t.columns, FG_NAMES, required_label=f"ФГ справочника {Path(f).name}")
+        ff = pick_field(t.columns, FG_NAMES, required_label=f"ФГ справочника {split_layer(f)[0].name}")
         for _, r in t.iterrows():
             fg = parse_fg(r[ff], group)
             if fg is None:
                 continue
             if sf and norm_species(r[sf]):
-                lat.setdefault(norm_species(r[sf]), set()).add(fg)
+                ext_lat.setdefault(norm_species(r[sf]), set()).add(fg)
             if rf and norm_species(r[rf]):
-                ru.setdefault(norm_species(r[rf]), set()).add(fg)
+                ext_ru.setdefault(norm_species(r[rf]), set()).add(fg)
+    n_diff = sum(1 for k, v in ext_lat.items() if k in lat and lat[k] != v)
+    for d, e in ((lat, ext_lat), (ru, ext_ru)):
+        for k, v in e.items():
+            if mode == "union":
+                d.setdefault(k, set()).update(v)
+            else:
+                d[k] = set(v)
+    if files:
+        log.info("%s: внешний справочник ФГ — видов %d, расхождений со встроенным %d (%s)", group, len(ext_lat), n_diff,
+                 FG_REF_MODES.get(mode, mode))
+        if ctx is not None:
+            ctx.report(f"fg_ref_{group}", species=len(ext_lat), differ=n_diff, mode=mode)
     return lat, ru
+
+
+def fg_reference_frame(group: str, files: list | None = None, mode: str = "override") -> pd.DataFrame:
+    """Действующий справочник «вид → ФГ» для просмотра и выгрузки (шаблон D11)."""
+    names = FG_NAMES_TXT.get(group, {})
+    rows = {}
+    for sp, (fg, rn) in builtin_ref("fg_reference", FG_REFERENCE).get(group, {}).items():
+        rows.setdefault(norm_species(sp), [sp, rn, set()])[2].add(fg)
+    if files:
+        lat, _ = load_fg_reference(group, files, None, mode)
+        for k in list(rows):
+            if k not in lat:
+                rows.pop(k)
+        for k, v in lat.items():
+            rows.setdefault(k, [k[:1].upper() + k[1:], "", set()])[2] = set(v)
+    out = [{"вид (латынь)": a, "вид (русск.)": b, "ФГ": x, "ФГ (название)": names.get(x, str(x))}
+           for a, b, c in rows.values() for x in sorted(c, key=str)]
+    return pd.DataFrame(out, columns=["вид (латынь)", "вид (русск.)", "ФГ", "ФГ (название)"]).sort_values(
+        ["вид (латынь)", "ФГ"], key=lambda c: c.astype(str)).reset_index(drop=True)
 
 
 def match_species(names_lat, names_ru, ref_lat, ref_ru):
@@ -2849,7 +2955,7 @@ def fg_of_points(df: pd.DataFrame, cfg, group: str, ctx: Ctx, label: str):
                 fg[i], how[i] = {c}, "поле ФГ"
     need = [i for i, v in enumerate(fg) if v is None]
     if need and (sf or rf):
-        ref_lat, ref_ru = load_fg_reference(group, cfg.ref_files, ctx)
+        ref_lat, ref_ru = load_fg_reference(group, cfg.ref_files, ctx, cfg.ref_mode)
         la = df[sf].iloc[need].tolist() if sf else [""] * len(need)
         ru = df[rf].iloc[need].tolist() if rf else [""] * len(need)
         m, h = match_species(la, ru, ref_lat, ref_ru)
@@ -2988,7 +3094,7 @@ def split_fish(df: pd.DataFrame, want_fish: bool, ctx: Ctx, label: str, taxon_fi
     tv = coalesce_fields(df, TAXON_NAMES, taxon_field)
     sv = coalesce_fields(df, SPECIES_NAMES, getattr(ctx.cfg.fish, "species_field", ""))
     rv = coalesce_fields(df, SPECIES_RU_NAMES)
-    ref_lat, ref_ru = load_fg_reference("fish", ctx.cfg.fish.ref_files, ctx)
+    ref_lat, ref_ru = load_fg_reference("fish", ctx.cfg.fish.ref_files, ctx, ctx.cfg.fish.ref_mode)
     by_sp = np.zeros(len(df), bool)
     if sv is not None:
         by_sp |= np.array([norm_species(x) in ref_lat for x in sv], bool)
@@ -5014,6 +5120,9 @@ def make_odict() -> OoptDict:
         old = next((x for x in od.rows if x[0] == oid), None)
         syn = list(dict.fromkeys((old[2] if old else []) + list(r.get("synonyms", []))))
         od.add(oid, r.get("oopt") or (old[1] if old else oid), syn)
+        par = str(r.get("parent") or "").strip().upper()
+        if par and par != "NAN":
+            od.parent[oid] = par
     return od
 
 
@@ -7253,11 +7362,301 @@ def build_parser() -> argparse.ArgumentParser:
     s3.add_argument("--work", required=True)
     s3.add_argument("--bounds", help="слой границ ООПТ")
     s3.add_argument("--eco", help="слои экосистем D2 через «;» для проверки переноса в контуры (П8.10)")
+    s4 = sp.add_parser("selftest4", help="автотесты этапа 4 (П6: пути и кодировки; П12: CLI и GUI)")
+    s4.add_argument("--work", required=True)
+    s4.add_argument("--no-gui", action="store_true", help="без проверок графического интерфейса")
     ck = sp.add_parser("check", help="проверка параметров и рекомендация способа А/Б по ООПТ")
     ck.add_argument("--config", required=True)
     ck.add_argument("--set", action="append", default=[], help="раздел.поле=значение")
     sp.add_parser("gui", help="графический интерфейс")
     return ap
+
+
+
+def selftest4(work: str, gui: bool = True) -> dict:
+    """Автотесты этапа 4: П6 (кириллица и пробелы в путях, SHP в CP1251 и UTF‑8, слой GPKG с кириллическим именем,
+    CSV и XLSX разных форматов) и П12 (единство CLI и GUI). Данные синтетические, сеть не нужна."""
+    import subprocess
+    g = geo()
+    gpd, shp = g["gpd"], g["shapely"]
+    from shapely.geometry import Point, box
+    res: dict[str, dict] = {}
+
+    def ok(name, cond, detail=""):
+        res[name] = {"ok": None if cond is None else bool(cond), "detail": detail}
+        log.info("%s %s: %s", "ПРОПУЩЕНО" if cond is None else ("OK" if cond else "ОШИБКА"), name, detail)
+
+    win = sys.platform.startswith("win")
+    base = Path(work).resolve()
+    # П6: пробелы, кириллица и (кроме Windows, где Win32 отбрасывает конечный пробел) пробел в конце имени папки
+    W = base / "Проект по паркам Москвы" / ("практика" if win else "практика ") / "2026"
+    W.mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(4)
+    from pyproj import Transformer
+    to_utm = Transformer.from_crs(GEO_CRS, METRIC_CRS, always_xy=True)
+    to_geo = Transformer.from_crs(METRIC_CRS, GEO_CRS, always_xy=True)
+
+    def sq(lon, lat, half):
+        x, y = to_utm.transform(lon, lat)
+        return box(x - half, y - half, x + half, y + half)
+
+    north, south = sq(37.50, 55.80, 450), sq(37.60, 55.70, 600)
+    nested = sq(37.598, 55.699, 180)
+    bm = gpd.GeoDataFrame({"NAME": ["Тестовый парк «Северный»", "Тестовый парк «Южный»", "Тестовый дендропарк"]},
+                          geometry=[north, south, nested], crs=METRIC_CRS).to_crs(GEO_CRS)
+    lay_b = "ООЗТ_практика2026"
+    f_b = W / "ООЗТ_практика2026.gpkg"
+    for f_ in (f_b,):
+        if f_.exists():
+            f_.unlink()
+    bm.to_file(f_b, layer=lay_b, driver="GPKG", engine="pyogrio")
+
+    def pts_in(n, polys):
+        out = []
+        for _ in range(n):
+            pl = polys[rng.integers(len(polys))]
+            x0, y0, x1, y1 = pl.bounds
+            while True:
+                x, y = rng.uniform(x0, x1), rng.uniform(y0, y1)
+                if pl.contains(Point(x, y)):
+                    break
+            lon, lat = to_geo.transform(x, y)
+            out.append((lat, lon))
+        return np.array(out)
+
+    polys = [north, south]
+    # млекопитающие: CSV в CP1251, «;», десятичная запятая
+    mam_sp = [(k, v[1]) for k, v in list(FG_REFERENCE["mam"].items())[:12]]
+    ll = pts_in(240, polys)
+    sp_i = rng.integers(len(mam_sp), size=len(ll))
+    mam = pd.DataFrame({"широта": ll[:, 0], "долгота": ll[:, 1], "вид (латынь)": [mam_sp[i][0] for i in sp_i],
+                        "вид (русск.)": [mam_sp[i][1] for i in sp_i]})
+    f_mam = W / "млекопитающие 2026.csv"
+    mam.to_csv(f_mam, sep=";", decimal=",", index=False, encoding="cp1251")
+    # амфибии и рептилии: XLSX, лист «Находки», заголовок в 3‑й строке
+    an_sp = [(k, v[1]) for k, v in FG_REFERENCE["anam"].items()]
+    ll = pts_in(90, polys)
+    sp_i = rng.integers(len(an_sp), size=len(ll))
+    pond = sq(37.603, 55.702, 80)
+    fi_sp = [(k, v[1]) for k, v in FG_REFERENCE["fish"].items()]
+    lf = pts_in(12, [pond])
+    fi_i = rng.integers(len(fi_sp), size=len(lf))
+    ll = np.vstack([ll, lf])
+    an = pd.DataFrame({"номер": range(1, len(ll) + 1), "lat (широта)": ll[:, 0], "long (долгота)": ll[:, 1],
+                       "группа таксономическая": ["амфибии и рептилии"] * len(sp_i) + ["рыбы"] * len(fi_i),
+                       "вид (латинское название)": [an_sp[i][0] for i in sp_i] + [fi_sp[i][0] for i in fi_i],
+                       "вид (русск название)": [an_sp[i][1] for i in sp_i] + [fi_sp[i][1] for i in fi_i],
+                       "водный объект": [""] * len(sp_i) + ["Тестовый пруд"] * len(fi_i)})
+    f_w = W / "водоёмы.gpkg"
+    if f_w.exists():
+        f_w.unlink()
+    gpd.GeoDataFrame({"name": ["Тестовый пруд"]}, geometry=[pond], crs=METRIC_CRS).to_crs(GEO_CRS).to_file(
+        f_w, layer="водоёмы", driver="GPKG", engine="pyogrio")
+    f_an = W / "низшие позвоночные.xlsx"
+    with pd.ExcelWriter(f_an) as xw:
+        pd.DataFrame({"a": ["пояснения к листу"]}).to_excel(xw, sheet_name="Пояснения", index=False)
+        pd.DataFrame([["Учёт амфибий и рептилий, 2026 г."], [""]]).to_excel(xw, sheet_name="Находки", index=False, header=False)
+        an.to_excel(xw, sheet_name="Находки", index=False, startrow=2)
+    # редкие растения: SHP в CP1251 и в UTF‑8 (одинаковое содержание)
+    ref_p, _ = load_species_ref("protected_plants", [])
+    rr = ref_p[(ref_p.group == "Сосудистые растения") & (ref_p.gor != "") & (ref_p.ru != "")].head(6)
+    ll = pts_in(30, polys)
+    rare = gpd.GeoDataFrame({"вид": rr.ru.values[rng.integers(len(rr), size=len(ll))]},
+                            geometry=gpd.points_from_xy(ll[:, 1], ll[:, 0]), crs=GEO_CRS)
+    f_r1, f_r2 = W / "редкие_cp1251.shp", W / "редкие_utf8.shp"
+    rare.to_file(f_r1, driver="ESRI Shapefile", engine="pyogrio", encoding="cp1251")
+    rare.to_file(f_r2, driver="ESRI Shapefile", engine="pyogrio", encoding="UTF-8")
+    # инвазивные растения: GPKG с кириллическим именем слоя (ссылка в форме QGIS «|layername=»)
+    ref_i, _ = load_species_ref("invasive_plants", [])
+    ll = pts_in(40, polys)
+    inv = gpd.GeoDataFrame({"вид": ref_i.lat.values[rng.integers(min(5, len(ref_i)), size=len(ll))]},
+                           geometry=gpd.points_from_xy(ll[:, 1], ll[:, 0]), crs=GEO_CRS)
+    f_inv = W / "инвазивные.gpkg"
+    if f_inv.exists():
+        f_inv.unlink()
+    inv.to_file(f_inv, layer="инвазивные_точки", driver="GPKG", engine="pyogrio")
+    inv.iloc[:3].to_file(f_inv, layer="прочее", driver="GPKG", engine="pyogrio")
+
+    od = make_odict()
+    pc = ProjectCfg(boundaries=str(f_b), boundaries_layer=lay_b)
+    bnd = read_boundaries(pc, od)
+    ok("П6.1 GPKG: кириллическое имя слоя и вложенный раздел", len(bnd) == 3 and set(od.parent.values()) & set(bnd.oopt_id),
+       f"ООПТ {len(bnd)}: {', '.join(bnd.oopt)}; разделы: {od.parent}")
+    grid = build_grid(bnd, 11)
+    sc = pd.DataFrame({"h3_id": grid.h3_id, "v_cap": rng.integers(1, 4, len(grid)), "v_zon": rng.integers(1, 4, len(grid)),
+                       "load_cat": rng.integers(1, 4, len(grid)), "d_frag": rng.integers(1, 4, len(grid))})
+    f_sc = W / "баллы, площадные.csv"
+    sc.to_csv(f_sc, index=False, encoding="utf-8")
+
+    sn = sniff_csv(f_mam)
+    t = read_any_table(f_mam)
+    ok("П6.2 CSV: CP1251, «;», десятичная запятая", sn["encoding"] == "cp1251" and sn["sep"] == ";" and sn["decimal"] == ","
+       and pd.api.types.is_numeric_dtype(t["широта"]) and t["вид (русск.)"].tolist() == mam["вид (русск.)"].tolist(),
+       f"кодировка {sn['encoding']}, разделитель «{sn['sep']}», десятичный знак «{sn['decimal']}»; строк {len(t)}")
+    ta = read_any_table(f_an)
+    tb = read_any_table(join_source(f_an, "Находки", 3))
+    err = ""
+    try:
+        read_any_table(join_source(f_an, "Нет такого листа"))
+    except VLDError as e:
+        err = str(e)
+    ok("П6.3 XLSX: лист и строка заголовка", len(ta) == len(tb) == len(an) and list(tb.columns) == list(an.columns) and "нет листа" in err,
+       f"автоподбор — {len(ta)} строк; «::Находки::3» — {len(tb)} строк; неверный лист: {err[:60]}")
+    a1, a2 = read_any_table(f_r1), read_any_table(f_r2)
+    ok("П6.4 SHP в CP1251 и UTF‑8", a1["вид"].tolist() == a2["вид"].tolist() == rare["вид"].tolist(),
+       f"записей {len(a1)}; пример «{a1['вид'].iat[0]}»")
+    t_inv = read_any_table(f"{f_inv}|layername=инвазивные_точки")
+    ok("П6.5 ссылка на слой «файл|layername=слой»", len(t_inv) == len(inv), f"строк {len(t_inv)} из слоя «инвазивные_точки»")
+
+    out_cli, out_gui = W / "результат CLI", W / "результат GUI"
+    cfg = preset_config("2026 — базовый")
+    cfg.project.boundaries, cfg.project.boundaries_layer = str(f_b), lay_b
+    cfg.project.out_dir = str(out_cli)
+    cfg.inputs.score_tables = [str(f_sc)]
+    cfg.mam.files = [str(f_mam)]
+    cfg.anam.files = [join_source(f_an, "Находки", 3)]
+    cfg.rare.files = [str(f_r1)]
+    cfg.inv.files = [f"{f_inv}::инвазивные_точки"]
+    cfg.fish.files = [join_source(f_an, "Находки", 3)]
+    cfg.fish.water_source, cfg.fish.water_files = "file", [str(f_w)]  # без обращения к Overpass API
+    cfg.quant_V.method = cfg.quant_D.method = "fixed"
+    cfg.output.file_name, cfg.output.extended, cfg.output.params_json = "vld_результат", True, False
+    f_cfg = W / "параметры теста.json"
+    cfg.save(f_cfg)
+    r0 = run_pipeline(Config.load(f_cfg))
+    sel0 = r0["sel"]
+    d0 = attr_digest(sel0)
+    gp = out_cli / "vld_результат.gpkg"
+    back = gpd.read_file(gp, engine="pyogrio") if gp.exists() else None
+    ok("П6.6 расчёт и выгрузка в папку с кириллицей и пробелами",
+       back is not None and len(back) == len(sel0) and sel0[["v_mam", "v_anam", "v_fish", "v_rare"]].notna().any().all(),
+       f"{gp.relative_to(base)}; гексагонов {len(sel0)}; рассчитаны v_mam, v_anam, v_fish (водоём из файла), v_rare, d_inv")
+    c_shp = copy.deepcopy(cfg)
+    c_shp.output.format, c_shp.project.out_dir = "shp", str(W / "результат SHP")
+    r_shp = run_pipeline(c_shp)
+    fs = next((Path(f) for f in r_shp["files"] if str(f).endswith(".shp")), None)
+    b2 = gpd.read_file(fs, engine="pyogrio") if fs else None
+    names_ok = b2 is not None and sorted(set(b2[[c for c in b2.columns if c.lower() in ("oopt", "title")][0]])) == sorted(set(sel0.oopt))
+    ok("П6.7 SHP‑выгрузка: кириллица в атрибутах (UTF‑8, .cpg)", names_ok and fs.with_suffix(".cpg").exists(),
+       f"{fs.name if fs else '—'}: {len(b2) if b2 is not None else 0} записей")
+    ok("П6.8 пробел в конце имени папки", None if win else (W.parent.name.endswith(" ") and gp.exists()),
+       "в Windows не применимо: Win32 удаляет конечные пробелы в именах папок" if win else f"папка «{W.parent.name}»")
+    # П12: пакетный режим — отдельный процесс
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    cp = subprocess.run([sys.executable, str(HERE / "vld_h3.py"), "run", "--config", str(f_cfg)], capture_output=True,
+                        text=True, encoding="utf-8", errors="replace", env=env, timeout=1800)
+    cli = gpd.read_file(gp, engine="pyogrio") if cp.returncode == 0 and gp.exists() else None
+    d_cli = attr_digest(cli) if cli is not None else ""
+    d_back = attr_digest(back) if back is not None else ""
+    ok("П12.1 CLI: повторный расчёт процессом run --config", cp.returncode == 0 and d_cli == d_back,
+       f"код {cp.returncode}; SHA-256 таблицы {d_cli[:16]}… = {d_back[:16]}…" + (f"; {cp.stderr[-300:]}" if cp.returncode else ""))
+    rt = []
+    for k_ in ("econ", "biotop", "zon_extra", "frag_signs", "rare_recode"):
+        c2 = copy.deepcopy(cfg)
+        for ext in (".csv", ".xlsx"):
+            fx = W / f"справочник {k_}{ext}"
+            ref_table_export(k_, cfg, fx)
+            ref_table_replace(k_, c2, fx)
+            _, _, s_, n_ = REF_TABLES[k_]
+            rt.append(getattr(getattr(c2, s_), n_) == getattr(getattr(cfg, s_), n_))
+    fx = W / "справочник ФГ млекопитающих.csv"
+    ref_table_export("fg_mam", cfg, fx)
+    la, _ = load_fg_reference("mam", [str(fx)], None, "only")
+    lb_, _ = load_fg_reference("mam", [], None)
+    rt.append(la == lb_)
+    ok("П12.2 справочники: выгрузка и обратная загрузка CSV/XLSX без изменений", all(rt), f"проверок {len(rt)}, совпало {sum(rt)}")
+    if not gui:
+        ok("П12.3 GUI", None, "пропущено по параметру --no-gui")
+        return _st4_finish(res, base)
+    global tk, ttk, filedialog, messagebox
+    try:
+        import tkinter as _tk
+        from tkinter import filedialog as _fd, messagebox as _mb, ttk as _ttk
+        import types
+        msgs: list = []
+        stub = types.SimpleNamespace(**{k: (lambda *a, _k=k, **kw: msgs.append((_k, a)) or False)
+                                        for k in ("showinfo", "showwarning", "showerror", "askyesno", "askokcancel", "askyesnocancel")})
+        tk, ttk, filedialog, messagebox = _tk, _ttk, _fd, stub  # окна сообщений не блокируют автотест
+        app = App(hidden=True)
+    except Exception as e:  # noqa: BLE001
+        ok("П12.3 GUI", None, f"графическая среда недоступна: {e}")
+        return _st4_finish(res, base)
+    try:
+        n_fields = sum(len(fields(getattr(Config(), s_))) for s_ in SECTION_TITLES)
+        ok("П12.3 GUI: виджет для каждого параметра схемы", len(app.widgets) == n_fields and
+           all((s_, f_.name) in app.widgets for s_ in SECTION_TITLES for f_ in fields(getattr(Config(), s_))),
+           f"параметров {n_fields}, виджетов {len(app.widgets)}")
+        bad = []
+        for nm, c_ in [("по умолчанию", Config())] + [(p_, preset_config(p_)) for p_ in PRESETS] + [("тест", Config.load(f_cfg))]:
+            app.set_config(c_)
+            app.root.update()
+            if app.get_config().to_dict() != c_.to_dict():
+                d1, d2 = c_.to_dict(), app.get_config().to_dict()
+                bad.append(nm + ": " + ", ".join(f"{s_}.{k}" for s_ in d1 for k in d1[s_] if d1[s_][k] != d2[s_][k]))
+        ok("П12.4 GUI: параметры JSON → интерфейс → JSON без изменений", not bad, "; ".join(bad) or f"наборов {len(PRESETS) + 2}")
+        app.set_config(Config.load(f_cfg))
+        app.use_vars["rare"].set(False)
+        app._toggle_use("rare")
+        off = "v_rare" not in app.get_config().agg_V.components
+        app.use_vars["rare"].set(True)
+        app._toggle_use("rare")
+        ok("П12.5 GUI: флажок «учитывать» и список показателей агрегации", off and app.get_config().agg_V.components ==
+           Config.load(f_cfg).agg_V.components, "v_rare исключается и возвращается на прежнее место")
+        app.widgets[("project", "out_dir")]["var"].set(str(out_gui))
+        app.root.update()
+        app.calculate()
+        t0 = dt.datetime.now()
+        while (app.worker is None or app.worker.is_alive() or not app.q.empty()) and (dt.datetime.now() - t0).seconds < 1800:
+            app.root.update()
+            app.worker and app.worker.join(0.05)
+        r_gui = getattr(app, "last_result", None)
+        gq = out_gui / "vld_результат.gpkg"
+        gtab = gpd.read_file(gq, engine="pyogrio") if gq.exists() else None
+        d_gui = attr_digest(gtab) if gtab is not None else ""
+        ok("П12.6 GUI: «Рассчитать» по тому же файлу параметров — таблица атрибутов совпадает с CLI",
+           r_gui is not None and d_gui == d_cli, f"SHA-256 GUI {d_gui[:16]}…, CLI {d_cli[:16]}…"
+           + (f"; сообщения: {msgs[-1]}" if msgs else ""))
+        sm = app.sections["mam"].summary.cget("text")
+        ok("П12.7 GUI: сводка раздела", "файлов: 1" in sm, f"«Млекопитающие»: {sm}")
+        try:
+            pv = PreviewWindow(app, "anam", "files")
+            app.root.update()
+            txt = pv.info.cget("text")
+            pv.top.destroy()
+            rw = RefWindow(app)
+            app.root.update()
+            n_ref = 0
+            for i in range(len(rw.keys)):
+                rw.lb.selection_clear(0, "end")
+                rw.lb.selection_set(i)
+                rw.show()
+                n_ref += "Ошибка" not in rw.info.cget("text")
+            rw.top.destroy()
+            ok("П12.8 GUI: окна предпросмотра и справочников", "Находки" in txt and n_ref == len(REF_TABLES),
+               f"предпросмотр: {txt.splitlines()[1] if len(txt.splitlines()) > 1 else txt}; справочников открыто {n_ref} из {len(REF_TABLES)}")
+        except Exception as e:  # noqa: BLE001
+            ok("П12.8 GUI: окна предпросмотра и справочников", False, str(e))
+    finally:
+        try:
+            log.removeHandler(app.qh)
+            app.root.destroy()
+        except Exception:  # noqa: BLE001
+            pass
+        messagebox = _mb
+    return _st4_finish(res, base)
+
+
+def _st4_finish(res, base: Path) -> dict:
+    env = {"python": sys.version.split()[0], "platform": platform.platform(), "machine": platform.machine(),
+           "versions": lib_versions() if "lib_versions" in globals() else {}}
+    try:
+        import tkinter
+        env["tk"] = str(tkinter.TkVersion)
+    except Exception:  # noqa: BLE001
+        env["tk"] = "нет"
+    (base / "selftest4_report.json").write_text(json.dumps({"env": env, "results": res}, ensure_ascii=False, indent=2, default=str),
+                                                encoding="utf-8")
+    return res
 
 
 def main(argv=None) -> int:
@@ -7367,6 +7766,11 @@ def main(argv=None) -> int:
         elif args.cmd == "zones-template":
             zones_template_table().to_csv(args.out, index=False, encoding="utf-8-sig")
             print(args.out)
+        elif args.cmd == "selftest4":
+            r = selftest4(args.work, not args.no_gui)
+            bad = [k for k, x in r.items() if x["ok"] is False]
+            print("\n".join(f"{'OK ' if x['ok'] else ('ПРОПУЩЕНО' if x['ok'] is None else 'ОШИБКА')} {k}: {x['detail']}" for k, x in r.items()))
+            return 1 if bad else 0
         elif args.cmd == "selftest3":
             r = selftest3(args.layer, args.work, args.bounds, args.eco)
             bad = [k for k, x in r.items() if not x["ok"]]
@@ -7381,6 +7785,248 @@ def main(argv=None) -> int:
     except (VLDError, ArchiveConflict, Cancelled) as e:
         log.error("%s", e)
         return 2
+
+
+# ---------------------------------------------------------------------------
+# Табличные справочники: просмотр, выгрузка и замена через CSV/XLSX (п. 5.4 ТЗ)
+# ---------------------------------------------------------------------------
+# ключ → (название, вид цели, раздел, поле); цель: field — параметр‑словарь, files/file — параметр‑файл,
+# defaults — запись в resources/defaults.json, view — только просмотр
+REF_TABLES = {
+    "oopt": ("ООПТ: идентификаторы, названия, синонимы, разделы", "defaults", "oopt_dict", None),
+    "zon_builtin": ("Зональность по типу экосистемы (прил. Г)", "defaults", "zon_builtin", None),
+    "zon_extra": ("Зональность: баллы кодов вне таблицы D3", "field", "zon", "extra"),
+    "biotop": ("Тип экосистемы → энтомологический биотоп BIOTOP (прил. Д)", "field", "ins", "biotop_map"),
+    "econ": ("Матрица контраста границ ECON (6 × 6)", "field", "frag", "econ"),
+    "frag_signs": ("Знаки метрик фрагментации", "field", "frag", "signs"),
+    "rare_recode": ("Редкие растения: категория → балл", "field", "rare", "recode"),
+    "fg_mam": ("ФГ млекопитающих «вид → ФГ» (D11)", "files", "mam", "ref_files"),
+    "fg_anam": ("ФГ амфибий и рептилий «вид → ФГ» (D11)", "files", "anam", "ref_files"),
+    "fg_fish": ("ФГ рыб «вид → ФГ» (D11)", "files", "fish", "ref_files"),
+    "protected_plants": ("Охраняемые растения и грибы", "files", "rare", "ref_files"),
+    "invasive_plants": ("Чужеродные инвазивные растения", "files", "inv", "ref_files"),
+    "alien_animals": ("Чужеродные инвазивные виды животных", "files", "alien", "ref_files"),
+    "zones": ("Матрицы решений V × D, V × L, V × L × D", "file", "mappal", "zones_file"),
+}
+REF_DICT_COLS = {"zon_extra": ("код типа", "балл"), "biotop": ("код типа", "BIOTOP"), "frag_signs": ("метрика", "знак"),
+                 "rare_recode": ("категория", "балл")}
+
+
+def _econ_frame(econ: dict) -> pd.DataFrame:
+    lab = {0: "0 фон", **{k: f"{k} {v}" for k, v in FRAG_CLASS_NAMES.items()}}
+    m = pd.DataFrame("", index=[lab[k] for k in range(7)], columns=[lab[k] for k in range(7)], dtype=object)
+    for k in range(1, 7):
+        m.iat[k, k] = 0
+    for key, w in econ.items():
+        a, b = (int(x) for x in str(key).split("-"))
+        m.iat[a, b] = m.iat[b, a] = w
+    m.index.name = "класс"
+    return m.reset_index()
+
+
+def _econ_from_frame(t: pd.DataFrame) -> dict:
+    cols = [_norm_col(c) for c in t.columns]
+    if {"a", "b"} <= set(cols) or {"класс 1", "класс 2"} <= set(cols):
+        a, b, w = t.columns[:3]
+        return {f"{int(r[a])}-{int(r[b])}": float(r[w]) for _, r in t.iterrows() if pd.notna(r[w])}
+    code = lambda v: int(re.match(r"\s*(\d+)", str(v)).group(1))  # noqa: E731
+    out = {}
+    for _, r in t.iterrows():
+        a = code(r.iloc[0])
+        for c in t.columns[1:]:
+            b, w = code(c), r[c]
+            if a > 0 and (a < b or b == 0) and str(w).strip() not in ("", "nan"):
+                out[f"{a}-{b}"] = float(str(w).replace(",", "."))
+    return out
+
+
+def ref_table_frame(key: str, cfg: Config) -> tuple[pd.DataFrame, str]:
+    """Справочник для просмотра и выгрузки и описание его источника."""
+    title, kind, sec, name = REF_TABLES[key]
+    if key == "oopt":
+        return make_odict().to_frame(), "встроенный, дополненный resources/defaults.json"
+    if key == "zon_builtin":
+        z = _zon_builtin()
+        return pd.DataFrame({"код типа": list(z), "балл": list(z.values())}), "встроенная таблица или resources/defaults.json"
+    if key == "econ":
+        return _econ_frame(cfg.frag.econ), "параметр frag.econ"
+    if key in REF_DICT_COLS:
+        a, b = REF_DICT_COLS[key]
+        d = getattr(getattr(cfg, sec), name)
+        return pd.DataFrame({a: list(d), b: list(d.values())}), f"параметр {sec}.{name}"
+    if key.startswith("fg_"):
+        c = getattr(cfg, sec)
+        src = "встроенный" + (" и внешний: " + ", ".join(split_layer(f)[0].name for f in c.ref_files) if c.ref_files else "")
+        return fg_reference_frame(key[3:], c.ref_files, c.ref_mode), src
+    if key in ("protected_plants", "invasive_plants", "alien_animals"):
+        files = getattr(getattr(cfg, sec), name)
+        if files:
+            return pd.concat([pd.DataFrame(read_any_table(f)).drop(columns="geometry", errors="ignore") for f in files],
+                             ignore_index=True, sort=False), "файл: " + ", ".join(split_layer(f)[0].name for f in files)
+        fname = {"alien_animals": "ref_alien_animals.csv"}.get(key) or SPECIES_REFS[key][0]
+        if (RES_DIR / fname).exists():
+            return pd.read_csv(RES_DIR / fname, sep=";", dtype=str, encoding="utf-8-sig"), f"resources/{fname}"
+        if key == "alien_animals":
+            return pd.DataFrame([list(r) for r in builtin_ref("alien_animals", ALIEN_ANIMALS)],
+                                columns=["вид (латынь)", "вид (русск.)", "синонимы", "группа", "среда"]), "встроенный"
+        _, const, cols = SPECIES_REFS[key]
+        return pd.DataFrame(globals()[const], columns=cols), "встроенный"
+    if key == "zones":
+        f = cfg.mappal.zones_file
+        if f and Path(f).exists():
+            return read_table(f), f"файл: {Path(f).name}"
+        return zones_template_table(), "встроенные шаблоны"
+    raise VLDError(f"нет справочника «{key}»")
+
+
+def ref_table_export(key: str, cfg: Config, path: str | Path) -> Path:
+    t, _ = ref_table_frame(key, cfg)
+    p = Path(path)
+    if p.suffix.lower() in (".xlsx", ".xlsm"):
+        t.to_excel(p, index=False, sheet_name=key[:31])
+    else:
+        t.to_csv(p, index=False, sep=";", encoding="utf-8-sig")
+    return p
+
+
+def ref_table_replace(key: str, cfg: Config, path: str | Path) -> str:
+    """Замена справочника из CSV/XLSX. Параметры‑словари и параметры‑файлы меняются в cfg;
+    справочники defaults.json записываются в resources/defaults.json (с копией прежнего файла). Возвращает описание."""
+    title, kind, sec, name = REF_TABLES[key]
+    if kind in ("files", "file"):
+        setattr(getattr(cfg, sec), name, [str(path)] if kind == "files" else str(path))
+        if key.startswith("fg_"):
+            fg_reference_frame(key[3:], [str(path)], getattr(cfg, sec).ref_mode)   # проверка формата
+        elif key != "zones":
+            ref_table_frame(key, cfg)
+        return f"{sec}.{name} = {Path(path).name}"
+    t = pd.DataFrame(read_any_table(path)).drop(columns="geometry", errors="ignore")
+    if key == "econ":
+        cfg.frag.econ = _econ_from_frame(t)
+        return f"frag.econ: пар {len(cfg.frag.econ)}"
+    if kind == "field":
+        ref = getattr(getattr(cfg, sec), name)
+        sample = next(iter(ref.values()), "")
+        conv = (lambda v: _num(str(v).replace(",", "."))) if isinstance(sample, (int, float)) else (lambda v: str(v).strip())
+        d = {re.sub(r"\.0$", "", str(r.iloc[0]).strip()): conv(r.iloc[1]) for _, r in t.iterrows() if pd.notna(r.iloc[0])}
+        setattr(getattr(cfg, sec), name, d)
+        return f"{sec}.{name}: записей {len(d)}"
+    # defaults.json
+    dp = RES_DIR / "defaults.json"
+    doc = load_defaults()
+    if key == "oopt":
+        od = OoptDict.from_frame(t.rename(columns={c: _norm_col(c) for c in t.columns}))
+        doc["oopt_dict"] = [{"oopt_id": o, "oopt": n, "synonyms": s_, "parent": od.parent.get(o, "")} for o, n, s_ in od.rows]
+        n = len(od.rows)
+    else:
+        doc["zon_builtin"] = {re.sub(r"\.0$", "", str(r.iloc[0]).strip()): int(float(r.iloc[1])) for _, r in t.iterrows()
+                              if pd.notna(r.iloc[0]) and pd.notna(r.iloc[1])}
+        n = len(doc["zon_builtin"])
+    RES_DIR.mkdir(parents=True, exist_ok=True)
+    if dp.exists():
+        shutil.copy2(dp, dp.with_name(f"defaults_{dt.datetime.now():%Y%m%d_%H%M%S}.json.bak"))
+    dp.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+    return f"resources/defaults.json: {REF_TABLES[key][2]}, записей {n}"
+
+
+def table_preview(path: str, n: int = 20) -> tuple[pd.DataFrame, dict]:
+    """Первые n строк источника и сведения о формате (п. 5.5): лист и строка заголовка XLSX, кодировка, разделитель
+    и десятичный знак CSV, слой GPKG; автоподбор полей (п. 5.6)."""
+    p, sub, hdr = split_source(path)
+    if not p.exists():
+        raise VLDError(f"файл не найден: {p}")
+    info: dict[str, Any] = {"file": p.name}
+    ext = p.suffix.lower()
+    if ext in (".csv", ".txt"):
+        sn = sniff_csv(p)
+        sn.pop("_text")
+        info.update(encoding=sn["encoding"], sep=CSV_SEP_NAMES.get(sn["sep"], sn["sep"]), decimal=sn["decimal"])
+    elif ext in (".xlsx", ".xlsm", ".xls"):
+        xl = pd.ExcelFile(p)
+        info.update(sheets=list(xl.sheet_names), sheet=sub or "", header=hdr or 0)
+    elif ext == ".gpkg":
+        info.update(layers=list_layers(p), layer=sub or pick_layer(p, None) or "")
+    t = read_any_table(path)
+    info["rows"] = int(len(t))
+    if ext in (".xlsx", ".xlsm", ".xls") and not hdr:
+        info["header_auto"] = True
+    cols = [c for c in t.columns if c != "geometry"]
+    info["columns"] = [str(c) for c in cols]
+    auto = {}
+    for lab, names in (("широта", LAT_NAMES), ("долгота", LON_NAMES), ("вид (латынь)", SPECIES_NAMES),
+                       ("вид (русск.)", SPECIES_RU_NAMES), ("ФГ", FG_NAMES), ("численность", COUNT_NAMES),
+                       ("таксономическая группа", TAXON_NAMES), ("водный объект", WATER_NAME_NAMES), ("категория", CAT_NAMES)):
+        f = pick_field(cols, names)
+        if f is not None:
+            auto[lab] = str(f)
+    if "geometry" in t.columns:
+        auto["геометрия"] = str(getattr(t, "crs", None) or "нет системы координат")
+    info["auto"] = auto
+    head = pd.DataFrame(t.drop(columns="geometry", errors="ignore")).head(n)
+    return head, info
+
+
+# поле → (параметр‑источник в том же разделе, имена для автоподбора)
+FIELD_SOURCES = {"name_field": "boundaries", "water_name_field": "water_files", "ready_field": "ready",
+                 "code_field": "path", "zon_fix_field": "path"}
+FIELD_AUTO = {"species_field": SPECIES_NAMES, "fg_field": FG_NAMES, "taxon_field": TAXON_NAMES, "count_field": COUNT_NAMES,
+              "cat_field": CAT_NAMES, "point_water_field": WATER_NAME_NAMES,
+              "name_field": ["NAME", "TITLE", "название", "name", "Название", "NAME_RU", "oopt", "oopt_src"],
+              "code_field": ["class_value", "eco_code", "code", "индекс"], "value_field": ["fg_n", "n_fg", "qbsgm", "qbs", "score", "балл"],
+              "group_field": ["group", "группа"], "water_name_field": ["name", "название"], "year_field": ["year", "год"]}
+
+
+def source_columns(path: str) -> list[str]:
+    """Имена полей источника без чтения всех строк, где это возможно."""
+    p, sub, hdr = split_source(path)
+    ext = p.suffix.lower()
+    if ext in (".gpkg", ".shp", ".geojson", ".json"):
+        inf = geo()["pyogrio"].read_info(p, layer=pick_layer(p, sub)) if ext == ".gpkg" else geo()["pyogrio"].read_info(p)
+        return [str(c) for c in inf["fields"]]
+    if ext in (".csv", ".txt"):
+        sn = sniff_csv(p)
+        return [str(c) for c in pd.read_csv(io.StringIO(sn["_text"]), sep=sn["sep"], nrows=5).columns]
+    return [str(c) for c in read_any_table(path).columns if c != "geometry"]
+
+
+# индикаторы разделов вкладок 2 и 4 → поля агрегации (флажок «учитывать», п. 5.4)
+SECTION_COMPONENT = {"ins": ("agg_V", ["v_ins"]), "mam": ("agg_V", ["v_mam"]), "anam": ("agg_V", ["v_anam"]),
+                     "fish": ("agg_V", ["v_fish"]), "bird": ("agg_V", ["v_bird"]),
+                     "aqua": ("agg_V", ["v_aqua", "v_phyt", "v_zpl", "v_zbn"]), "rare": ("agg_V", ["v_rare"]),
+                     "cap": ("agg_V", ["v_cap"]), "zon": ("agg_V", ["v_zon"]), "qbs": ("agg_V", ["v_qbs"]),
+                     "inv": ("agg_D", ["d_inv"]), "alien": ("agg_D", ["d_alien"]), "frag": ("agg_D", ["d_frag"])}
+
+
+def section_summary(sec: str, vals: dict) -> str:
+    """Краткая сводка раздела по значениям его полей (заголовок раздела в интерфейсе)."""
+    sub = getattr(Config(), sec)
+    parts = []
+    nfiles = 0
+    for f in fields(sub):
+        kind = f.metadata.get("widget")
+        v = vals.get(f.name)
+        if kind in ("files", "file", "savefile") and f.name not in ("ref_files", "typology"):
+            k = len(v) if isinstance(v, list) else (1 if v else 0)
+            nfiles += k
+    has_files = any(f.metadata.get("widget") in ("files", "file") and f.name not in ("ref_files", "typology") for f in fields(sub))
+    if has_files:
+        parts.append(f"файлов: {nfiles}" if nfiles else "файлы не заданы")
+    if "typology" in vals:
+        parts.append("типология: " + (Path(str(vals["typology"])).name if vals["typology"] else "встроенная (прил. Г)"))
+    if "ref_files" in vals:
+        parts.append("справочник: " + (f"внешний ({len(vals['ref_files'])})" if vals["ref_files"] else "встроенный"))
+    for nm in ("method", "rule", "stat", "format", "source", "mode", "kind"):
+        f = next((x for x in fields(sub) if x.name == nm and x.metadata.get("choices")), None)
+        if f is not None and vals.get(nm) is not None:
+            lab = str(f.metadata["choices"].get(vals[nm], vals[nm]))
+            parts.append("способ " + lab.split(" — ")[0] if nm == "method" and " — " in lab else lab)
+            break
+    if "build" in vals:
+        parts.insert(0, "строить" if vals["build"] else "не строить")
+    if "save" in vals and sec == "archive":
+        parts.insert(0, "сохранять" if vals["save"] else "не сохранять")
+    s = "; ".join(parts)
+    return s if len(s) <= 70 else s[:69] + "…"
 
 
 # ---------------------------------------------------------------------------
@@ -7441,26 +8087,45 @@ class ScrollFrame:
         self.canvas.configure(yscrollcommand=sb.set)
         self.canvas.pack(side="left", fill="both", expand=True)
         sb.pack(side="right", fill="y")
-        self.canvas.bind("<Enter>", lambda e: self.canvas.bind_all("<MouseWheel>", self._wheel))
-        self.canvas.bind("<Leave>", lambda e: self.canvas.unbind_all("<MouseWheel>"))
-        self.canvas.bind_all("<Button-4>", lambda e: self.canvas.yview_scroll(-2, "units"), add="+")
-        self.canvas.bind_all("<Button-5>", lambda e: self.canvas.yview_scroll(2, "units"), add="+")
+        self.outer.bind("<Enter>", self._bind)
+        self.outer.bind("<Leave>", self._unbind)
+
+    def _bind(self, _=None):
+        self.canvas.bind_all("<MouseWheel>", self._wheel)
+        self.canvas.bind_all("<Button-4>", lambda e: self.canvas.yview_scroll(-2, "units"))
+        self.canvas.bind_all("<Button-5>", lambda e: self.canvas.yview_scroll(2, "units"))
+
+    def _unbind(self, _=None):
+        for ev in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            self.canvas.unbind_all(ev)
 
     def _wheel(self, e):
-        d = e.delta if sys.platform == "darwin" else e.delta // 120
+        if sys.platform == "darwin":
+            d = e.delta
+        else:
+            d = int(e.delta / 120) or (1 if e.delta > 0 else -1)
         self.canvas.yview_scroll(-d, "units")
 
 
 class Section:
-    """Сворачиваемый раздел с заголовком ▸/▾."""
+    """Сворачиваемый раздел: заголовок ▸/▾, краткая сводка состояния и флажок «учитывать» (п. 5.4)."""
 
-    def __init__(self, parent, title, opened=True):
+    def __init__(self, parent, title, opened=True, use_var=None, use_cmd=None):
         self.frame = ttk.Frame(parent, padding=(4, 2))
         self.frame.pack(fill="x", expand=False, pady=2)
         self.opened = opened
-        self.btn = ttk.Button(self.frame, text=self._t(title), style="Section.TButton", command=self.toggle)
         self.title = title
-        self.btn.pack(fill="x")
+        head = ttk.Frame(self.frame)
+        head.pack(fill="x")
+        head.columnconfigure(0, weight=1)
+        self.btn = ttk.Button(head, text=self._t(title), style="Section.TButton", command=self.toggle)
+        self.btn.grid(row=0, column=0, sticky="ew")
+        self.summary = ttk.Label(head, text="", style="Summary.TLabel")
+        self.summary.grid(row=0, column=1, sticky="e", padx=(8, 4))
+        self.use = None
+        if use_var is not None:
+            self.use = ttk.Checkbutton(head, text="учитывать", variable=use_var, command=use_cmd)
+            self.use.grid(row=0, column=2, sticky="e", padx=(4, 2))
         self.body = ttk.Frame(self.frame, padding=(14, 4))
         self.body.columnconfigure(1, weight=1)
         if opened:
@@ -7477,20 +8142,262 @@ class Section:
         else:
             self.body.pack_forget()
 
+    def set_summary(self, text):
+        self.summary.configure(text=text)
+
+
+def tkfont_measure(widget):
+    """Функция ширины текста в пикселях шрифтом таблиц Treeview."""
+    from tkinter import font as tkfont
+    try:
+        fnt = tkfont.nametofont("TkDefaultFont")
+    except Exception:  # noqa: BLE001
+        return lambda t: 7 * len(t)
+    return lambda t: fnt.measure(t[:80])
+
+
+def _tree(parent, df: pd.DataFrame, height=14, colwidth=120):
+    """Таблица только для просмотра (без поклеточного редактирования)."""
+    fr = ttk.Frame(parent)
+    cols = [str(c) for c in df.columns]
+    tv = ttk.Treeview(fr, columns=cols, show="headings", height=height)
+    f = tkfont_measure(parent)
+    for c, c0 in zip(cols, df.columns):
+        vals = [str(x) for x in df[c0].head(200).tolist()] + [c]
+        wd = max(f(x) for x in vals) + 16
+        tv.heading(c, text=c)
+        tv.column(c, width=int(min(max(wd, 50), 3 * colwidth)), minwidth=40, stretch=False)
+    for row in df.itertuples(index=False):
+        tv.insert("", "end", values=["" if (isinstance(x, float) and np.isnan(x)) else str(x) for x in row])
+    ys = ttk.Scrollbar(fr, orient="vertical", command=tv.yview)
+    xs = ttk.Scrollbar(fr, orient="horizontal", command=tv.xview)
+    tv.configure(yscrollcommand=ys.set, xscrollcommand=xs.set)
+    tv.grid(row=0, column=0, sticky="nsew")
+    ys.grid(row=0, column=1, sticky="ns")
+    xs.grid(row=1, column=0, sticky="ew")
+    fr.rowconfigure(0, weight=1)
+    fr.columnconfigure(0, weight=1)
+    return fr
+
+
+class PreviewWindow:
+    """Предпросмотр 20 строк файла: лист и строка заголовка XLSX, слой GPKG, кодировка и разделитель CSV (п. 5.5),
+    автоподбор полей (п. 5.6). «Применить» записывает выбор в параметр как «файл::лист::строка»."""
+
+    def __init__(self, app, sec, name):
+        self.app, self.sec, self.name = app, sec, name
+        w = app.widgets[(sec, name)]
+        self.multi = w["kind"] == "files"
+        raw = w["var"].get()
+        self.items = [x.strip() for x in raw.split(";") if x.strip()] if self.multi else ([raw.strip()] if raw.strip() else [])
+        if not self.items:
+            messagebox.showinfo(APP_NAME, "Файл не выбран.")
+            return
+        self.top = tk.Toplevel(app.root)
+        self.top.title(f"Просмотр: {w['field'].metadata.get('label', name)}")
+        self.top.geometry(app.px(980, 560))
+        bar = ttk.Frame(self.top, padding=6)
+        bar.pack(fill="x")
+        ttk.Label(bar, text="Файл").grid(row=0, column=0, sticky="w")
+        self.file_var = tk.StringVar(value=self.items[0])
+        cb = ttk.Combobox(bar, textvariable=self.file_var, values=self.items, state="readonly", width=90)
+        cb.grid(row=0, column=1, columnspan=5, sticky="ew", padx=4)
+        cb.bind("<<ComboboxSelected>>", lambda e: self.load(reset=True))
+        ttk.Label(bar, text="Лист / слой").grid(row=1, column=0, sticky="w", pady=4)
+        self.sub_var = tk.StringVar()
+        self.sub_cb = ttk.Combobox(bar, textvariable=self.sub_var, values=[], state="readonly", width=40)
+        self.sub_cb.grid(row=1, column=1, sticky="w", padx=4)
+        ttk.Label(bar, text="Строка заголовка (0 — авто)").grid(row=1, column=2, sticky="e", padx=(12, 4))
+        self.hdr_var = tk.StringVar(value="0")
+        self.hdr = ttk.Spinbox(bar, from_=0, to=100, textvariable=self.hdr_var, width=5)
+        self.hdr.grid(row=1, column=3, sticky="w")
+        ttk.Button(bar, text="Обновить", command=self.load).grid(row=1, column=4, padx=6)
+        ttk.Button(bar, text="Применить к параметру", command=self.apply).grid(row=1, column=5, padx=2)
+        bar.columnconfigure(5, weight=1)
+        self.info = ttk.Label(self.top, text="", justify="left", padding=(8, 2), wraplength=app.px_i(940))
+        self.info.pack(fill="x")
+        self.body = ttk.Frame(self.top, padding=6)
+        self.body.pack(fill="both", expand=True)
+        self.load(reset=True)
+
+    def _spec(self):
+        p, sub, hdr = split_source(self.file_var.get())
+        sub = self.sub_var.get() or None
+        try:
+            h = int(self.hdr_var.get() or 0)
+        except ValueError:
+            h = 0
+        return p, sub, (h or None)
+
+    def load(self, reset=False):
+        if reset:
+            p, sub, hdr = split_source(self.file_var.get())
+            self.sub_var.set(sub or "")
+            self.hdr_var.set(str(hdr or 0))
+        p, sub, hdr = self._spec()
+        try:
+            head, info = table_preview(join_source(p, sub, hdr))
+        except Exception as e:  # noqa: BLE001
+            self.info.configure(text=f"Ошибка чтения: {e}")
+            return
+        opts = info.get("sheets") or info.get("layers") or []
+        self.sub_cb.configure(values=[""] + opts, state="readonly" if opts else "disabled")
+        self.hdr.configure(state="normal" if "sheets" in info else "disabled")
+        lines = [f"{info['file']}: строк {info['rows']}, полей {len(info['columns'])}"]
+        if "encoding" in info:
+            lines.append(f"CSV: кодировка {info['encoding']}, разделитель — {info['sep']}, десятичный знак «{info['decimal']}»")
+        if "sheets" in info:
+            lines.append(f"XLSX: листы {', '.join(info['sheets'])}; строка заголовка — "
+                         + ("автоподбор по полям координат или h3_id" if info.get("header_auto") else str(hdr)))
+        if "layers" in info:
+            lines.append(f"GPKG: слои {', '.join(info['layers'])}; используется «{info['layer']}»")
+        if info["auto"]:
+            lines.append("Автоподбор полей: " + "; ".join(f"{k} — «{v}»" for k, v in info["auto"].items()))
+        self.info.configure(text="\n".join(lines))
+        for ch in self.body.winfo_children():
+            ch.destroy()
+        _tree(self.body, head, height=20).pack(fill="both", expand=True)
+
+    def apply(self):
+        p, sub, hdr = self._spec()
+        new = join_source(p, sub, hdr)
+        w = self.app.widgets[(self.sec, self.name)]
+        old = self.file_var.get()
+        if self.multi:
+            self.items = [new if x == old else x for x in self.items]
+            w["var"].set("; ".join(self.items))
+        else:
+            self.items = [new]
+            w["var"].set(new)
+        self.file_var.set(new)
+        log.info("источник уточнён: %s", new)
+
+
+class RefWindow:
+    """Табличные справочники: просмотр, выгрузка в CSV/XLSX, замена из файла (п. 5.4)."""
+
+    def __init__(self, app):
+        self.app = app
+        self.top = tk.Toplevel(app.root)
+        self.top.title("Справочники")
+        self.top.geometry(app.px(1060, 600))
+        pw = ttk.PanedWindow(self.top, orient="horizontal")
+        pw.pack(fill="both", expand=True, padx=6, pady=6)
+        left = ttk.Frame(pw)
+        self.keys = list(REF_TABLES)
+        self.lb = tk.Listbox(left, exportselection=False, width=58)
+        for k in self.keys:
+            self.lb.insert("end", REF_TABLES[k][0])
+        self.lb.pack(fill="both", expand=True)
+        self.lb.bind("<<ListboxSelect>>", lambda e: self.show())
+        pw.add(left, weight=1)
+        right = ttk.Frame(pw)
+        self.info = ttk.Label(right, text="", justify="left", wraplength=app.px_i(640))
+        self.info.pack(fill="x", pady=(0, 4))
+        bar = ttk.Frame(right)
+        bar.pack(fill="x", pady=(0, 4))
+        ttk.Button(bar, text="Выгрузить…", command=self.export).pack(side="left", padx=2)
+        ttk.Button(bar, text="Заменить из файла…", command=self.replace).pack(side="left", padx=2)
+        ttk.Button(bar, text="Вернуть встроенный", command=self.reset).pack(side="left", padx=2)
+        self.body = ttk.Frame(right)
+        self.body.pack(fill="both", expand=True)
+        pw.add(right, weight=3)
+        self.lb.selection_set(0)
+        self.show()
+
+    def key(self):
+        sel = self.lb.curselection()
+        return self.keys[sel[0]] if sel else self.keys[0]
+
+    def show(self):
+        k = self.key()
+        title, kind, sec, name = REF_TABLES[k]
+        cfg = self.app.get_config()
+        try:
+            t, src = ref_table_frame(k, cfg)
+        except Exception as e:  # noqa: BLE001
+            self.info.configure(text=f"{title}\nОшибка: {e}")
+            return
+        where = {"field": f"параметр {sec}.{name} (сохраняется в файле параметров)",
+                 "files": f"параметр {sec}.{name} (файл справочника)", "file": f"параметр {sec}.{name} (файл)",
+                 "defaults": "resources/defaults.json (общий для всех расчётов; прежний файл сохраняется копией .bak)"}[kind]
+        self.info.configure(text=f"{title}\nИсточник: {src}; записей {len(t)}\nЗамена: {where}")
+        for ch in self.body.winfo_children():
+            ch.destroy()
+        _tree(self.body, t, height=18, colwidth=110 if len(t.columns) > 6 else 160).pack(fill="both", expand=True)
+
+    def export(self):
+        k = self.key()
+        p = filedialog.asksaveasfilename(parent=self.top, title="Выгрузить справочник", defaultextension=".csv",
+                                         initialfile=f"{k}.csv", filetypes=[("CSV (;)", "*.csv"), ("Excel", "*.xlsx")])
+        if p:
+            ref_table_export(k, self.app.get_config(), p)
+            log.info("справочник «%s» выгружен: %s", REF_TABLES[k][0], p)
+
+    def replace(self):
+        k = self.key()
+        title, kind, sec, name = REF_TABLES[k]
+        p = filedialog.askopenfilename(parent=self.top, title=f"Заменить: {title}",
+                                       filetypes=[("Таблицы", "*.csv *.xlsx *.xls"), ("Все файлы", "*.*")])
+        if not p:
+            return
+        if kind == "defaults" and not messagebox.askyesno(APP_NAME, "Справочник будет записан в resources/defaults.json "
+                                                          "и будет действовать во всех расчётах. Продолжить?", parent=self.top):
+            return
+        cfg = self.app.get_config()
+        try:
+            msg = ref_table_replace(k, cfg, p)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror(APP_NAME, f"Справочник не заменён: {e}", parent=self.top)
+            return
+        if kind != "defaults":
+            self.app.set_config(cfg)
+        log.info("справочник «%s» заменён: %s", title, msg)
+        self.show()
+
+    def reset(self):
+        k = self.key()
+        title, kind, sec, name = REF_TABLES[k]
+        if kind == "defaults":
+            dp = RES_DIR / "defaults.json"
+            doc = load_defaults()
+            if name not in doc or not messagebox.askyesno(APP_NAME, f"Удалить «{name}» из resources/defaults.json?", parent=self.top):
+                return
+            shutil.copy2(dp, dp.with_name(f"defaults_{dt.datetime.now():%Y%m%d_%H%M%S}.json.bak"))
+            doc.pop(name)
+            dp.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+        else:
+            cfg = self.app.get_config()
+            setattr(getattr(cfg, sec), name, copy.deepcopy(getattr(getattr(Config(), sec), name)))
+            self.app.set_config(cfg)
+        log.info("справочник «%s»: встроенный", title)
+        self.show()
+
 
 class App:
-    def __init__(self):
+    def __init__(self, hidden: bool = False):
         self.root = tk.Tk()
+        if hidden:
+            self.root.withdraw()
         self.root.title(f"{APP_TITLE} — версия {__version__}")
-        self.root.minsize(1024, 700)
-        self.root.geometry("1180x820")
+        # масштаб: Windows при 125–200 % (процесс DPI‑aware) — по фактическому DPI; macOS (Retina) — системный
+        self.k = 1.0 if sys.platform == "darwin" else max(1.0, self.root.winfo_fpixels("1i") / 96.0)
+        sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
+        self.root.minsize(min(self.px_i(1024), sw - 20), min(self.px_i(700), sh - 60))
+        self.root.geometry(f"{min(self.px_i(1180), sw - 20)}x{min(self.px_i(820), sh - 60)}")
+        self.compact = sh / self.k < 900
         st = ttk.Style(self.root)
         st.configure("Section.TButton", anchor="w", font=("TkDefaultFont", 10, "bold"))
+        st.configure("Summary.TLabel", foreground="#555555")
         self.q: queue.Queue = queue.Queue()
         self.qh = _QueueLog(self.q)
         log.addHandler(self.qh)
         log.setLevel(logging.INFO)
         self.widgets: dict[tuple[str, str], dict] = {}
+        self.sections: dict[str, Section] = {}
+        self.use_vars: dict[str, Any] = {}
+        self._cols_cache: dict = {}
+        self._pending: set = set()
         self.worker: threading.Thread | None = None
         self.cfg = preset_config("2026 — базовый")
         self._images = []
@@ -7500,10 +8407,18 @@ class App:
         self.set_config(self.cfg)
         self.root.after(100, self._poll)
 
+    def px_i(self, v) -> int:
+        return int(round(v * self.k))
+
+    def px(self, w, h) -> str:
+        sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
+        return f"{min(self.px_i(w), sw - 40)}x{min(self.px_i(h), sh - 80)}"
+
     # -- заголовок ----------------------------------------------------------
     def _header(self):
         h = ttk.Frame(self.root, padding=(8, 6))
         h.pack(fill="x")
+        hh = self.px_i(56 if not getattr(self, "compact", False) else 44)
         for fn, name in LOGOS:
             p = RES_DIR / "logos" / fn
             img = None
@@ -7511,12 +8426,12 @@ class App:
                 try:
                     from PIL import Image, ImageTk
                     im = Image.open(p)
-                    im.thumbnail((int(56 * im.width / im.height), 56))
+                    im.thumbnail((int(hh * im.width / im.height), hh))
                     img = ImageTk.PhotoImage(im)
                 except Exception:  # noqa: BLE001
                     try:
                         img = tk.PhotoImage(file=str(p))
-                        k = max(1, img.height() // 56)
+                        k = max(1, img.height() // hh)
                         img = img.subsample(k, k)
                     except Exception:  # noqa: BLE001
                         img = None
@@ -7524,28 +8439,48 @@ class App:
                 self._images.append(img)
                 lb = ttk.Label(h, image=img)
             else:
-                lb = ttk.Label(h, text=name, wraplength=110, justify="center", font=("TkDefaultFont", 8))
+                lb = ttk.Label(h, text=name, wraplength=self.px_i(110), justify="center", font=("TkDefaultFont", 8))
             lb.pack(side="left", padx=6)
         ttk.Label(h, text=f"{APP_TITLE}\nверсия {__version__}", font=("TkDefaultFont", 12, "bold"),
                   justify="left").pack(side="left", padx=14)
+        b = ttk.Button(h, text="Справочники…", command=lambda: RefWindow(self))
+        b.pack(side="right", padx=4)
+        Tooltip(b, "Просмотр, выгрузка в CSV/XLSX и замена табличных справочников: ООПТ и синонимы, зональность, "
+                   "BIOTOP, матрица ECON, ФГ, охраняемые и чужеродные виды, матрицы решений.")
 
     # -- вкладки ------------------------------------------------------------
     def _tabs(self):
         nb = ttk.Notebook(self.root)
         nb.pack(fill="both", expand=True, padx=6)
+        self.nb = nb
         self.tab_inner = {}
         for k, name in TAB_NAMES.items():
             sf = ScrollFrame(nb)
             nb.add(sf.outer, text=f"{k}. {name}")
             self.tab_inner[k] = sf.inner
             if k in TAB_STUBS:
-                ttk.Label(sf.inner, text=TAB_STUBS[k], wraplength=900, justify="left",
+                ttk.Label(sf.inner, text=TAB_STUBS[k], wraplength=self.px_i(900), justify="left",
                           padding=12).pack(anchor="w")
         for sec, (title, tab) in SECTION_TITLES.items():
-            s = Section(self.tab_inner[tab], title)
+            uv = None
+            if sec in SECTION_COMPONENT:
+                uv = tk.BooleanVar(value=True)
+                self.use_vars[sec] = uv
+            s = Section(self.tab_inner[tab], title, use_var=uv, use_cmd=(lambda s_=sec: self._toggle_use(s_)) if uv else None)
+            if uv is not None:
+                Tooltip(s.use, f"Включить показатель в агрегацию {SECTION_COMPONENT[sec][0][-1]} "
+                               f"(список «Частные показатели», вкладка 5).")
+            self.sections[sec] = s
             sub = getattr(self.cfg, sec)
             for row, f in enumerate(fields(sub)):
                 self._field(s.body, row, sec, f)
+        for (sec, name), w in self.widgets.items():
+            for v in ([w["var"]] if w.get("var") is not None else []) + list(w.get("vars", {}).values()):
+                v.trace_add("write", lambda *_, s_=sec: self._schedule(s_))
+            if w["kind"] == "oopt_list":
+                w["listbox"].bind("<<ListboxSelect>>", lambda e, s_=sec: self._schedule(s_), add="+")
+        for agg in ("agg_V", "agg_D"):
+            self.widgets[(agg, "components")]["var"].trace_add("write", lambda *_: self._sync_use())
         btns = ttk.Frame(self.tab_inner[6], padding=8)
         btns.pack(fill="x")
         ttk.Button(btns, text="Содержимое архива", command=self.show_archive).pack(side="left", padx=4)
@@ -7587,14 +8522,31 @@ class App:
             lb.grid(row=0, column=0, sticky="ew")
             ttk.Button(fr, text="Загрузить список", command=self.load_oopt_list).grid(row=0, column=1, padx=4, sticky="n")
             w["listbox"], w["ids"] = lb, []
+        elif kind == "text" and self._field_source(sec, f.name):
+            # сопоставление полей: выпадающий список полей файла с автоподбором (п. 5.6)
+            var = tk.StringVar()
+            cb = ttk.Combobox(fr, textvariable=var, values=[""])
+            cb.grid(row=0, column=0, sticky="ew")
+            hint = ttk.Label(fr, text="пусто — автоподбор", style="Summary.TLabel")
+            hint.grid(row=0, column=1, padx=6, sticky="w")
+            cb.configure(postcommand=lambda: self._fill_cols(sec, f.name, cb, hint))
+            w["hint"] = hint
         else:
             var = tk.StringVar()
             ent = ttk.Entry(fr, textvariable=var)
             ent.grid(row=0, column=0, sticky="ew")
+            col = 1
             if kind in ("file", "files", "savefile", "dir"):
-                ttk.Button(fr, text="Обзор…", command=lambda: self.browse(sec, f.name)).grid(row=0, column=1, padx=4)
+                ttk.Button(fr, text="Обзор…", command=lambda: self.browse(sec, f.name)).grid(row=0, column=col, padx=4)
+                col += 1
+            if kind in ("file", "files"):
+                bp = ttk.Button(fr, text="Просмотр", command=lambda: PreviewWindow(self, sec, f.name))
+                bp.grid(row=0, column=col, padx=(0, 4))
+                Tooltip(bp, "Первые 20 строк; для XLSX — выбор листа и строки заголовка, для GPKG — слоя; "
+                            "для CSV — определённые кодировка, разделитель и десятичный знак.")
+                col += 1
             if kind == "files":
-                ttk.Button(fr, text="Очистить", command=lambda: var.set("")).grid(row=0, column=2)
+                ttk.Button(fr, text="Очистить", command=lambda: var.set("")).grid(row=0, column=col)
             if kind == "layer":
                 ttk.Button(fr, text="Слои", command=lambda: self.pick_layer(sec, f.name, md.get("source"))).grid(row=0, column=1, padx=4)
             if f.name == "h3_res":
@@ -7604,6 +8556,94 @@ class App:
         w["var"] = var
         self.widgets[(sec, f.name)] = w
 
+    def _field_source(self, sec, name) -> str | None:
+        """Параметр‑файл раздела, по полям которого строится выпадающий список (п. 5.6)."""
+        if not (name.endswith("_field") or name in FIELD_AUTO):
+            return None
+        sub = getattr(self.cfg, sec)
+        names = [f.name for f in fields(sub)]
+        src = FIELD_SOURCES.get(name)
+        if src in names:
+            return src
+        for f in fields(sub):
+            if f.metadata.get("widget") in ("files", "file") and f.name not in ("ref_files", "typology", "coords", "ratings",
+                                                                                 "water_files", "ready"):
+                return f.name
+        return None
+
+    def _fill_cols(self, sec, name, cb, hint):
+        src = self._field_source(sec, name)
+        w = self.widgets.get((sec, src))
+        raw = w["var"].get() if w else ""
+        first = next((x.strip() for x in raw.split(";") if x.strip()), "")
+        if not first:
+            hint.configure(text="нет файла — автоподбор при расчёте")
+            return
+        p = split_source(first)[0]
+        key = (first, p.stat().st_mtime if p.exists() else 0)
+        try:
+            if key not in self._cols_cache:
+                self._cols_cache[key] = source_columns(first)
+            cols = self._cols_cache[key]
+        except Exception as e:  # noqa: BLE001
+            hint.configure(text=f"поля не прочитаны: {e}"[:80])
+            return
+        cb.configure(values=[""] + cols)
+        auto = pick_field(cols, FIELD_AUTO.get(name, [])) if FIELD_AUTO.get(name) else None
+        hint.configure(text=f"автоподбор: «{auto}»" if auto else "автоподбор: не найдено")
+
+    # -- флажки «учитывать» и сводки разделов ------------------------------
+    def _components(self, agg):
+        v = self.widgets[(agg, "components")]["var"].get()
+        return [x.strip() for x in re.split(r"[;,\n]", v) if x.strip()]
+
+    def _toggle_use(self, sec):
+        agg, comps = SECTION_COMPONENT[sec]
+        cur = self._components(agg)
+        on = self.use_vars[sec].get()
+        if on:
+            add = comps[1:] if sec == "aqua" and self._raw(sec, "combine") == "separate" else comps[:1]
+            cur += [c for c in add if c not in cur]
+        else:
+            cur = [c for c in cur if c not in comps]
+        order = V_COMPONENTS + ["v_phyt", "v_zpl", "v_zbn"] + D_COMPONENTS
+        cur.sort(key=lambda c: order.index(c) if c in order else len(order))
+        self.widgets[(agg, "components")]["var"].set("; ".join(cur))
+
+    def _sync_use(self):
+        comp = {"agg_V": set(self._components("agg_V")), "agg_D": set(self._components("agg_D"))}
+        for sec, (agg, comps) in SECTION_COMPONENT.items():
+            self.use_vars[sec].set(bool(comp[agg] & set(comps)))
+
+    def _raw(self, sec, name):
+        w = self.widgets[(sec, name)]
+        k = w["kind"]
+        if k == "bool":
+            return w["var"].get()
+        if k in ("choice", "preset"):
+            return w["rmap"].get(w["var"].get(), w["var"].get())
+        if k == "checks":
+            return [key for key, bv in w["vars"].items() if bv.get()]
+        if k == "oopt_list":
+            return [w["ids"][i] for i in w["listbox"].curselection()]
+        if k == "files":
+            return [x.strip() for x in w["var"].get().split(";") if x.strip()]
+        return w["var"].get()
+
+    def _schedule(self, sec):
+        if sec not in self._pending:
+            self._pending.add(sec)
+            self.root.after_idle(self._update_summaries)
+
+    def _update_summaries(self):
+        secs, self._pending = self._pending, set()
+        for sec in secs:
+            vals = {name: self._raw(s_, name) for (s_, name) in self.widgets if s_ == sec}
+            try:
+                self.sections[sec].set_summary(section_summary(sec, vals))
+            except Exception:  # noqa: BLE001
+                pass
+
     @staticmethod
     def _res_info(v):
         try:
@@ -7611,6 +8651,7 @@ class App:
             return f"средняя площадь {a:,.1f} м², ребро {e} м".replace(",", " ")
         except (ValueError, KeyError):
             return "допустимо 7–13"
+
 
     # -- значения -----------------------------------------------------------
     def set_config(self, cfg: Config):
@@ -7626,10 +8667,10 @@ class App:
                     bv.set(key in (v or []))
             elif k == "oopt_list":
                 lb = w["listbox"]
-                if v and not w["ids"]:
-                    w["ids"] = list(v)
-                    lb.delete(0, "end")
-                    for x in v:
+                miss = [x for x in (v or []) if x not in w["ids"]]
+                if miss:
+                    w["ids"] = list(w["ids"]) + miss
+                    for x in miss:
                         lb.insert("end", x)
                 for i, oid in enumerate(w["ids"]):
                     (lb.selection_set if oid in v else lb.selection_clear)(i)
@@ -7873,7 +8914,7 @@ class App:
         self.pb.pack(fill="x", pady=4)
         lf = ttk.Frame(b)
         lf.pack(fill="both")
-        self.txt = tk.Text(lf, height=9, wrap="word")
+        self.txt = tk.Text(lf, height=6 if self.compact else 9, wrap="word")
         sb = ttk.Scrollbar(lf, command=self.txt.yview)
         self.txt.configure(yscrollcommand=sb.set)
         self.txt.pack(side="left", fill="both", expand=True)
@@ -7920,8 +8961,23 @@ def run_gui() -> int:
               file=sys.stderr)
         return 3
     tk, ttk, filedialog, messagebox = _tk, _ttk, _fd, _mb
+    _dpi_aware()
     App().mainloop()
     return 0
+
+
+def _dpi_aware():
+    """Windows: процесс DPI‑aware — интерфейс не размывается при масштабе 125–200 % (п. 5.4)."""
+    if not sys.platform.startswith("win"):
+        return
+    try:
+        import ctypes
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except Exception:  # noqa: BLE001
+            ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:  # noqa: BLE001
+        pass
 
 
 if __name__ == "__main__":

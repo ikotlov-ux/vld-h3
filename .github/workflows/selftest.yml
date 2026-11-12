@@ -1,0 +1,42 @@
+name: selftest4
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  selftest4:
+    name: П6 и П12 — ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Зависимости
+        run: python -m pip install -r requirements.txt
+      - name: Виртуальный дисплей (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - name: selftest4 (Linux, xvfb)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a -s "-screen 0 1366x768x24" python vld_h3.py selftest4 --work "${{ runner.temp }}/проверка 4"
+      - name: selftest4 (Windows, macOS)
+        if: runner.os != 'Linux'
+        shell: bash
+        run: python vld_h3.py selftest4 --work "${{ runner.temp }}/проверка 4"
+      - name: Отчёт
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selftest4-${{ matrix.os }}
+          path: ${{ runner.temp }}/проверка 4/selftest4_report.json
