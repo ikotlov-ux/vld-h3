@@ -43,7 +43,7 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 APP_NAME = "VLD-H3"
 APP_TITLE = "VLD-H3: Ценность – Нагрузка – Нарушенность"
 HERE = Path(__file__).resolve().parent
@@ -534,6 +534,51 @@ ECON_DEFAULT = {"1-2": 0.6, "1-3": 0.4, "1-4": 0.8, "2-3": 0.2, "2-4": 0.6, "3-4
 FRAG_SIGNS_DEFAULT = {"ECON": 1, "ENN": 1, "SHAPE": -1, "CONTIG": -1, "PARA": 0}
 FRAG_CLASS_NAMES = {1: "лес", 2: "луг", 3: "кустарник", 4: "болота", 5: "вода", 6: "антропоген"}
 
+# Типология 2025 г. (карты ЦЭПЛ: поля Class, ClassName, RasterValue; решение от 13.11.2026 — карты Кускова,
+# Покровского‑Стрешнева и Царицына 2026 г.). Класс → (RasterValue, название, зональность, BIOTOP, класс фрагментации,
+# аналог типологии 2026 г.). Внутренний код выдела — CEPL_BASE + RasterValue. Зональность — по аналогу (прил. Г),
+# BIOTOP — по листу «сопоставление_типов_экосистем» 2025 г. (п. 3.4.8); «dry+wet» — луг в целом, среднее
+# рейтингов суходольного и низинного лугов; классы фрагментации — как в CEPL_LC.tif 2025 г., вода и антропоген — 5 и 6.
+CEPL_BASE = 900
+CEPL_TYPOLOGY = {
+    "Б": (1, "Березовые леса", 2, "ber", 1, "135"),
+    "БД": (2, "Березово-дубовые леса", 2, "ber", 1, "121"),
+    "БКл": (3, "Березово-кленовые леса", 2, "lis", 1, "121"),
+    "БЛп": (4, "Березово-липовые леса", 2, "lis", 1, "121"),
+    "БОс": (5, "Березово-осиновые леса", 3, "ber", 1, "131"),
+    "БС": (6, "Березово-сосновые леса", 2, "sme", 1, "152"),
+    "Д": (7, "Дубовые леса", 1, "lis", 1, "111"),
+    "Е": (8, "Еловые леса", 1, "sme", 1, "141"),
+    "Ив": (9, "Ивовые леса", 3, "na", 1, "134"),
+    "Кл": (10, "Кленовые леса", 1, "lis", 1, "110"),
+    "Кля": (11, "Посадки клена ясенелистного", 3, "na", 1, "—"),
+    "Лп": (12, "Липовые леса", 1, "lis", 1, "112"),
+    "ЛпД": (13, "Липово-дубовые леса", 1, "lis", 1, "110"),
+    "ЛпКл": (14, "Липово-кленовые леса", 1, "lis", 1, "110"),
+    "Олч": (15, "Черноольховые леса", 3, "na", 1, "132"),
+    "Ос": (16, "Осиновые леса", 3, "lis", 1, "131"),
+    "ПЛц": (17, "Посадки лиственницы", 3, "na", 1, "161"),
+    "С": (18, "Сосновые леса", 1, "sos", 1, "151"),
+    "Сад": (19, "Сады", 3, "na", 1, "131"),
+    "СШ": (20, "Сосново-широколиственные леса", 1, "sme", 1, "153"),
+    "Ш": (21, "Широколиственные леса", 1, "lis", 1, "110"),
+    "Кст": (31, "Кустарники и редкие деревья", 3, "na", 3, "224"),
+    "Тр": (32, "Травяная растительность", 2, "dry+wet", 2, "211, 212, 221"),
+    "Блт": (33, "Болота и топи", 2, "na", 4, "310"),
+    "Вода": (34, "Водные объекты", 3, "na", 5, "400"),
+    "Антр": (35, "Антропогенные объекты", 3, "na", 6, "501, 503"),
+    "Грнт": (36, "Открытый грунт, песок", 3, "na", 6, "504"),
+    # классы слоя 2025 г. lo_and_oozt_polys_classified_v29_10_2025.shp, отсутствующие в легенде карт 2026 г.
+    "БЕ": (37, "Березово-еловые леса", 2, "sme", 1, "142"),
+    "ЕСШ": (38, "Елово-сосново-широколиственные леса", 1, "sme", 1, "153"),
+    "ИвКля": (39, "Ивовые леса с кленом ясенелистным", 3, "na", 1, "134"),
+}
+CEPL_BY_CODE = {CEPL_BASE + v[0]: k for k, v in CEPL_TYPOLOGY.items()}
+CEPL_ZON = {k: v[2] for k, v in CEPL_TYPOLOGY.items()}
+CEPL_BIOTOP = {k: v[3] for k, v in CEPL_TYPOLOGY.items()}
+CEPL_SCLASS = {k: v[4] for k, v in CEPL_TYPOLOGY.items()}
+BIOTOP_MAP_DEFAULT.update(CEPL_BIOTOP)   # классы типологии 2025 г. (ЦЭПЛ)
+
 
 @dataclass
 class EcoCfg:
@@ -543,6 +588,11 @@ class EcoCfg:
     layer: str = P("", "Слой в GPKG", "Пусто — первый слой файла.", "layer", source="path")
     code_field: str = P("", "Поле кода типа", "Пусто — автоподбор (class_value, eco_code, code, Индекс). 4‑значные коды приводятся к младшим трём разрядам.", "text")
     zon_fix_field: str = P("zon_fix", "Поле поправки зональности", "Значения 1–3 заменяют балл по типу (п. 8.9.4).", "text")
+    typology: str = P("auto", "Типология слоя", "Автоопределение: слой с полем Class или ClassName и обозначениями карт ЦЭПЛ "
+                      "(Б, БКл, Лп, Тр, Антр…) читается в типологии 2025 г., прочие — по коду типа 2026 г. (п. 8.0).", "choice",
+                      choices={"auto": "автоопределение", "2026": "2026 г.: код типа 110–504", "2025": "2025 г.: классы ЦЭПЛ (Class / ClassName)"})
+    dissolve_2025: bool = P(True, "Объединять смежные контуры одного класса (типология 2025 г.)",
+                            "Карты ЦЭПЛ получены векторизацией растра: выдел — связная область одного класса; влияет на ёмкость и карты в контурах.", "bool")
     cell: float = P(10.0, "Ячейка сетки переноса, м", "Растеризация полигонов в EPSG:32637, 5–10 м (п. 7.5).", "float")
     oopt_buffer: float = P(100.0, "Допуск отнесения точек к ООПТ, м", "Находки относятся к ООПТ, если лежат в её полигоне, расширенном на это расстояние.", "float")
     context: float = P(1000.0, "Окрестность выделов D2, м", "Выделы D2 на этом расстоянии от ООПТ входят в её окно расчёта: соседние пятна за границей учитываются в метриках фрагментации; баллы получают только гексагоны сетки.", "float")
@@ -560,6 +610,8 @@ class ZonCfg:
     sheet: str = P("Изменённые по таксации", "Лист", "", "text")
     extra: dict = P(dict(ZON_EXTRA), "Баллы кодов вне таблицы", "Код=балл через запятую; применяются к кодам, отсутствующим в D3 (п. 8.9.3).", "text")
     unmatched: str = P("na", "Тип вне таблицы", "Балл прочих типов, отсутствующих в D3 и в списке выше (п. 8.9.3).", "choice", choices=NA_OR_SCORE)
+    cepl: dict = P(dict(CEPL_ZON), "Баллы классов типологии 2025 г. (ЦЭПЛ)", "Класс=балл; по аналогам типологии 2026 г. (п. 8.9.6). "
+                   "Файл D3 к этим слоям не применяется.", "dict")
 
 
 @dataclass
@@ -3721,6 +3773,9 @@ def struct_class(code, overrides: dict):
     if str(code) in overrides:
         return int(overrides[str(code)])
     c = int(code)
+    if c in CEPL_BY_CODE:
+        k = CEPL_BY_CODE[c]
+        return int(overrides.get(k, CEPL_SCLASS[k]))
     if 100 <= c < 200:
         return 1
     if c in (224, 241):
@@ -3777,6 +3832,86 @@ def eco_paths(e) -> list[str]:
     return [str(x) for x in v if str(x).strip()]
 
 
+CEPL_FIELDS = ["class", "map_class", "classname", "class_name", "lc_class"]
+
+
+def _cepl_key(v) -> str | None:
+    """Обозначение или название класса ЦЭПЛ → обозначение (Б, БКл, …)."""
+    t = re.sub(r"\s+", " ", str(v or "")).strip().replace("ё", "е").replace("Ё", "Е")
+    if not t or t.lower() in ("nan", "none"):
+        return None
+    for k, r in CEPL_TYPOLOGY.items():
+        if t.lower() == k.lower() or t.lower() == r[1].lower().replace("ё", "е"):
+            return k
+    return None
+
+
+def cepl_label(code) -> str:
+    """Подпись внутреннего кода выдела: класс ЦЭПЛ или код 2026 г."""
+    try:
+        c = int(code)
+    except (TypeError, ValueError):
+        return ""
+    k = CEPL_BY_CODE.get(c)
+    return f"{k} — {CEPL_TYPOLOGY[k][1]}" if k else str(c)
+
+
+def d2_codes(d, e, name: str):
+    """Коды выделов файла D2 и признак типологии: (коды, поле, "2025" | "2026").
+
+    Типология 2025 г. (карты ЦЭПЛ): поле Class / Map_Class / ClassName с обозначениями или названиями классов;
+    код выдела — CEPL_BASE + RasterValue. Типология 2026 г.: числовой код типа (п. 6.1, D2)."""
+    mode = getattr(e, "typology", "auto") or "auto"
+    if mode in ("auto", "2025"):
+        for f in [f for f in (e.code_field,) if f and f in d.columns] + [c for c in d.columns if _norm_col(c) in CEPL_FIELDS]:
+            keys = [_cepl_key(v) for v in d[f]]
+            share = np.mean([k is not None for k in keys]) if len(keys) else 0.0
+            if share >= 0.8 or (mode == "2025" and share > 0):
+                n_bad = sum(k is None for k in keys)
+                if n_bad:
+                    log.warning("D2 (%s): классов вне типологии 2025 г.: %d (%s)", name, n_bad,
+                                ", ".join(sorted({str(v) for v, k in zip(d[f], keys) if k is None})[:10]))
+                return [CEPL_BASE + CEPL_TYPOLOGY[k][0] if k else None for k in keys], f, "2025"
+        if mode == "2025":
+            raise VLDError(f"D2 ({name}): нет поля Class / ClassName с классами типологии 2025 г.; поля: {list(d.columns)}")
+    cf = pick_field(d.columns, ["class_value", "eco_code", "code", "индекс", "код", "type_code", "gridcode"], e.code_field,
+                    required_label=f"код типа экосистемы (D2, {name})")
+    return [_parse_code(v) for v in d[cf]], cf, "2026"
+
+
+def d2_dissolve(gdf, e):
+    """Типология 2025 г.: контуры одного класса с общей границей (не только общей вершиной) — один выдел.
+
+    Составные контуры исходного слоя (части, связанные по диагонали пикселя) не разделяются."""
+    if not getattr(e, "dissolve_2025", True) or len(gdf) < 2:
+        return gdf
+    g = geo()
+    gdf = gdf.reset_index(drop=True)
+    j = g["gpd"].sjoin(gdf[["code", "geometry"]], gdf[["code", "geometry"]], predicate="intersects")
+    j = j[(j.index < j.index_right) & (j.code_left == j.code_right)]
+    par = np.arange(len(gdf))
+
+    def root(a):
+        while par[a] != a:
+            par[a] = par[par[a]]
+            a = par[a]
+        return a
+    n_m = 0
+    for a, b in zip(j.index, j.index_right):
+        if gdf.geometry.iat[a].intersection(gdf.geometry.iat[b]).length > 1e-6:
+            ra, rb = root(a), root(b)
+            if ra != rb:
+                par[max(ra, rb)] = min(ra, rb)
+                n_m += 1
+    if not n_m:
+        return gdf
+    gdf = gdf.assign(_grp=[root(a) for a in range(len(gdf))])
+    agg = {c: "first" for c in gdf.columns if c not in ("geometry", "_grp")}
+    out = gdf.dissolve(by="_grp", aggfunc=agg).reset_index(drop=True)
+    log.info("D2: типология 2025 г. — объединены контуры одного класса с общей границей: %d → %d", len(gdf), len(out))
+    return out
+
+
 def read_ecosystems(ctx: Ctx):
     """Слой D2: коды типов, площади выделов, структурные классы, отнесение к ООПТ."""
     g = geo()
@@ -3792,12 +3927,16 @@ def read_ecosystems(ctx: Ctx):
         d = d.to_crs(METRIC_CRS)
         d["geometry"] = d.geometry.make_valid()
         d = d[d.geometry.notna() & ~d.geometry.is_empty].reset_index(drop=True)
-        cf = pick_field(d.columns, ["class_value", "eco_code", "code", "индекс", "код", "type_code", "gridcode"], e.code_field,
-                        required_label=f"код типа экосистемы (D2, {p.name})")
+        codes, cf, typ = d2_codes(d, e, p.name)
         zf = e.zon_fix_field if e.zon_fix_field in d.columns else None
-        parts.append(g["gpd"].GeoDataFrame({"code": [_parse_code(v) for v in d[cf]],
-                                            "zon_fix": pd.to_numeric(d[zf], errors="coerce") if zf else np.nan,
-                                            "src": i, "src_name": p.name}, geometry=d.geometry.values, crs=METRIC_CRS))
+        part = g["gpd"].GeoDataFrame({"code": codes, "zon_fix": pd.to_numeric(d[zf], errors="coerce") if zf else np.nan,
+                                      "src": i, "src_name": p.name, "typology": typ}, geometry=d.geometry.values, crs=METRIC_CRS)
+        if typ == "2025":
+            part = part[part.code.notna()]
+            part["geometry"] = part.geometry.buffer(0)
+            part = d2_dissolve(part, e)
+            log.info("D2 (%s): типология 2025 г. (поле %s); классов %d", p.name, cf, part.code.nunique())
+        parts.append(part)
         cfs.append(cf)
     d = pd.concat(parts, ignore_index=True)
     d = g["gpd"].GeoDataFrame(d, geometry="geometry", crs=METRIC_CRS)
@@ -3840,7 +3979,8 @@ def read_ecosystems(ctx: Ctx):
         log.info("D2: несколько файлов; по ООПТ используются: %s; заменено выделов прежних файлов: %d",
                  ", ".join(f"{o} — {n}" for o, n in src_of.items()), n_drop)
     d["fid"] = np.arange(1, len(d) + 1)
-    ctx.report("ecosys", features=int(len(d)), outside=int(len(out)), code_field=cf, files_by_oopt=src_of,
+    typ = {str(k): v for k, v in d.groupby("src_name").typology.first().items()}
+    ctx.report("ecosys", features=int(len(d)), outside=int(len(out)), code_field=cf, files_by_oopt=src_of, typology_by_file=typ,
                by_oopt={str(k): int(v) for k, v in d.oopt_id.value_counts().items()},
                struct_area_ha={FRAG_CLASS_NAMES.get(int(k), str(k)): round(float(v), 1) for k, v in d.groupby("sclass").area_ha.sum().items()})
     return d
@@ -3929,6 +4069,10 @@ def zon_indicator(ctx: Ctx):
     z = d.code.map(table)
     ext = {int(k): int(v) for k, v in (ctx.cfg.zon.extra or {}).items() if str(v).strip() in ("1", "2", "3")}
     z = z.fillna(d.code.map(ext))
+    cz_ = {**CEPL_ZON, **{str(k): v for k, v in (getattr(ctx.cfg.zon, "cepl", None) or {}).items()}}
+    zc = {CEPL_BASE + CEPL_TYPOLOGY[k][0]: int(v) for k, v in cz_.items() if k in CEPL_TYPOLOGY and str(v).strip() in ("1", "2", "3")}
+    is_c = d.code.isin(list(CEPL_BY_CODE))
+    z[is_c] = d.code[is_c].map(zc)   # типология 2025 г.: таблица D3 не применяется (п. 8.9.6)
     unmatched = d[z.isna()]
     if ctx.cfg.zon.unmatched != "na":
         z = z.fillna(int(ctx.cfg.zon.unmatched))
@@ -3945,8 +4089,8 @@ def zon_indicator(ctx: Ctx):
     v[fb] = hexes.fid[fb].map(z)
     um = unmatched.groupby("code").agg(n=("area_ha", "size"), area_ha=("area_ha", "sum")).round(2)
     if len(um):
-        log.warning("зональность: типов вне таблицы: %s", ", ".join(f"{k} ({int(r.n)} выд., {r.area_ha:.1f} га)" for k, r in um.iterrows()))
-    rep = {"source": src, "unmatched_types": {str(k): {"n": int(r.n), "area_ha": float(r.area_ha)} for k, r in um.iterrows()},
+        log.warning("зональность: типов вне таблицы: %s", ", ".join(f"{cepl_label(k)} ({int(r.n)} выд., {r.area_ha:.1f} га)" for k, r in um.iterrows()))
+    rep = {"source": src, "unmatched_types": {cepl_label(k): {"n": int(r.n), "area_ha": float(r.area_ha)} for k, r in um.iterrows()},
            "zon_fix": n_fix,
            "polygon_area_by_score_ha": {str(int(k)): round(float(a), 1) for k, a in d.area_ha.groupby(z).sum().items()}}
     g = ctx.grid
@@ -3978,6 +4122,17 @@ def cap_indicator(ctx: Ctx):
     _score_report(rep, s, g)
     ctx.report("v_cap", **rep)
     return pd.DataFrame({"h3_id": g.h3_id, "cap_ha": fid.map(a).round(3), "v_cap": s})
+
+
+def biotop_of(code, bmap: dict):
+    """Тип выдела → BIOTOP: коды 2026 г. по прил. Д, классы 2025 г. по обозначению (запасной вариант — CEPL_BIOTOP)."""
+    if code is None or (isinstance(code, float) and np.isnan(code)):
+        return None
+    c = int(code)
+    if c in CEPL_BY_CODE:
+        k = CEPL_BY_CODE[c]
+        return str(bmap.get(k, CEPL_BIOTOP[k])).strip().lower()
+    return str(bmap.get(str(c), "na")).strip().lower()
 
 
 def ins_indicator(ctx: Ctx):
@@ -4040,6 +4195,27 @@ def ins_indicator(ctx: Ctx):
             sc, th = score_tertiles(R.to_numpy())
             rep["tertile_thresholds"] = th
         pairs["v_ins"] = np.asarray(sc, float)
+        # составной биотоп «dry+wet» (луг в целом, типология 2025 г.): R — среднее R_ob пар dry и wet ООПТ;
+        # балл — тем же правилом при прежних R_min, R_max и порогах (пул пар не меняется)
+        der = []
+        for o in sorted(set(pairs.index.get_level_values(0))):
+            rr = [pairs.R_ob.get((o, b)) for b in ("dry", "wet") if (o, b) in pairs.index]
+            if rr:
+                der.append((o, float(np.mean(rr)), len(rr)))
+        if der:
+            Rd = np.array([x[1] for x in der])
+            if c.method == "A":
+                nd = (Rd - lo) / (hi - lo)
+                sd = np.where(nd > 2 / 3, 1, np.where(nd > 1 / 3, 2, 3))
+            elif c.method == "B":
+                md = np.minimum(5, ((9 - Rd) * 5 / 8).astype(int) + 1)
+                sd = [int(c.b_marks.get(str(int(m)), 3)) for m in md]
+            else:
+                cd, _ = quantize_values(Rd, QuantCfg(method="excel_tertiles"), domain=R.to_numpy()[~np.isnan(R.to_numpy())])
+                sd = 4 - cd
+            dd = pd.DataFrame({"R_ob": Rd, "size": [x[2] for x in der], "v_ins": np.asarray(sd, float)},
+                              index=pd.MultiIndex.from_tuples([(x[0], "dry+wet") for x in der], names=pairs.index.names))
+            pairs = pd.concat([pairs, dd])
     elif kf or nf:
         pairs = t.groupby(["oopt_id", "biotop"]).agg(**({"SCORE_CAT": (kf, "first")} if kf else {}),
                                                      **({"SCORE_NORM": (nf, "mean")} if nf else {}))
@@ -4049,6 +4225,14 @@ def ins_indicator(ctx: Ctx):
             norm = pd.to_numeric(pairs.SCORE_NORM, errors="coerce")
             pairs["v_ins"] = np.where(norm > 2 / 3, 1, np.where(norm > 1 / 3, 2, 3)).astype(float)
         pairs["R_ob"] = np.nan
+        der = {}
+        for (o, b), v in pairs.v_ins.items():
+            if b in ("dry", "wet") and pd.notna(v):
+                der.setdefault(o, []).append(float(v))
+        if der:
+            dd = pd.DataFrame({"v_ins": [float(np.floor(np.mean(v) + 0.5)) for v in der.values()], "R_ob": np.nan},
+                              index=pd.MultiIndex.from_tuples([(o, "dry+wet") for o in der], names=pairs.index.names))
+            pairs = pd.concat([pairs, dd])
     else:
         raise VLDError("насекомые: в таблице нет RATING, SCORE_NORM или SCORE_CAT")
     rep["pairs"] = [{"oopt_id": o, "biotop": b, **{k: (None if pd.isna(v) else (round(float(v), 4) if isinstance(v, (float, np.floating)) else v))
@@ -4070,9 +4254,11 @@ def ins_indicator(ctx: Ctx):
                 g = geo()
                 gp = g["gpd"].GeoDataFrame(pts[[bf2]], geometry=g["gpd"].points_from_xy(pts.x, pts.y), crs=METRIC_CRS)
                 j = g["gpd"].sjoin(gp, ctx.eco["d"][["code", "geometry"]], predicate="within", how="left")
-                j["map"] = [c.biotop_map.get(str(int(v)), "na") if pd.notna(v) else None for v in j.code]
-                mis = j[j["map"].notna() & (j["map"] != j[bf2].astype(str).str.lower())]
-                rep["plots_biotop_mismatch"] = [{"BIOTOP": a, "D2": int(b), "по прил. Д": m} for a, b, m in zip(mis[bf2], mis.code, mis["map"])]
+                j["map"] = [biotop_of(v, c.biotop_map) if pd.notna(v) else None for v in j.code]
+                pb = j[bf2].astype(str).str.strip().str.lower()
+                ok = [(m == b) or (m == "dry+wet" and b in ("dry", "wet", "луг")) for m, b in zip(j["map"], pb)]
+                mis = j[j["map"].notna() & ~pd.Series(ok, index=j.index)]
+                rep["plots_biotop_mismatch"] = [{"BIOTOP": a, "D2": cepl_label(b), "по прил. Д": m} for a, b, m in zip(mis[bf2], mis.code, mis["map"])]
             rep["plots"] = prep.get("n")
         except VLDError as e:
             log.warning("насекомые: сверка площадок не выполнена: %s", e)
@@ -4084,7 +4270,7 @@ def ins_indicator(ctx: Ctx):
         R = pd.Series(np.nan, index=g.index)
     else:
         code = g.h3_id.map(ctx.eco["hexes"].eco_code)
-        bio = code.map(lambda v: c.biotop_map.get(str(int(v)), "na") if pd.notna(v) else None)
+        bio = code.map(lambda v: biotop_of(v, c.biotop_map) if pd.notna(v) else None)
         key = list(zip(g.oopt_id, bio))
         sc_map = pairs.v_ins.to_dict()
         r_map = pairs.R_ob.to_dict()
@@ -6566,11 +6752,17 @@ def read_eco_contours(cfg: Config) -> pd.DataFrame:
         if d.crs is None:
             d = d.set_crs(GEO_CRS)
         d = d.to_crs(METRIC_CRS)
-        cf = pick_field(d.columns, ["class_value", "eco_code", "code", "индекс", "код", "type_code", "gridcode"], e.code_field,
-                        required_label=f"код типа экосистемы (D2, {p.name})")
-        geoms = [_polygonal(x) for x in d.geometry.make_valid().values]
-        parts.append(pd.DataFrame({"eco_code": [_parse_code(v) for v in d[cf]], "src": i, "src_name": p.name,
-                                   "src_fid": np.arange(1, len(d) + 1), "geometry": geoms}))
+        codes, cf, typ = d2_codes(d, e, p.name)
+        if typ == "2025":
+            t = g["gpd"].GeoDataFrame({"code": codes}, geometry=d.geometry.make_valid().values, crs=METRIC_CRS)
+            t = t[t.code.notna()]
+            t["geometry"] = t.geometry.buffer(0)
+            t = d2_dissolve(t, e)
+            codes, geoms = list(t.code.astype(int)), [_polygonal(x) for x in t.geometry.values]
+        else:
+            geoms = [_polygonal(x) for x in d.geometry.make_valid().values]
+        parts.append(pd.DataFrame({"eco_code": codes, "src": i, "src_name": p.name,
+                                   "src_fid": np.arange(1, len(codes) + 1), "geometry": geoms}))
     d = pd.concat(parts, ignore_index=True)
     d = d[d.geometry.notna()].reset_index(drop=True)
     return g["gpd"].GeoDataFrame(d, geometry="geometry", crs=METRIC_CRS)
@@ -7124,8 +7316,58 @@ def selftest2(config: str, work: str, v4: str | None = None) -> dict:
        f"гексагонов водоёма с ротаном {len(wet)} (доля воды ≥ {c7.fish.hex_min_share}: {share_ok}, ≤ 2 колец: {ring_ok}); "
        f"IZM н/д {izm.d_alien.isna().all()}; виды {r7.get('species')}; исключено из ФГ: млекопитающие {ex_m}, "
        f"амфибии и рептилии {ex_a}, рыбы {ex_f}")
+    # П9е. Типология 2025 г. (карты ЦЭПЛ)
+    _selftest_cepl(c, g2, b2, cen, syn, odict, ok)
     (work_p / "selftest2_report.json").write_text(json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")
     return res
+
+
+def _selftest_cepl(c, g2, b2, cen, syn, odict, ok):
+    """П9е. Слой в типологии 2025 г.: автоопределение, объединение контуров с общей границей (составные контуры
+    не делятся), зональность и класс фрагментации по CEPL_TYPOLOGY, BIOTOP «dry+wet» для травяной растительности."""
+    gg = geo()
+    x0, y0 = cen.x, cen.y
+    sq = lambda x, y, a=200: gg["Polygon"]([(x, y), (x + a, y), (x + a, y + a), (x, y + a)])  # noqa: E731
+    ob = b2.to_crs(METRIC_CRS).geometry.iloc[0]
+    X, Y = x0, y0
+    for dx, dy in [(a_, b_) for r_ in range(0, 4001, 250) for a_ in (-r_, 0, r_) for b_ in (-r_, 0, r_)]:
+        if ob.contains(gg["shapely"].box(x0 + dx - 100, y0 + dy - 100, x0 + dx + 900, y0 + dy + 900)):
+            X, Y = x0 + dx, y0 + dy
+            break
+    geoms = [sq(X, Y), sq(X + 200, Y),                                         # Тр + Тр, общая сторона → 8 га
+             gg["shapely"].MultiPolygon([sq(X, Y + 400), sq(X + 200, Y + 600)]),  # Б, части по диагонали → 8 га
+             sq(X + 600, Y + 400), sq(X + 600, Y)]                              # Кл 4 га; Антр 4 га
+    cls = ["Тр", "Тр", "Б", "Кл", "Антр"]
+    e = gg["gpd"].GeoDataFrame({"Class": cls, "ClassName": [CEPL_TYPOLOGY[k][1] for k in cls],
+                                "RasterValue": [CEPL_TYPOLOGY[k][0] for k in cls]}, geometry=geoms, crs=METRIC_CRS)
+    f = syn / "eco_cepl.gpkg"
+    e.to_file(f, layer="eco", driver="GPKG", engine="pyogrio")
+    fr = syn / "ins_cepl.csv"
+    pd.DataFrame({"OOZT": ["BIT"] * 4, "BIOTOP": ["dry", "wet", "ber", "lis"], "RATING": [2.0, 4.0, 6.0, 8.0]}).to_csv(fr, index=False)
+    c1 = Config()
+    c1.project, c1.inputs = copy.deepcopy(c.project), copy.deepcopy(c.inputs)
+    c1.ecosys.path, c1.ecosys.context = [str(f)], 0.0
+    c1.ins.ratings, c1.ins.method = [str(fr)], "A"
+    pr, cx = compute_primary(g2, b2, 11, c1, odict, lambda f_, m: None)
+    P = pr.set_index("h3_id")
+    er = cx.reports.get("ecosys", {})
+    d = cx.eco["d"] if cx.eco is not None else pd.DataFrame(columns=["code", "area_ha", "sclass"])
+    cl = {CEPL_BY_CODE.get(int(k)): (round(float(a), 2), int(s_)) for k, a, s_ in zip(d.code, d.area_ha, d.sclass)}
+    hx = lambda x, y: gg["h3"].latlng_to_cell(*Transformer_to_geo(x, y)[::-1], 11)  # noqa: E731
+    hT, hB, hK, hA = hx(X + 200, Y + 100), hx(X + 100, Y + 500), hx(X + 700, Y + 500), hx(X + 700, Y + 100)
+    g_ = lambda h, k: P[k].get(h) if k in P else None  # noqa: E731
+    # R: dry 2, wet 4, ber 6, lis 8; луг 3 → (3 − 2) / 6 = 0,17 → 3; Б → ber 6 → 0,67 → 2; Кл → lis 8 → 1
+    cond = (set(er.get("typology_by_file", {}).values()) == {"2025"} and len(d) == 4
+            and cl.get("Тр") == (8.0, 2) and cl.get("Б") == (8.0, 1) and cl.get("Антр", (0, 0))[1] == 6
+            and g_(hT, "v_cap") == 2 and g_(hB, "v_cap") == 2 and g_(hK, "v_cap") == 3
+            and g_(hT, "v_zon") == 2 and g_(hB, "v_zon") == 2 and g_(hK, "v_zon") == 1 and g_(hA, "v_zon") == 3
+            and g_(hT, "ins_bio") == "dry+wet" and g_(hT, "ins_raw") == 3.0 and g_(hT, "v_ins") == 3
+            and g_(hB, "v_ins") == 2 and g_(hK, "v_ins") == 1 and pd.isna(g_(hA, "v_ins")))
+    ok("П9е типология 2025 г. (ЦЭПЛ)", cond,
+       f"типология {er.get('typology_by_file')}; выделов {len(d)} (из 5 контуров); класс → (га, класс фрагментации) {cl}; "
+       f"v_cap Тр/Б/Кл {g_(hT, 'v_cap')}/{g_(hB, 'v_cap')}/{g_(hK, 'v_cap')}; v_zon Тр/Б/Кл/Антр "
+       f"{g_(hT, 'v_zon')}/{g_(hB, 'v_zon')}/{g_(hK, 'v_zon')}/{g_(hA, 'v_zon')}; v_ins Тр ({g_(hT, 'ins_bio')}, R {g_(hT, 'ins_raw')}) "
+       f"{g_(hT, 'v_ins')}, Б {g_(hB, 'v_ins')}, Кл {g_(hK, 'v_ins')}, Антр {g_(hA, 'v_ins')}")
 
 
 # ---------------------------------------------------------------------------
@@ -7826,6 +8068,8 @@ def main(argv=None) -> int:
                    "fg_reference": {g: {sp: list(v) for sp, v in d.items()} for g, d in FG_REFERENCE.items()},
                    "zon_builtin": {str(k): v for k, v in ZON_BUILTIN.items()},
                    "alien_animals": ALIEN_ANIMALS,
+                   "cepl_typology": {k: dict(zip(("raster_value", "name", "zon", "biotop", "frag_class", "analog_2026"), v))
+                                     for k, v in CEPL_TYPOLOGY.items()},
                    "biotop_map": BIOTOP_MAP_DEFAULT, "econ": ECON_DEFAULT, "frag_signs": FRAG_SIGNS_DEFAULT,
                    "_note": "biotop_map, econ, frag_signs — значения по умолчанию соответствующих параметров "
                             "конфигурации (ins.biotop_map, frag.econ, frag.signs); fg_reference, zon_builtin и alien_animals "
@@ -7890,6 +8134,7 @@ REF_TABLES = {
     "oopt": ("ООПТ: идентификаторы, названия, синонимы, разделы", "defaults", "oopt_dict", None),
     "zon_builtin": ("Зональность по типу экосистемы (прил. Г)", "defaults", "zon_builtin", None),
     "zon_extra": ("Зональность: баллы кодов вне таблицы D3", "field", "zon", "extra"),
+    "zon_cepl": ("Зональность классов типологии 2025 г. (ЦЭПЛ)", "field", "zon", "cepl"),
     "biotop": ("Тип экосистемы → энтомологический биотоп BIOTOP (прил. Д)", "field", "ins", "biotop_map"),
     "econ": ("Матрица контраста границ ECON (6 × 6)", "field", "frag", "econ"),
     "frag_signs": ("Знаки метрик фрагментации", "field", "frag", "signs"),
@@ -7902,7 +8147,7 @@ REF_TABLES = {
     "alien_animals": ("Чужеродные инвазивные виды животных", "files", "alien", "ref_files"),
     "zones": ("Матрицы решений V × D, V × L, V × L × D", "file", "mappal", "zones_file"),
 }
-REF_DICT_COLS = {"zon_extra": ("код типа", "балл"), "biotop": ("код типа", "BIOTOP"), "frag_signs": ("метрика", "знак"),
+REF_DICT_COLS = {"zon_extra": ("код типа", "балл"), "zon_cepl": ("класс", "балл"), "biotop": ("код типа", "BIOTOP"), "frag_signs": ("метрика", "знак"),
                  "rare_recode": ("категория", "балл")}
 
 
