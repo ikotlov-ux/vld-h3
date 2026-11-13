@@ -43,7 +43,7 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 APP_NAME = "VLD-H3"
 APP_TITLE = "VLD-H3: Ценность – Нагрузка – Нарушенность"
 HERE = Path(__file__).resolve().parent
@@ -420,6 +420,10 @@ class ProjectCfg:
     boundaries: str = P("", "Слой границ ООПТ", "Полигоны ООПТ (GPKG/SHP). Не требуется, если частные баллы берутся из V4.", "file", filetypes=VEC_TYPES)
     boundaries_layer: str = P("", "Слой в GPKG", "Пусто — первый слой файла.", "layer", source="boundaries")
     name_field: str = P("", "Поле названия ООПТ", "Пусто — автоподбор (NAME, TITLE, название).", "text")
+    boundaries_add: list = P([], "Уточнённые границы", "Полигоны, заменяющие границы тех же ООПТ основного слоя или "
+                             "добавляющие новые (официальные границы, разделы). ООПТ определяется по полю названия; если его нет — "
+                             "по наибольшему перекрытию (не менее 50 % площади полигона) с ООПТ основного слоя. Если ООПТ есть в "
+                             "нескольких файлах, принимается полигон последнего (п. 7.3б).", "files", filetypes=VEC_TYPES)
     oopt_select: list = P([], "Выбор ООПТ", "Пустой список — все ООПТ источника. Допускаются названия и идентификаторы.", "oopt_list")
     h3_res: int = P(11, "Разрешение H3", "От 7 до 13; по умолчанию 11 (≈ 2 150 м²).", "int", min=7, max=13)
     sections: bool = P(True, "Вложенные полигоны — отдельные разделы", "Полигон, не менее чем на 90 % площади лежащий в другой ООПТ (Бирюлёвский дендропарк в Царицыне), вырезается из неё и считается отдельным разделом; учёты и рейтинги ООПТ распространяются на раздел (п. 7.3а).", "bool")
@@ -531,47 +535,50 @@ BIOTOP_MAP_DEFAULT = {
 ECON_DEFAULT = {"1-2": 0.6, "1-3": 0.4, "1-4": 0.8, "2-3": 0.2, "2-4": 0.6, "3-4": 0.8,
                 "1-5": 0.8, "2-5": 0.6, "3-5": 0.6, "4-5": 0.2,
                 "1-6": 1.0, "2-6": 1.0, "3-6": 1.0, "4-6": 1.0, "1-0": 1.0, "2-0": 1.0, "3-0": 1.0, "4-0": 1.0}
-FRAG_SIGNS_DEFAULT = {"ECON": 1, "ENN": 1, "SHAPE": -1, "CONTIG": -1, "PARA": 0}
+FRAG_SIGNS_DEFAULT = {"ECON": 1, "ENN": 1, "SHAPE": -1, "CONTIG": -1, "CAI": -1, "PARA": 0}   # CONTIG — растр, CAI — вектор
 FRAG_CLASS_NAMES = {1: "лес", 2: "луг", 3: "кустарник", 4: "болота", 5: "вода", 6: "антропоген"}
 
 # Типология 2025 г. (карты ЦЭПЛ: поля Class, ClassName, RasterValue; решение от 13.11.2026 — карты Кускова,
 # Покровского‑Стрешнева и Царицына 2026 г.). Класс → (RasterValue, название, зональность, BIOTOP, класс фрагментации,
-# аналог типологии 2026 г.). Внутренний код выдела — CEPL_BASE + RasterValue. Зональность — по аналогу (прил. Г),
-# BIOTOP — по листу «сопоставление_типов_экосистем» 2025 г. (п. 3.4.8); «dry+wet» — луг в целом, среднее
-# рейтингов суходольного и низинного лугов; классы фрагментации — как в CEPL_LC.tif 2025 г., вода и антропоген — 5 и 6.
+# аналог типологии 2026 г.). Внутренний код выдела — CEPL_BASE + RasterValue. Зональность — решение от 13.11.2026:
+# 1 — доминируют сосна, ель, липа, дуб, ясень, клён (в составных названиях доминант — последний компонент: БД, БКл,
+# БЛп, БС, БЕ — 1); 3 — антропогенно трансформированные (Антр, Грнт, Сад, ПЛц, Кля); 2 — остальные.
+# BIOTOP — по листу «сопоставление_типов_экосистем» 2025 г. (п. 3.4.8) с решением от 13.11.2026: Тр — суходольный
+# луг (dry), Ив, Олч (и ИвКля) — смешанный лес (sme). Составной биотоп «dry+wet» (среднее рейтингов) допускается
+# в «Соответствии BIOTOP»; классы фрагментации — как в CEPL_LC.tif 2025 г., вода и антропоген — 5 и 6.
 CEPL_BASE = 900
 CEPL_TYPOLOGY = {
     "Б": (1, "Березовые леса", 2, "ber", 1, "135"),
-    "БД": (2, "Березово-дубовые леса", 2, "ber", 1, "121"),
-    "БКл": (3, "Березово-кленовые леса", 2, "lis", 1, "121"),
-    "БЛп": (4, "Березово-липовые леса", 2, "lis", 1, "121"),
-    "БОс": (5, "Березово-осиновые леса", 3, "ber", 1, "131"),
-    "БС": (6, "Березово-сосновые леса", 2, "sme", 1, "152"),
+    "БД": (2, "Березово-дубовые леса", 1, "ber", 1, "121"),
+    "БКл": (3, "Березово-кленовые леса", 1, "lis", 1, "121"),
+    "БЛп": (4, "Березово-липовые леса", 1, "lis", 1, "121"),
+    "БОс": (5, "Березово-осиновые леса", 2, "ber", 1, "131"),
+    "БС": (6, "Березово-сосновые леса", 1, "sme", 1, "152"),
     "Д": (7, "Дубовые леса", 1, "lis", 1, "111"),
     "Е": (8, "Еловые леса", 1, "sme", 1, "141"),
-    "Ив": (9, "Ивовые леса", 3, "na", 1, "134"),
+    "Ив": (9, "Ивовые леса", 2, "sme", 1, "134"),
     "Кл": (10, "Кленовые леса", 1, "lis", 1, "110"),
     "Кля": (11, "Посадки клена ясенелистного", 3, "na", 1, "—"),
     "Лп": (12, "Липовые леса", 1, "lis", 1, "112"),
     "ЛпД": (13, "Липово-дубовые леса", 1, "lis", 1, "110"),
     "ЛпКл": (14, "Липово-кленовые леса", 1, "lis", 1, "110"),
-    "Олч": (15, "Черноольховые леса", 3, "na", 1, "132"),
-    "Ос": (16, "Осиновые леса", 3, "lis", 1, "131"),
+    "Олч": (15, "Черноольховые леса", 2, "sme", 1, "132"),
+    "Ос": (16, "Осиновые леса", 2, "lis", 1, "131"),
     "ПЛц": (17, "Посадки лиственницы", 3, "na", 1, "161"),
     "С": (18, "Сосновые леса", 1, "sos", 1, "151"),
     "Сад": (19, "Сады", 3, "na", 1, "131"),
     "СШ": (20, "Сосново-широколиственные леса", 1, "sme", 1, "153"),
     "Ш": (21, "Широколиственные леса", 1, "lis", 1, "110"),
-    "Кст": (31, "Кустарники и редкие деревья", 3, "na", 3, "224"),
-    "Тр": (32, "Травяная растительность", 2, "dry+wet", 2, "211, 212, 221"),
+    "Кст": (31, "Кустарники и редкие деревья", 2, "na", 3, "224"),
+    "Тр": (32, "Травяная растительность", 2, "dry", 2, "211, 212, 221"),
     "Блт": (33, "Болота и топи", 2, "na", 4, "310"),
-    "Вода": (34, "Водные объекты", 3, "na", 5, "400"),
+    "Вода": (34, "Водные объекты", 2, "na", 5, "400"),
     "Антр": (35, "Антропогенные объекты", 3, "na", 6, "501, 503"),
     "Грнт": (36, "Открытый грунт, песок", 3, "na", 6, "504"),
     # классы слоя 2025 г. lo_and_oozt_polys_classified_v29_10_2025.shp, отсутствующие в легенде карт 2026 г.
-    "БЕ": (37, "Березово-еловые леса", 2, "sme", 1, "142"),
+    "БЕ": (37, "Березово-еловые леса", 1, "sme", 1, "142"),
     "ЕСШ": (38, "Елово-сосново-широколиственные леса", 1, "sme", 1, "153"),
-    "ИвКля": (39, "Ивовые леса с кленом ясенелистным", 3, "na", 1, "134"),
+    "ИвКля": (39, "Ивовые леса с кленом ясенелистным", 2, "sme", 1, "134"),
 }
 CEPL_BY_CODE = {CEPL_BASE + v[0]: k for k, v in CEPL_TYPOLOGY.items()}
 CEPL_ZON = {k: v[2] for k, v in CEPL_TYPOLOGY.items()}
@@ -610,7 +617,8 @@ class ZonCfg:
     sheet: str = P("Изменённые по таксации", "Лист", "", "text")
     extra: dict = P(dict(ZON_EXTRA), "Баллы кодов вне таблицы", "Код=балл через запятую; применяются к кодам, отсутствующим в D3 (п. 8.9.3).", "text")
     unmatched: str = P("na", "Тип вне таблицы", "Балл прочих типов, отсутствующих в D3 и в списке выше (п. 8.9.3).", "choice", choices=NA_OR_SCORE)
-    cepl: dict = P(dict(CEPL_ZON), "Баллы классов типологии 2025 г. (ЦЭПЛ)", "Класс=балл; по аналогам типологии 2026 г. (п. 8.9.6). "
+    cepl: dict = P(dict(CEPL_ZON), "Баллы классов типологии 2025 г. (ЦЭПЛ)", "Класс=балл; по умолчанию — решение от 13.11.2026: 1 — доминируют сосна, ель, липа, дуб, ясень, клён; "
+                   "3 — антропогенно трансформированные; 2 — остальные (п. 8.9.6). "
                    "Файл D3 к этим слоям не применяется.", "dict")
 
 
@@ -844,7 +852,7 @@ class FragCfg:
     buildings: list = P([], "Здания (D16б)", "Полигоны; класс 6.", "files", filetypes=VEC_TYPES)
     paved_only: bool = P(True, "Только твёрдое покрытие (is_paved = 1)", "", "bool")
     exclude_highway: list = P(["proposed", "construction"], "Исключаемые highway", "", "list")
-    road_buffer: float = P(0.0, "Буфер дорог, м", "0 — линия, all_touched.", "float")
+    road_buffer: float = P(0.0, "Буфер дорог, м", "0 — растр: линия, all_touched; вектор: полуширина, равная половине ячейки сетки переноса.", "float")
     s_min: float = P(0.1, "S_min, га", "Минимальная площадь патча.", "float")
     connectivity: int = P(4, "Связность", "4 или 8 соседей.", "int", min=4, max=8)
     sieve: bool = P(True, "Присоединять мелкие контуры внутри природных классов", "sieve (п. 10.2.2).", "bool")
@@ -855,6 +863,12 @@ class FragCfg:
     quant: str = P("excel_tertiles", "Перевод frag_raw в балл", "", "choice", choices={k: QUANT_METHODS[k] for k in ("excel_tertiles", "balanced", "equal")})
     class_map: dict = P({}, "Поправки «код → класс»", "Например 241=3, 503=6.", "dict")
     patches_out: bool = P(False, "Сохранить слой патчей", "Проверочный GPKG с метриками.", "bool")
+    engine: str = P("raster", "Способ расчёта патчей", "Растр — ячейки сетки переноса (FRAGSTATS, п. 10.2.2); вектор — "
+                     "полигоны выделов D2 без растеризации: объединение по классу, вычитание дорог и зданий, разбиение на патчи "
+                     "(п. 10.2.6). Вместо CONTIG в векторе — индекс ядра CAI.", "choice",
+                     choices={"raster": "растр (ячейки сетки переноса)", "vector": "вектор (полигоны выделов)"})
+    core_depth: float = P(10.0, "Глубина краевой зоны CAI, м", "Векторный расчёт: ядро патча — полигон, сжатый на эту глубину; "
+                          "CAI = площадь ядра / площадь патча, %.", "float")
     ready: str = P("", "Готовый слой (D16в)", "Патчи с индексом или таблица h3_id → frag_raw / d_frag.", "file", filetypes=TAB_TYPES)
     ready_field: str = P("metrics_avg", "Поле индекса готового слоя", "", "text")
 
@@ -1061,7 +1075,8 @@ class Config:
                 if sf.name in src:
                     setattr(sub, sf.name, _coerce(src[sf.name], getattr(sub, sf.name)))
         old_d = ((d or {}).get("agg_D") or {}).get("components")
-        if isinstance(old_d, list) and sorted(old_d) == ["d_frag", "d_inv"]:
+        # набор версии до 0.5.0 (без раздела «alien»): добавить d_alien; в новых наборах выключенный d_alien не возвращается
+        if isinstance(old_d, list) and sorted(old_d) == ["d_frag", "d_inv"] and "alien" not in (d or {}):
             cfg.agg_D.components = list(D_COMPONENTS)
             log.info("агрегация D: в набор параметров прежней версии добавлен показатель d_alien (чужеродные виды животных)")
         for sec in ("mam", "anam", "fish", "bird"):
@@ -1188,24 +1203,79 @@ def cells_to_gdf(h3_ids, crs=GEO_CRS):
     return gdf.to_crs(crs) if crs != GEO_CRS else gdf
 
 
-def read_boundaries(cfg: ProjectCfg, odict: OoptDict):
+def fix_mojibake(x: str) -> str:
+    """Кириллица, прочитанная в cp1252/latin‑1 и сохранённая как UTF‑8 («Îñîáî» → «Особо»)."""
+    if not isinstance(x, str) or not x:
+        return x
+    try:
+        t = x.encode("latin1").decode("cp1251")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return x
+    cyr = lambda z: sum("\u0400" <= ch <= "\u04ff" for ch in z)  # noqa: E731
+    letters = sum(ch.isalpha() for ch in t)
+    return t if cyr(t) > cyr(x) and cyr(t) >= 0.5 * max(letters, 1) else x
+
+
+_NAME_FIELDS = ["NAME", "TITLE", "название", "name", "Название", "NAME_RU", "oopt", "oopt_src"]
+
+
+def _read_bnd_file(path, layer, name_field, odict: OoptDict, ref=None):
+    """Один слой границ → GeoDataFrame oopt_src, oopt_id, oopt (EPSG:4326, по одной строке на ООПТ)."""
     g = geo()
-    p = Path(cfg.boundaries)
+    p = Path(path)
     if not p.exists():
         raise VLDError(f"не найден слой границ ООПТ: {p}")
-    layer = cfg.boundaries_layer or None
     b = g["gpd"].read_file(p, layer=layer, engine="pyogrio") if layer else g["gpd"].read_file(p, engine="pyogrio")
     if b.crs is None:
-        log.warning("у слоя границ нет системы координат; принята EPSG:4326")
+        log.warning("у слоя границ %s нет системы координат; принята EPSG:4326", p.name)
         b = b.set_crs(GEO_CRS)
-    nf = cfg.name_field or find_field(b.columns, ["NAME", "TITLE", "название", "name", "Название", "NAME_RU", "oopt", "oopt_src"])
-    if not nf or nf not in b.columns:
-        raise VLDError(f"в слое границ не найдено поле названия ООПТ; поля: {list(b.columns)}")
-    b = g["gpd"].GeoDataFrame({"oopt_src": b[nf].astype(str).values}, geometry=b.geometry.values, crs=b.crs)
-    b["geometry"] = b.geometry.make_valid()
-    b["oopt_id"] = [odict.resolve_or_new(n) for n in b.oopt_src]
+    b = b[b.geometry.notna() & ~b.geometry.is_empty].reset_index(drop=True)
+    nf = name_field if name_field and name_field in b.columns else find_field(b.columns, _NAME_FIELDS)
+    geom = b.geometry.make_valid().to_crs(GEO_CRS)
+    if nf and nf in b.columns:
+        names = [fix_mojibake(str(v)) for v in b[nf].values]
+        ids = [odict.resolve_or_new(n) for n in names]
+    elif ref is not None and len(ref):
+        rm = ref.to_crs(METRIC_CRS).reset_index(drop=True)
+        gm = geom.to_crs(METRIC_CRS)
+        ids, names = [], []
+        for gi in gm:
+            sh = rm.geometry.intersection(gi).area / gi.area if gi.area > 0 else rm.geometry.area * 0
+            j = int(sh.idxmax()) if len(sh) else -1
+            if j < 0 or sh[j] < 0.5:
+                ids.append(None)
+                names.append(None)
+                continue
+            ids.append(rm.oopt_id[j])
+            names.append(rm.oopt[j])
+            log.info("границы %s: полигон %.1f га без названия отнесён к ООПТ «%s» (перекрытие %.0f %%)",
+                     p.name, gi.area / 1e4, rm.oopt[j], 100 * sh[j])
+        n_un = sum(i is None for i in ids)
+        if n_un:
+            log.warning("границы %s: полигонов без названия и без перекрытия с ООПТ основного слоя: %d; не используются", p.name, n_un)
+    else:
+        raise VLDError(f"в слое границ {p.name} не найдено поле названия ООПТ; поля: {[c for c in b.columns if c != 'geometry']}")
+    b = g["gpd"].GeoDataFrame({"oopt_src": names, "oopt_id": ids}, geometry=geom.values, crs=GEO_CRS)
+    b = b[b.oopt_id.notna()]
     b["oopt"] = [odict.name(o) for o in b.oopt_id]
-    b = b.dissolve(by="oopt_id", as_index=False, aggfunc={"oopt": "first", "oopt_src": "first"})
+    return b.dissolve(by="oopt_id", as_index=False, aggfunc={"oopt": "first", "oopt_src": "first"})
+
+
+def read_boundaries(cfg: ProjectCfg, odict: OoptDict):
+    b = _read_bnd_file(cfg.boundaries, cfg.boundaries_layer or None, cfg.name_field, odict)
+    for f in (getattr(cfg, "boundaries_add", None) or []):
+        fp, lay = split_layer(f)
+        a = _read_bnd_file(fp, lay, cfg.name_field, odict, ref=b)
+        if not len(a):
+            continue
+        rep_ = sorted(set(a.oopt_id) & set(b.oopt_id))
+        new_ = sorted(set(a.oopt_id) - set(b.oopt_id))
+        bm, am = b.to_crs(METRIC_CRS).set_index("oopt_id"), a.to_crs(METRIC_CRS).set_index("oopt_id")
+        log.info("границы %s: заменены %s; добавлены %s", Path(fp).name,
+                 ", ".join(f"{o} ({bm.geometry[o].area / 1e4:.1f} → {am.geometry[o].area / 1e4:.1f} га)" for o in rep_) or "—",
+                 ", ".join(f"{o} ({am.geometry[o].area / 1e4:.1f} га)" for o in new_) or "—")
+        b = pd.concat([b[~b.oopt_id.isin(a.oopt_id)], a], ignore_index=True)
+        b = geo()["gpd"].GeoDataFrame(b, geometry="geometry", crs=GEO_CRS)
     if cfg.sections and len(b) > 1:
         b = cut_sections(b, odict)
     return b.to_crs(GEO_CRS)
@@ -5062,7 +5132,6 @@ def frag_patches(cls, s, cfg, W):
 def frag_indicator(ctx: Ctx):
     from rasterio import features
     c = ctx.cfg.frag
-    g = ctx.grid
     if c.ready:
         return frag_ready(ctx)
     eco = ctx.eco
@@ -5089,6 +5158,8 @@ def frag_indicator(ctx: Ctx):
         blds.append((b.set_crs(GEO_CRS) if b.crs is None else b).to_crs(METRIC_CRS)[["geometry"]])
     blds = pd.concat(blds, ignore_index=True) if blds else None
     W = _econ_matrix(c.econ)
+    if str(c.engine) == "vector":
+        return _frag_finish(ctx, *frag_vector(ctx, roads, blds, W))
     d = eco["d"].set_index("fid")
     sclass_of = np.zeros(int(d.index.max()) + 1, dtype=np.uint8)
     sclass_of[d.index.values] = d.sclass.values
@@ -5127,8 +5198,245 @@ def frag_indicator(ctx: Ctx):
     if not allp:
         return None
     P = pd.concat(allp, ignore_index=True)
+    pg = None
+    if c.patches_out and polys:
+        shp_ = gg["shapely"]
+        pg = gg["gpd"].GeoDataFrame({"pid_g": [p for p, _ in polys]}, geometry=[shp_.geometry.shape(gm) for _, gm in polys], crs=METRIC_CRS)
+        pg = pg.dissolve("pid_g", as_index=False)
+    return _frag_finish(ctx, P, pd.concat(cellvals, ignore_index=True), info_all, pg)
+
+
+def _vec_parts(geom):
+    """Полигональные части геометрии (после вычитания и пересечения)."""
+    if geom is None or geom.is_empty:
+        return []
+    if geom.geom_type == "Polygon":
+        return [geom]
+    if hasattr(geom, "geoms"):
+        out = []
+        for gm in geom.geoms:
+            out += _vec_parts(gm)
+        return out
+    return []
+
+
+def _union(geoms):
+    shp = geo()["shapely"]
+    geoms = [gm for gm in geoms if gm is not None and not gm.is_empty]
+    if not geoms:
+        return shp.Polygon()
+    try:
+        u = shp.coverage_union_all(geoms)
+        if u.is_valid:
+            return u
+    except Exception:  # noqa: BLE001 — не покрытие: обычное объединение
+        pass
+    return shp.union_all(geoms)
+
+
+def frag_vector(ctx: Ctx, roads, blds, W):
+    """Векторный расчёт патчей (п. 10.2.6): выделы D2 объединяются по структурному классу, из них вычитаются
+    дороги (полосы ширины 2 × буфер) и здания, массивы разбиваются на патчи; мелкие патчи, со всех сторон
+    окружённые природными классами, присоединяются к соседнему классу с наибольшей общей границей (аналог sieve);
+    метрики SHAPE = 0,25·P/√A, PARA, CAI (ядро на глубине core_depth), ENN (расстояние между краями до ближайшего
+    патча того же класса), ECON (длина границы с соседями × вес контраста; не занятая соседями граница — фон 0)."""
+    gg = geo()
+    shp = gg["shapely"]
+    c = ctx.cfg.frag
+    eco = ctx.eco
+    d = eco["d"]
+    s = float(eco["cell"])
+    half = float(c.road_buffer) if c.road_buffer > 0 else s / 2.0
+    eps = 0.05
+    smin = float(c.s_min) * 1e4
+    STR = shp.STRtree
+    allp, cvs, pgs, info_all = [], [], [], {}
+    offset = 0
+    hexes = cells_to_gdf(ctx.grid.h3_id, crs=METRIC_CRS)[["h3_id", "geometry"]]
+    hsidx = hexes.sindex
+    for oid, sub in d.groupby("oopt_id"):
+        check_stop()
+        box = shp.box(*sub.total_bounds)
+        cuts = []
+        if roads is not None:
+            rr = roads[roads.intersects(box)]
+            cuts += list(rr.geometry.buffer(half, cap_style="flat"))
+        if blds is not None:
+            bb = blds[blds.intersects(box)]
+            cuts += list(bb.geometry.make_valid())
+        cut = shp.union_all(cuts).intersection(box) if cuts else shp.Polygon()
+        # классы: природные 1–4 объединяются и рассекаются; 5, 6 — соседи
+        pieces = []      # (класс, полигон) — все части без дорог и зданий
+        raw = {}
+        for k in range(1, 7):
+            gk = [gm for gm, sc in zip(sub.geometry, sub.sclass) if int(sc) == k]
+            if not gk:
+                raw[k] = 0
+                continue
+            u = _union(gk)
+            if not cut.is_empty:
+                u = u.difference(cut)
+            parts = [p_ for p_ in _vec_parts(u) if p_.area > 1e-3]
+            raw[k] = len(parts)
+            pieces += [(k, p_) for p_ in parts]
+        if int(c.connectivity) == 8:
+            pieces = _vec_join8(pieces)
+        n_sieved = _vec_sieve(pieces, smin, cut, box) if c.sieve else 0
+        if n_sieved and int(c.connectivity) == 8:
+            pieces = _vec_join8(pieces)
+        for p_ in _vec_parts(cut):
+            pieces.append((6, p_))
+        cls_arr = np.array([k for k, _ in pieces])
+        geoms = np.array([gm for _, gm in pieces], dtype=object)
+        gbuf = shp.buffer(geoms, eps)
+        tree = STR(geoms)
+        nat = np.where((cls_arr <= 4) & (np.array([gm.area for gm in geoms]) >= smin))[0]
+        kept = {k: int((cls_arr[nat] == k).sum()) for k in (1, 2, 3, 4)}
+        rows = []
+        for i in nat:
+            gi, ci = geoms[i], int(cls_arr[i])
+            A, Pm = gi.area, gi.length
+            bnd = gi.boundary
+            wl, used = 0.0, 0.0
+            for j in tree.query(gi.buffer(eps)):
+                if j == i:
+                    continue
+                L = bnd.intersection(gbuf[j]).length
+                if L <= 0:
+                    continue
+                used += L
+                wl += W[ci, int(cls_arr[j])] * L
+            bg = max(Pm - used, 0.0)
+            wl += W[ci, 0] * bg
+            core = gi.buffer(-float(c.core_depth))
+            rows.append((i, ci, A, Pm, 100.0 * wl / Pm if Pm > 0 else np.nan,
+                         100.0 * core.area / A if A > 0 else np.nan))
+        df = pd.DataFrame(rows, columns=["i", "sclass", "A", "perim_m", "ECON", "CAI"])
+        enn = np.full(len(df), np.nan)
+        for k in (1, 2, 3, 4):
+            sel = np.where(df.sclass.values == k)[0]
+            if len(sel) < 2:
+                continue
+            gk = geoms[df.i.values[sel]]
+            tk = STR(gk)
+            for a_, gm in zip(sel, gk):
+                j = tk.query_nearest(gm, exclusive=True, all_matches=False)
+                if len(j):
+                    enn[a_] = gm.distance(gk[int(j[0])])
+        df["ENN"] = enn
+        df["area_ha"] = df.A / 1e4
+        df["PARA"] = df.perim_m / df.A
+        df["SHAPE"] = 0.25 * df.perim_m / np.sqrt(df.A)
+        df["pid"] = np.arange(1, len(df) + 1)
+        df["pid_g"] = df.pid + offset
+        df["oopt_id"] = oid
+        # перенос на гексагоны: площадь пересечения патча с гексагоном
+        pg = gg["gpd"].GeoDataFrame({"pid_g": df.pid_g.values}, geometry=list(geoms[df.i.values]), crs=METRIC_CRS)
+        pidx, hidx = hsidx.query(pg.geometry.values, predicate="intersects")
+        w = shp.area(shp.intersection(hexes.geometry.values[hidx], pg.geometry.values[pidx]))
+        cvs.append(pd.DataFrame({"h3_id": hexes.h3_id.values[hidx], "pid_g": pg.pid_g.values[pidx], "w": w}))
+        if c.patches_out:
+            pgs.append(pg)
+        info_all[oid] = {"raw": {k: raw.get(k, 0) for k in (1, 2, 3, 4)}, "kept": kept, "sieved_components": int(n_sieved)}
+        allp.append(df.drop(columns=["i", "A"]))
+        offset += len(df)
+    if not allp:
+        return None, None, {}, None
+    P = pd.concat(allp, ignore_index=True)
+    cv = pd.concat(cvs, ignore_index=True)
+    pg = pd.concat(pgs, ignore_index=True) if pgs else None
+    log.info("фрагментация (вектор): патчей %d, присоединено мелких %d", len(P),
+             sum(v["sieved_components"] for v in info_all.values()))
+    return P, cv, info_all, pg
+
+
+def _vec_join8(pieces):
+    """8‑связность: части одного класса, касающиеся в точке, — один патч."""
+    shp = geo()["shapely"]
+    out = []
+    for k in sorted({k for k, _ in pieces}):
+        gk = [gm for kk, gm in pieces if kk == k]
+        u = shp.union_all([gm.buffer(0.01) for gm in gk]) if len(gk) > 1 else None
+        if u is None:
+            out += [(k, gm) for gm in gk]
+            continue
+        grp = _vec_parts(u)
+        tr = shp.STRtree(np.array(grp, dtype=object))
+        acc = {}
+        for gm in gk:
+            j = tr.query(gm.representative_point(), predicate="within")
+            acc.setdefault(int(j[0]) if len(j) else -1, []).append(gm)
+        for _, lst in acc.items():
+            out.append((k, shp.union_all(lst) if len(lst) > 1 else lst[0]))
+    return out
+
+
+def _vec_sieve(pieces, smin, cut, box, eps=0.05):
+    """Аналог sieve: патч природного класса площадью < S_min, вся граница которого проходит по природным патчам
+    (не по дорогам, зданиям, воде, антропогену и не по краю слоя), получает класс соседа с наибольшей общей границей.
+    Изменяет pieces на месте; возвращает число присоединённых патчей."""
+    shp = geo()["shapely"]
+    n_tot = 0
+    for _ in range(3):
+        geoms = np.array([gm for _, gm in pieces], dtype=object)
+        cls = np.array([k for k, _ in pieces])
+        gbuf = shp.buffer(geoms, eps)
+        cutb = cut.buffer(eps) if not cut.is_empty else None
+        inner = box.buffer(-eps)
+        tree = shp.STRtree(geoms)
+        changed = 0
+        order = np.argsort([gm.area for gm in geoms])
+        for i in order:
+            gi = geoms[i]
+            if cls[i] > 4 or gi.area >= smin:
+                continue
+            bnd = gi.boundary
+            if not bnd.within(inner) or (cutb is not None and bnd.intersects(cutb)):
+                continue
+            L = {}
+            for j in tree.query(gi.buffer(eps)):
+                if j == i:
+                    continue
+                lj = bnd.intersection(gbuf[j]).length
+                if lj > 0:
+                    L[int(cls[j])] = L.get(int(cls[j]), 0.0) + lj
+            if not L or any(k > 4 for k in L) or sum(L.values()) < 0.98 * bnd.length:
+                continue
+            L.pop(int(cls[i]), None)
+            if not L:
+                continue
+            new = max(L, key=L.get)
+            cls[i] = new
+            pieces[i] = (new, gi)
+            changed += 1
+        n_tot += changed
+        if not changed:
+            break
+        pieces[:] = _vec_merge_same(pieces)
+    return n_tot
+
+
+def _vec_merge_same(pieces):
+    """Объединение смежных патчей одного класса после присоединения мелких."""
+    out = []
+    for k in sorted({k for k, _ in pieces}):
+        gk = [gm for kk, gm in pieces if kk == k]
+        out += [(k, p_) for p_ in _vec_parts(_union(gk))] if len(gk) > 1 else [(k, gk[0])]
+    return out
+
+
+def _frag_finish(ctx: Ctx, P, cv, info_all, pg):
+    """Ранги метрик патчей, индекс патча, перенос на гексагоны и квантование (общая часть растрового и векторного
+    расчёта). cv — таблица h3_id, pid_g[, w]: ячейки (растр) или площади пересечения гексагона с патчем (вектор)."""
+    c = ctx.cfg.frag
+    g = ctx.grid
+    if P is None or not len(P):
+        return None
     rcols = []
-    for m, sgn in c.signs.items():
+    signs = dict(c.signs)
+    if "CAI" not in signs and "CONTIG" in signs:   # конфигурации до 0.9.0: знак CAI — как у CONTIG
+        signs["CAI"] = signs["CONTIG"]
+    for m, sgn in signs.items():
         sgn = int(sgn)
         if sgn == 0 or m not in P:
             continue
@@ -5142,9 +5450,15 @@ def frag_indicator(ctx: Ctx):
             P[f"r_{m}"] = (r - 1) / (nv - 1) if nv > 1 else 0.5
         rcols.append(f"r_{m}")
     P["frag_idx"] = P[rcols].mean(axis=1, skipna=True)
-    cv = pd.concat(cellvals, ignore_index=True)
+    cv = cv.copy()
     cv["v"] = cv.pid_g.map(P.set_index("pid_g").frag_idx)
-    fr = cv.groupby("h3_id").v.mean()
+    if "w" in cv:
+        cv = cv[cv.v.notna() & (cv.w > 0)]
+        cv["vw"] = cv.v * cv.w
+        gs = cv.groupby("h3_id")[["vw", "w"]].sum()
+        fr = gs.vw / gs.w
+    else:
+        fr = cv.groupby("h3_id").v.mean()
     raw = g.h3_id.map(fr).astype(float)
     cl, qinfo = quantize_values(raw.to_numpy(), QuantCfg(method=c.quant), domain=raw.dropna().to_numpy())
     s_ = pd.Series(cl, index=g.index)
@@ -5153,14 +5467,12 @@ def frag_indicator(ctx: Ctx):
            "raw_components": {FRAG_CLASS_NAMES[k]: sum(v["raw"][k] for v in info_all.values()) for k in (1, 2, 3, 4)},
            "sieved_components": int(sum(v["sieved_components"] for v in info_all.values())),
            "patch_area_ha": round(float(P.area_ha.sum()), 1), "by_oopt": {k: v["kept"] for k, v in info_all.items()},
-           "metrics_used": rcols, "spearman": P[[m for m in ("ECON", "ENN", "SHAPE", "CONTIG", "PARA") if m in P]].corr(method="spearman").round(3).to_dict(),
-           "d_frag_thresholds": qinfo["thresholds"]}
+           "metrics_used": rcols, "spearman": P[[m for m in ("ECON", "ENN", "SHAPE", "CONTIG", "CAI", "PARA") if m in P]].corr(method="spearman").round(3).to_dict(),
+           "d_frag_thresholds": qinfo["thresholds"], "engine": str(c.engine)}
     _score_report(rep, s_, g)
     ctx.report("d_frag", **rep)
-    if c.patches_out and polys:
-        shp_ = gg["shapely"]
-        pg = gg["gpd"].GeoDataFrame({"pid_g": [p for p, _ in polys]}, geometry=[shp_.geometry.shape(gm) for _, gm in polys], crs=METRIC_CRS)
-        pg = pg.dissolve("pid_g", as_index=False).merge(P, on="pid_g")
+    if c.patches_out and pg is not None and len(pg):
+        pg = pg[["pid_g", "geometry"]].merge(P, on="pid_g")
         ctx.extra_layers = getattr(ctx, "extra_layers", {})
         ctx.extra_layers["patches"] = pg.to_crs(GEO_CRS)
     return pd.DataFrame({"h3_id": g.h3_id, "frag_raw": raw.round(6), "d_frag": s_})
@@ -5482,7 +5794,7 @@ def build_current(cfg: Config, odict: OoptDict, prog: Progress):
     else:
         prog(0.05, "чтение границ ООПТ")
         bounds = read_boundaries(p, odict)
-        inputs_used.append(p.boundaries)
+        inputs_used += [p.boundaries] + [str(split_layer(f)[0]) for f in (p.boundaries_add or [])]
         prog(0.10, f"построение сетки H3 (разрешение {p.h3_res})")
         base = build_grid(bounds, p.h3_res, p.include_boundary_cells)
         res_used = p.h3_res
@@ -5500,7 +5812,7 @@ def build_current(cfg: Config, odict: OoptDict, prog: Progress):
         if bounds is None and p.boundaries:
             bounds = read_boundaries(p, odict)
             bounds = bounds[bounds.oopt_id.isin(set(base.oopt_id))]
-            inputs_used.append(p.boundaries)
+            inputs_used += [p.boundaries] + [str(split_layer(f)[0]) for f in (p.boundaries_add or [])]
         elif bounds is None:
             log.info("границы ООПТ для первичных данных — объединение ячеек сетки V4")
             cg = cells_to_gdf(base.h3_id).merge(base[["h3_id", "oopt_id", "oopt"]], on="h3_id")
@@ -7318,13 +7630,82 @@ def selftest2(config: str, work: str, v4: str | None = None) -> dict:
        f"амфибии и рептилии {ex_a}, рыбы {ex_f}")
     # П9е. Типология 2025 г. (карты ЦЭПЛ)
     _selftest_cepl(c, g2, b2, cen, syn, odict, ok)
+    # П9ж, П9з. Векторная фрагментация; уточнённые границы
+    _selftest_fragvec(c, g2, b2, cen, syn, odict, ok)
     (work_p / "selftest2_report.json").write_text(json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")
     return res
 
 
+def _selftest_fragvec(c, g2, b2, cen, syn, odict, ok):
+    """П9ж. Векторная фрагментация на синтетике: рассечение массива дорогой, присоединение мелкого патча,
+    SHAPE, CAI, ENN, ECON по длинам границ; перенос на гексагоны. П9з. Уточнённые границы без поля названия."""
+    gg = geo()
+    shp = gg["shapely"]
+    x0, y0 = cen.x, cen.y
+    ob = b2.to_crs(METRIC_CRS).geometry.iloc[0]
+    X, Y = x0, y0
+    for dx, dy in [(a_, b_) for r_ in range(0, 4001, 250) for a_ in (-r_, 0, r_) for b_ in (-r_, 0, r_)]:
+        if ob.contains(shp.box(x0 + dx - 100, y0 + dy - 150, x0 + dx + 900, y0 + dy + 900)):
+            X, Y = x0 + dx, y0 + dy
+            break
+    F = shp.box(X, Y, X + 400, Y + 400)                       # лес (Б) 16 га, рассекается дорогой x = X + 200
+    S = shp.box(X + 590, Y + 190, X + 610, Y + 210)           # лес 0,04 га внутри луга → присоединяется к лугу
+    M = shp.box(X + 400, Y, X + 800, Y + 400).difference(S)   # луг (Тр)
+    A = shp.box(X, Y + 400, X + 400, Y + 800)                 # антропоген над лесом
+    cls = ["Б", "Б", "Тр", "Антр"]
+    e = gg["gpd"].GeoDataFrame({"Class": cls, "ClassName": [CEPL_TYPOLOGY[k][1] for k in cls],
+                                "RasterValue": [CEPL_TYPOLOGY[k][0] for k in cls]}, geometry=[F, S, M, A], crs=METRIC_CRS)
+    f = syn / "eco_fragvec.gpkg"
+    e.to_file(f, layer="eco", driver="GPKG", engine="pyogrio")
+    rd = gg["gpd"].GeoDataFrame({"highway": ["footway"], "is_paved": [1]},
+                                geometry=[shp.LineString([(X + 200, Y - 100), (X + 200, Y + 850)])], crs=METRIC_CRS)
+    fr_ = syn / "roads_fragvec.gpkg"
+    rd.to_file(fr_, layer="roads", driver="GPKG", engine="pyogrio")
+    c1 = Config()
+    c1.project, c1.inputs = copy.deepcopy(c.project), copy.deepcopy(c.inputs)
+    c1.ecosys.path, c1.ecosys.context = [str(f)], 0.0
+    c1.frag.roads, c1.frag.engine, c1.frag.patches_out, c1.frag.road_buffer = [str(fr_)], "vector", True, 5.0
+    pr, cx = compute_primary(g2, b2, 11, c1, odict, lambda f_, m: None)
+    P = pr.set_index("h3_id")
+    pg = getattr(cx, "extra_layers", {}).get("patches")
+    r = cx.reports.get("d_frag", {})
+    T = pd.DataFrame(pg.drop(columns="geometry")) if pg is not None else pd.DataFrame(columns=["sclass", "area_ha"])
+    T = T.sort_values(["sclass", "ECON"], ascending=[True, False]).reset_index(drop=True)
+    exp = [(1, 7.8, 100.0, 10.0, 1.0652, 85.26, 0.625), (1, 7.8, 86.55, 10.0, 1.0652, 85.26, 0.375),
+           (2, 16.0, 90.0, np.nan, 1.0, 90.25, 0.5)]
+    got = [tuple(round(float(v), 4) for v in row) for row in T[["sclass", "area_ha", "ECON", "ENN", "SHAPE", "CAI", "frag_idx"]].values] if len(T) else []
+
+    def close(a, b):
+        return all((np.isnan(x) and np.isnan(y)) or abs(x - y) <= 0.01 for x, y in zip(a, b))
+    hx = lambda x, y: gg["h3"].latlng_to_cell(*Transformer_to_geo(x, y)[::-1], 11)  # noqa: E731
+    hL, hR, hM = hx(X + 97, Y + 200), hx(X + 303, Y + 200), hx(X + 700, Y + 300)
+    fl = [P["frag_raw"].get(h) for h in (hL, hR, hM)] if "frag_raw" in P else []
+    cond = (len(got) == 3 and all(close(a, b) for a, b in zip(got, exp)) and r.get("sieved_components") == 1
+            and r.get("raw_components", {}).get("лес") == 3 and r.get("engine") == "vector"
+            and len(fl) == 3 and all(v is not None and abs(v - w) < 1e-6 for v, w in zip(fl, (0.625, 0.375, 0.5))))
+    ok("П9ж фрагментация по вектору", cond,
+       f"патчи (класс, га, ECON, ENN, SHAPE, CAI, индекс): {got}; ожидается {exp}; присоединено {r.get('sieved_components')}; "
+       f"исходных компонент {r.get('raw_components')}; frag_raw гексагонов лес‑лево / лес‑право / луг {fl}")
+    # П9з. Уточнённые границы: полигон без названия заменяет ООПТ по перекрытию; искажённая кодировка названия
+    bb = b2.to_crs(METRIC_CRS)
+    a1 = gg["gpd"].GeoDataFrame({"DOC_NUM": ["1"]}, geometry=[bb.geometry.iloc[0].buffer(-50)], crs=METRIC_CRS)
+    fa = syn / "bnd_official.gpkg"
+    a1.to_file(fa, layer="b", driver="GPKG", engine="pyogrio")
+    pc = copy.deepcopy(c.project)
+    pc.boundaries_add = [str(fa)]
+    bn = read_boundaries(pc, odict).to_crs(METRIC_CRS).set_index("oopt_id")
+    o0 = b2.oopt_id.iloc[0]
+    a0, a_new = bb.geometry.iloc[0].area / 1e4, bn.geometry[o0].area / 1e4 if o0 in bn.index else float("nan")
+    moj = fix_mojibake("Ïàðê «Òåñò»")
+    cond2 = abs(a_new - a1.geometry.iloc[0].area / 1e4) < 0.5 and a_new < a0 and moj == "Парк «Тест»"
+    ok("П9з уточнённые границы", cond2, f"{o0}: {a0:.1f} → {a_new:.1f} га (полигон без названия, отнесён по перекрытию); "
+       f"кодировка: «Ïàðê «Òåñò»» → «{moj}»")
+
+
 def _selftest_cepl(c, g2, b2, cen, syn, odict, ok):
     """П9е. Слой в типологии 2025 г.: автоопределение, объединение контуров с общей границей (составные контуры
-    не делятся), зональность и класс фрагментации по CEPL_TYPOLOGY, BIOTOP «dry+wet» для травяной растительности."""
+    не делятся), зональность и класс фрагментации по CEPL_TYPOLOGY, BIOTOP травяной растительности — dry (решение 13.11.2026),
+    составной «dry+wet» — через «Соответствие BIOTOP»."""
     gg = geo()
     x0, y0 = cen.x, cen.y
     sq = lambda x, y, a=200: gg["Polygon"]([(x, y), (x + a, y), (x + a, y + a), (x, y + a)])  # noqa: E731
@@ -7356,18 +7737,27 @@ def _selftest_cepl(c, g2, b2, cen, syn, odict, ok):
     hx = lambda x, y: gg["h3"].latlng_to_cell(*Transformer_to_geo(x, y)[::-1], 11)  # noqa: E731
     hT, hB, hK, hA = hx(X + 200, Y + 100), hx(X + 100, Y + 500), hx(X + 700, Y + 500), hx(X + 700, Y + 100)
     g_ = lambda h, k: P[k].get(h) if k in P else None  # noqa: E731
-    # R: dry 2, wet 4, ber 6, lis 8; луг 3 → (3 − 2) / 6 = 0,17 → 3; Б → ber 6 → 0,67 → 2; Кл → lis 8 → 1
+    # R: dry 2, wet 4, ber 6, lis 8; Тр → dry 2 → (2 − 2) / 6 = 0 → 3; Б → ber 6 → 0,67 → 2; Кл → lis 8 → 1
+    # Зональность (решение 13.11.2026): Тр 2, Б 2, Кл 1, Антр 3
+    # Составной биотоп: при Тр = «dry+wet» R = (2 + 4) / 2 = 3 → (3 − 2) / 6 = 0,17 → 3
+    c2 = copy.deepcopy(c1)
+    c2.ins.biotop_map = {**c2.ins.biotop_map, "Тр": "dry+wet"}
+    pr2, _ = compute_primary(g2, b2, 11, c2, odict, lambda f_, m: None)
+    P2 = pr2.set_index("h3_id")
+    g2_ = lambda h, k: P2[k].get(h) if k in P2 else None  # noqa: E731
     cond = (set(er.get("typology_by_file", {}).values()) == {"2025"} and len(d) == 4
             and cl.get("Тр") == (8.0, 2) and cl.get("Б") == (8.0, 1) and cl.get("Антр", (0, 0))[1] == 6
             and g_(hT, "v_cap") == 2 and g_(hB, "v_cap") == 2 and g_(hK, "v_cap") == 3
             and g_(hT, "v_zon") == 2 and g_(hB, "v_zon") == 2 and g_(hK, "v_zon") == 1 and g_(hA, "v_zon") == 3
-            and g_(hT, "ins_bio") == "dry+wet" and g_(hT, "ins_raw") == 3.0 and g_(hT, "v_ins") == 3
-            and g_(hB, "v_ins") == 2 and g_(hK, "v_ins") == 1 and pd.isna(g_(hA, "v_ins")))
+            and g_(hT, "ins_bio") == "dry" and g_(hT, "ins_raw") == 2.0 and g_(hT, "v_ins") == 3
+            and g_(hB, "v_ins") == 2 and g_(hK, "v_ins") == 1 and pd.isna(g_(hA, "v_ins"))
+            and g2_(hT, "ins_bio") == "dry+wet" and g2_(hT, "ins_raw") == 3.0 and g2_(hT, "v_ins") == 3)
     ok("П9е типология 2025 г. (ЦЭПЛ)", cond,
        f"типология {er.get('typology_by_file')}; выделов {len(d)} (из 5 контуров); класс → (га, класс фрагментации) {cl}; "
        f"v_cap Тр/Б/Кл {g_(hT, 'v_cap')}/{g_(hB, 'v_cap')}/{g_(hK, 'v_cap')}; v_zon Тр/Б/Кл/Антр "
        f"{g_(hT, 'v_zon')}/{g_(hB, 'v_zon')}/{g_(hK, 'v_zon')}/{g_(hA, 'v_zon')}; v_ins Тр ({g_(hT, 'ins_bio')}, R {g_(hT, 'ins_raw')}) "
-       f"{g_(hT, 'v_ins')}, Б {g_(hB, 'v_ins')}, Кл {g_(hK, 'v_ins')}, Антр {g_(hA, 'v_ins')}")
+       f"{g_(hT, 'v_ins')}, Б {g_(hB, 'v_ins')}, Кл {g_(hK, 'v_ins')}, Антр {g_(hA, 'v_ins')}; "
+       f"при Тр = {g2_(hT, 'ins_bio')}: R {g2_(hT, 'ins_raw')}, v_ins {g2_(hT, 'v_ins')}")
 
 
 # ---------------------------------------------------------------------------
@@ -7923,13 +8313,18 @@ def selftest4(work: str, gui: bool = True) -> dict:
            all((s_, f_.name) in app.widgets for s_ in SECTION_TITLES for f_ in fields(getattr(Config(), s_))),
            f"параметров {n_fields}, виджетов {len(app.widgets)}")
         bad = []
-        for nm, c_ in [("по умолчанию", Config())] + [(p_, preset_config(p_)) for p_ in PRESETS] + [("тест", Config.load(f_cfg))]:
+        c_off = Config()
+        c_off.agg_D.components = ["d_inv", "d_frag"]  # флажок «вкл.» чужеродных видов снят: не должен возвращаться при загрузке
+        for nm, c_ in [("по умолчанию", Config())] + [(p_, preset_config(p_)) for p_ in PRESETS] + [("тест", Config.load(f_cfg)),
+                                                                                                 ("d_alien выкл.", c_off)]:
             app.set_config(c_)
             app.root.update()
+            if Config.from_dict(c_.to_dict()).to_dict() != c_.to_dict():
+                bad.append(nm + ": JSON → параметры → JSON")
             if app.get_config().to_dict() != c_.to_dict():
                 d1, d2 = c_.to_dict(), app.get_config().to_dict()
                 bad.append(nm + ": " + ", ".join(f"{s_}.{k}" for s_ in d1 for k in d1[s_] if d1[s_][k] != d2[s_][k]))
-        ok("П12.4 GUI: параметры JSON → интерфейс → JSON без изменений", not bad, "; ".join(bad) or f"наборов {len(PRESETS) + 2}")
+        ok("П12.4 GUI: параметры JSON → интерфейс → JSON без изменений", not bad, "; ".join(bad) or f"наборов {len(PRESETS) + 3}")
         app.set_config(Config.load(f_cfg))
         app.use_vars["rare"].set(False)
         app._toggle_use("rare")
@@ -9112,7 +9507,7 @@ class App:
         name = cur.project.param_set
         new = preset_config(name)
         # пути к данным и архиву сохраняются
-        for sec, keep in (("project", ("boundaries", "boundaries_layer", "name_field", "oopt_select", "out_dir")),
+        for sec, keep in (("project", ("boundaries", "boundaries_layer", "name_field", "boundaries_add", "oopt_select", "out_dir")),
                           ("inputs", ("v4_path", "score_tables")), ("archive", ("path",)), ("check", ("reference_path",))):
             for k in keep:
                 setattr(getattr(new, sec), k, getattr(getattr(cur, sec), k))
