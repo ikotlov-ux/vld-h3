@@ -43,7 +43,7 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 APP_NAME = "VLD-H3"
 APP_TITLE = "VLD-H3: Ценность – Нагрузка – Нарушенность"
 HERE = Path(__file__).resolve().parent
@@ -154,11 +154,11 @@ BUILTIN_OOPT = [
 BUILTIN_PARENT = {"BIR": "TSA"}
 
 # Частные показатели (прил. В ТЗ)
-V_COMPONENTS = ["v_ins", "v_mam", "v_anam", "v_fish", "v_bird", "v_aqua", "v_rare", "v_cap", "v_zon", "v_qbs"]
+V_COMPONENTS = ["v_ins", "v_mam", "v_anam", "v_fish", "v_bird", "v_rarebird", "v_aqua", "v_rare", "v_cap", "v_zon", "v_qbs"]
 D_COMPONENTS = ["d_inv", "d_frag", "d_alien"]
 # Показатели, выключенные по умолчанию (решение от 12.11.2026): рыбы входят в «низшие позвоночные» (v_anam),
-# птицы — до получения данных орнитолога
-V_OFF_DEFAULT = ["v_fish", "v_bird"]
+# птицы — до получения данных орнитолога (включаются вместе с редкими птицами)
+V_OFF_DEFAULT = ["v_fish", "v_bird", "v_rarebird"]
 V_DEFAULT = [c for c in V_COMPONENTS if c not in V_OFF_DEFAULT]
 # Способ Б (IDW по единицам учёта) временно отключён (решение от 12.11.2026); код сохранён
 METHOD_B_ENABLED = False
@@ -619,7 +619,8 @@ class ZonCfg:
     unmatched: str = P("na", "Тип вне таблицы", "Балл прочих типов, отсутствующих в D3 и в списке выше (п. 8.9.3).", "choice", choices=NA_OR_SCORE)
     cepl: dict = P(dict(CEPL_ZON), "Баллы классов типологии 2025 г. (ЦЭПЛ)", "Класс=балл; по умолчанию — решение от 13.11.2026: 1 — доминируют сосна, ель, липа, дуб, ясень, клён; "
                    "3 — антропогенно трансформированные; 2 — остальные (п. 8.9.6). "
-                   "Файл D3 к этим слоям не применяется.", "dict")
+                   "Классы вне встроенной типологии (новое название класса из файла D2) добавляются сюда с баллом 1–3 — "
+                   "каждому названию класса назначается зональность (п. 8.9.6а). Файл D3 к этим слоям не применяется.", "dict")
 
 
 @dataclass
@@ -732,18 +733,23 @@ class FishCfg:
 @dataclass
 class UnitCfg:
     """Птицы (унифицированный вход)"""
-    files: list = P([], "Единицы учёта", "Точки с готовым числом ФГ (fg_n) или баллом (score), п. 8.5.3.", "files", filetypes=PT_TYPES)
-    value_field: str = P("", "Поле значения", "Пусто — автоподбор (fg_n, n_fg, score, балл).", "text")
-    kind: str = P("fg_n", "Содержание поля", "", "choice", choices={"fg_n": "число ФГ", "score": "балл 1–3"})
+    files: list = P([], "Находки или единицы учёта", "Точки с находками птиц (поле ФГ или вид; 24 группы ведомости) или точки с готовым числом ФГ (fg_n) или баллом (score), п. 8.5.3.", "files", filetypes=PT_TYPES)
+    input: str = P("records", "Вход", "Находки — записи с полем ФГ («Функционал» ведомости) или видом; единицы — готовое число ФГ на точку.", "choice", choices={"records": "находки (поле ФГ)", "units": "единицы учёта (fg_n)"})
+    fg_field: str = P("", "Поле ФГ", "Пусто — автоподбор (Функционал, ФГ, функциональная группа).", "text")
+    species_field: str = P("", "Поле вида", "Пусто — автоподбор (латинское и русское название); для находок без поля ФГ.", "text")
+    ref_files: list = P([], "Справочник ФГ птиц", "Вид → ФГ (название группы); пусто — встроенный (24 группы ведомости 2025 г.).", "files", filetypes=TAB_TYPES)
+    ref_mode: str = P("override", "Внешний справочник ФГ", "Как внешний справочник D11 сочетается со встроенным (п. 8.3.1).", "choice", choices=FG_REF_MODES)
+    value_field: str = P("", "Поле значения", "Для единиц учёта; пусто — автоподбор (fg_n, n_fg, score, балл).", "text")
+    kind: str = P("fg_n", "Содержание поля", "Для единиц учёта.", "choice", choices={"fg_n": "число ФГ", "score": "балл 1–3"})
     method: str = P("A", "Способ", "Способ Б временно отключён.", "choice", choices=_mchoices({"A": "А — максимум в окрестности", "B": "Б — IDW"}))
-    k: int = P(10, "Способ А: колец H3", "", "int", min=0, max=50)
+    k: int = P(10, "Способ А: колец H3", "Решение от 13.11.2026: 10 колец (≈ 67 га), как у млекопитающих и низших позвоночных.", "int", min=0, max=50)
     idw_k: int = P(12, "IDW: ближайших единиц", "", "int", min=1, max=100)
     power: float = P(2.0, "IDW: степень", "", "float")
     radius: float = P(3000.0, "IDW: радиус, м", "", "float")
     min_units: int = P(3, "IDW: минимум единиц", "", "int", min=1, max=50)
-    rule: str = P("tertiles", "Перевод числа ФГ в балл", "До утверждения порогов — терцили (п. 8.5.2).", "choice", choices={"tertiles": "терцили", "thresholds": "пороги"})
-    t1: float = P(0.0, "Порог t1", "n ≤ t1 → 3; t1 < n ≤ t2 → 2; n > t2 → 1.", "float")
-    t2: float = P(0.0, "Порог t2", "", "float")
+    rule: str = P("thresholds", "Перевод числа ФГ в балл", "Решение от 13.11.2026: пороги по ведомости 2025 г. (медиана 6 ФГ в окрестности 10 колец).", "choice", choices={"tertiles": "терцили", "thresholds": "пороги"})
+    t1: float = P(4.0, "Порог t1", "n ≤ t1 → 3; t1 < n ≤ t2 → 2; n > t2 → 1.", "float")
+    t2: float = P(6.0, "Порог t2", "", "float")
 
 
 @dataclass
@@ -777,10 +783,12 @@ class RareCfg:
     pr_oopt: list = P([], "ООПТ присоединённых территорий", "Коды ООПТ, для которых берётся категория ККМ «пр.»; остальные — «гор.».", "list")
     groups: list = P(["Сосудистые растения"], "Группы справочника", "Находки видов других групп исключаются (решение от 11.11.2026). Пусто — все группы.", "list")
     ref_files: list = P([], "Справочник охраняемых видов", "Пусто — resources/ref_protected_plants.csv или встроенный (451 таксон).", "files", filetypes=TAB_TYPES)
-    recode: dict = P({"0": 1, "1": 1, "2": 1, "3": 2, "4": 2, "5": 2, "6": 2}, "Категория → балл", "6 — виды Приложения (п. 8.7.1).", "dict")
+    recode: dict = P({"1": 1, "2": 1, "3": 2, "4": 2, "0": 3, "5": 3, "6": 3}, "Категория → балл", "Решение от 13.11.2026: 1–2 → 1, 3–4 → 2, остальные → 3.", "dict")
     method: str = P("hex", "Способ", "", "choice", choices={"hex": "по гексагону", "polygon": "по выделу D2"})
     buffer: float = P(0.0, "Буфер на неточность координат, м", "0–30 м.", "float")
-    absent: str = P("3", "Нет находок", "п. 8.7.3.", "choice", choices={"3": "балл 3", "na": "н/д"})
+    rings: int = P(0, "Окрестность, колец H3", "0 — по гексагону без окрестности (решение от 13.11.2026: растения без колец).", "int", min=0, max=10)
+    step: float = P(0.5, "Шаг затухания на кольцо", "Взвешенный балл в кольце k — min(3; базовый + k × шаг); итог — минимум по находкам, округление по Excel.", "float", min=0.0, max=2.0)
+    absent: str = P("na", "Нет находок", "Решение от 13.11.2026: н/д (категорий КК видов нет).", "choice", choices={"na": "н/д", "3": "балл 3"})
 
 
 @dataclass
@@ -843,6 +851,19 @@ class AlienCfg:
     t2: float = P(2.0, "Порог t2", "", "float")
     absent: str = P("1", "Гексагон без находок", "В ООПТ, где животные учитывались; ООПТ без учётов — н/д.", "choice", choices={"1": "балл 1", "na": "н/д"})
     table_out: bool = P(True, "Записать таблицу находок", "CSV: вид, справочный вид, среда, водоём, число гексагонов.", "bool")
+
+
+@dataclass
+class RareBirdCfg:
+    """Редкие виды птиц (категории КК; решение от 13.11.2026)"""
+    files: list = P([], "Находки", "Точки с категорией КК (ккм, категория) или названием вида; записи без категории и вида не учитываются.", "files", filetypes=PT_TYPES)
+    cat_field: str = P("", "Поле категории", "Пусто — автоподбор (ккм, категория, Rare).", "text")
+    species_field: str = P("", "Поле вида", "Пусто — автоподбор (латинское и русское название).", "text")
+    ref_files: list = P([], "Справочник охраняемых животных", "Вид → категория КК; поля как в справочнике растений. Пусто — только поле категории в находках.", "files", filetypes=TAB_TYPES)
+    rings: int = P(5, "Окрестность, колец H3", "Решение от 13.11.2026: 5 колец с затуханием (≈ 220 м).", "int", min=0, max=10)
+    step: float = P(0.5, "Шаг затухания на кольцо", "Взвешенный балл в кольце k — min(3; базовый + k × шаг); при шаге 0,5 категории 1–2 дают 1 в гексагоне, 2 в 1–2 кольцах, 3 дальше; категории 3–4 — 2 в гексагоне, 3 в 1-м кольце.", "float", min=0.0, max=2.0)
+    recode: dict = P({"1": 1, "2": 1, "3": 2, "4": 2, "0": 3, "5": 3, "6": 3}, "Категория → балл", "Решение от 13.11.2026: 1–2 → 1, 3–4 → 2, остальные → 3.", "dict")
+    absent: str = P("na", "Нет находок", "Решение от 13.11.2026: н/д (категорий КК видов нет).", "choice", choices={"na": "н/д", "3": "балл 3"})
 
 
 @dataclass
@@ -926,7 +947,7 @@ MAP_MAIN = {"V": "V — ценность", "L": "L — нагрузка", "D": "
 MAP_COMP = {"v_ins": "насекомые", "v_mam": "млекопитающие (число ФГ)", "v_anam": "низшие позвоночные (число ФГ)",
             "v_fish": "рыбы (число ФГ)",
             "v_bird": "птицы", "v_aqua": "гидробионты", "v_phyt": "фитопланктон", "v_zpl": "зоопланктон",
-            "v_zbn": "зообентос", "v_rare": "редкие виды растений", "v_cap": "ёмкость выдела",
+            "v_zbn": "зообентос", "v_rare": "редкие виды растений", "v_rarebird": "редкие виды птиц", "v_cap": "ёмкость выдела",
             "v_zon": "зональность экосистем", "v_qbs": "QBS почв", "d_inv": "инвазивные растения",
             "d_frag": "фрагментация", "d_alien": "чужеродные инвазивные виды животных", "photo_cat": "фотографии (5 категорий)", "infra_cat": "рекреационные объекты (5 категорий)"}
 PAIR_PAL_CHOICES = {"cube": "срез куба CIELAB", **{k: k for k in PAL9}, "custom": "пользовательская (поле «Пользовательские 9 цветов»)"}
@@ -1049,6 +1070,7 @@ class Config:
     bird: UnitCfg = field(default_factory=UnitCfg)
     aqua: AquaCfg = field(default_factory=AquaCfg)
     rare: RareCfg = field(default_factory=RareCfg)
+    rarebird: RareBirdCfg = field(default_factory=RareBirdCfg)
     qbs: QbsCfg = field(default_factory=QbsCfg)
     recload: LoadCfg = field(default_factory=LoadCfg)
     inv: InvCfg = field(default_factory=InvCfg)
@@ -1107,7 +1129,7 @@ SECTION_TITLES = {
     "project": ("Проект и сетка", 1), "inputs": ("Готовые баллы и правила входных данных", 1),
     "ecosys": ("Экосистемы (D2) и перенос на сетку", 1),
     "ins": ("Насекомые", 2), "mam": ("Млекопитающие", 2), "anam": ("Низшие позвоночные (амфибии, рептилии, рыбы)", 2), "fish": ("Рыбы отдельно (выкл.)", 2),
-    "bird": ("Птицы", 2), "aqua": ("Гидробионты", 2), "rare": ("Редкие виды растений", 2),
+    "bird": ("Птицы", 2), "rarebird": ("Редкие виды птиц", 2), "aqua": ("Гидробионты", 2), "rare": ("Редкие виды растений", 2),
     "cap": ("Ёмкость выдела", 2), "zon": ("Зональность", 2), "qbs": ("QBS почв", 2),
     "recload": ("Нагрузка: фотографии и объекты", 3),
     "inv": ("Инвазивные растения", 4), "alien": ("Чужеродные инвазивные виды животных", 4), "frag": ("Фрагментация", 4),
@@ -2009,12 +2031,29 @@ FG_LABELS = {
             ("беспозвоночные наз", 4), ("беспозвоноч", 4), ("позвоноч", 6)],
     "anam": [("хищ", 1), ("всеяд", 2), ("планкт", 3)],
     "fish": [("хищ", 1), ("всеяд", 2), ("планкт", 3)],
+    # птицы: 24 функциональные группы учётной ведомости 2025 г. (решение от 13.11.2026 — без укрупнения)
+    "bird": [("ихтиофаг амфибиальный", 1), ("ихтиофаг воздушный", 2), ("ихтиофаг водный", 3), ("всеядный древесный", 4),
+             ("всеядный луговой", 5), ("всеядный наземный", 6), ("всеядный околоводный", 7), ("всеядный универсал", 8),
+             ("дятлы", 9), ("зерноядный древесный", 10), ("зерноядный опушечный", 11), ("зерноядный синантропный", 12),
+             ("насекомоядный воздушный", 13), ("насекомоядный древесный", 14), ("насекомоядный луговой", 15),
+             ("насекомоядный наземный", 16), ("насекомоядный околоводный", 17), ("насекомоядный опушечный", 24),
+             ("насекомоядный пологовый", 18),
+             ("насекомоядный синантропный", 19), ("растительноядный водный", 20), ("растительноядный наземный", 21),
+             ("растительноядный синантропный", 22), ("хищник", 23)],
 }
 FG_NAMES_TXT = {
     "mam": {1: "зеленояд", 2: "семенояд", 3: "веточные корма", 4: "беспозвоночные (наземные и подземные)",
             5: "беспозвоночные в воздухе", 6: "позвоночные"},
     "anam": {1: "хищники", 2: "всеядные", 3: "планктофаги"},
     "fish": {1: "хищники", 2: "всеядные", 3: "планктофаги"},
+    "bird": {1: "ихтиофаг амфибиальный", 2: "ихтиофаг воздушный", 3: "ихтиофаг водный", 4: "всеядный древесный",
+             5: "всеядный луговой", 6: "всеядный наземный", 7: "всеядный околоводный", 8: "всеядный универсал",
+             9: "дятлы", 10: "зерноядный древесный", 11: "зерноядный опушечный", 12: "зерноядный синантропный",
+             13: "насекомоядный воздушный", 14: "насекомоядный древесный", 15: "насекомоядный луговой",
+             16: "насекомоядный наземный", 17: "насекомоядный околоводный", 24: "насекомоядный опушечный",
+             18: "насекомоядный пологовый",
+             19: "насекомоядный синантропный", 20: "растительноядный водный", 21: "растительноядный наземный",
+             22: "растительноядный синантропный", 23: "хищник"},
 }
 # Встроенные справочники «вид → ФГ» (по таблицам 2025 г.: Theria_list_fun_groups.csv,
 # Функциональные группы ЛО, «Низшие позвоночные.xlsx»); заменяются файлами D11
@@ -2527,6 +2566,9 @@ PROTECTED_PLANTS = [
     ["Dictyophora duplicata", "Сетконоска сдвоенная", "Phallus indusiatus", "", "Грибы", "вид", "Phallaceae", "", "", "да", "", "NE"],
     ["Clathrus ruber", "Решёточник красный", "", "", "Грибы", "вид", "Phallaceae", "", "", "да", "", "NE"],
 ]
+# Охраняемые животные (пусто: категории берутся из поля находки или внешнего справочника пользователя)
+PROTECTED_ANIMALS = []
+
 # Чужеродные инвазивные растения (369-ПП, ТОП-100, Чёрная книга флоры Средней России; справочник от 12.11.2026):
 # латынь, русское, синонимы (латынь), ранг, семейство, группа по 369-ПП, ТОП-100 №, Чёрная книга
 INVASIVE_PLANTS = [
@@ -2875,6 +2917,9 @@ SPECIES_REFS = {
     "protected_plants": ("ref_protected_plants.csv", "PROTECTED_PLANTS",
                          ["вид (латынь)", "вид (русск.)", "синонимы (латынь)", "синонимы (русск.)", "группа", "ранг",
                           "семейство", "ККМ гор.", "ККМ пр.", "Прил. 4 ККМ", "ККРФ кат.", "МСОП кат."]),
+    "protected_animals": ("ref_protected_animals.csv", "PROTECTED_ANIMALS",
+                          ["вид (латынь)", "вид (русск.)", "синонимы (латынь)", "синонимы (русск.)", "группа", "ранг",
+                           "семейство", "ККМ гор.", "ККМ пр.", "Прил. 4 ККМ", "ККРФ кат.", "МСОП кат."]),
     "invasive_plants": ("ref_invasive_plants.csv", "INVASIVE_PLANTS",
                         ["вид (латынь)", "вид (русск.)", "синонимы (латынь)", "ранг", "семейство", "группа по 369-ПП",
                          "ТОП-100 №", "Чёрная книга Средней России"]),
@@ -3118,7 +3163,7 @@ def fg_of_points(df: pd.DataFrame, cfg, group: str, ctx: Ctx, label: str):
                pd.DataFrame({"n": [len(un)]}))
         rep["unmatched"] = lst.to_dict("records")
         log.warning("%s: записей без ФГ (вид не найден в справочнике): %d", label, len(un))
-    if cfg.groups:
+    if getattr(cfg, "groups", None):
         allow = {parse_fg(x, group) for x in cfg.groups}
         df["_fg"] = [(s & allow) if s else s for s in df._fg]
     df = df[[bool(s) for s in df._fg]].reset_index(drop=True)
@@ -3794,15 +3839,36 @@ def _score_report(rep, s, g):
 
 
 def unit_indicator(name: str, cfg, ctx: Ctx, label: str, raw_name: str):
-    """Унифицированный вход (птицы): единицы учёта с числом ФГ или баллом."""
+    """Птицы: находки с полем ФГ (24 группы ведомости) или единицы учёта с готовым числом ФГ или баллом."""
     pts, rep = read_points(cfg.files, label, ctx)
     if pts is None or not len(pts):
         return None
+    g = ctx.grid
+    higher_better = True
+    if getattr(cfg, "input", "units") == "records":
+        # находки: число различных ФГ в окрестности k колец (синантропы и чужеродные виды не исключаются —
+        # решение от 13.11.2026, п. 8.5.1)
+        pts, rep2 = fg_of_points(pts, cfg, "bird", ctx, label)
+        rep.update(rep2)
+        pts = pts[pd.notna(pts.oopt_id)].reset_index(drop=True)
+        surveyed = ctx.fam(set(pts.oopt_id.dropna()))
+        cntA = fg_ring_count(pts.cell.tolist(), pts._fg.tolist(), ctx, int(cfg.k))
+        val = g.h3_id.map(cntA).astype(float).to_numpy()
+        rep["fg_codes"] = {str(k): FG_NAMES_TXT.get("bird", {}).get(k, str(k)) for k in sorted({c for s in pts._fg for c in s}, key=str)}
+        if cfg.rule == "tertiles":
+            s, rep["tertile_thresholds"] = score_tertiles(val)
+        else:
+            s = score_thresholds(val, cfg.t1, cfg.t2, "right")
+        s = pd.Series(s, index=g.index)
+        s[~g.oopt_id.isin(surveyed)] = np.nan
+        val = np.where(g.oopt_id.isin(surveyed), val, np.nan)
+        _score_report(rep, s, g)
+        ctx.report(name, **rep)
+        return pd.DataFrame({"h3_id": g.h3_id, raw_name: np.round(val, 4), name: s})
     vf = pick_field(pts.columns, ["fg_n", "n_fg", "число фг", "score", "балл", "функц.группы (всего 20)"], cfg.value_field,
                     required_label=f"значение ({label})")
     pts["_v"] = to_float(pts[vf])
     pts = pts[pts._v.notna() & pd.notna(pts.oopt_id)].reset_index(drop=True)
-    g = ctx.grid
     higher_better = cfg.kind == "fg_n"
     if cfg.method == "A":
         best: dict[str, float] = {}
@@ -3903,6 +3969,18 @@ def eco_paths(e) -> list[str]:
 
 
 CEPL_FIELDS = ["class", "map_class", "classname", "class_name", "lc_class"]
+# Пользовательские классы ЦЭПЛ, отсутствующие во встроенной типологии (справочник zon.cepl, п. 8.9.6а)
+_CEPL_USER_CODES: dict[str, int] = {}
+
+
+def cepl_user_codes(cepl: dict | None) -> dict[str, int]:
+    """Названия классов вне встроенной типологии ЦЭПЛ → внутренние коды CEPL_BASE+1000+i.
+    Задаются в справочнике zon.cepl («класс = балл»); балл должен быть 1, 2 или 3."""
+    out: dict[str, int] = {}
+    for k in sorted(str(x) for x in (cepl or {})):
+        if _cepl_key(k) is None and str((cepl or {}).get(k, "")).strip() in ("1", "2", "3"):
+            out[k] = CEPL_BASE + 1000 + len(out)
+    return out
 
 
 def _cepl_key(v) -> str | None:
@@ -3917,31 +3995,43 @@ def _cepl_key(v) -> str | None:
 
 
 def cepl_label(code) -> str:
-    """Подпись внутреннего кода выдела: класс ЦЭПЛ или код 2026 г."""
+    """Подпись внутреннего кода выдела: класс ЦЭПЛ, пользовательский класс или код 2026 г."""
     try:
         c = int(code)
     except (TypeError, ValueError):
         return ""
+    if c >= CEPL_BASE + 1000:
+        for nm, cc in _CEPL_USER_CODES.items():
+            if cc == c:
+                return nm
     k = CEPL_BY_CODE.get(c)
     return f"{k} — {CEPL_TYPOLOGY[k][1]}" if k else str(c)
 
 
-def d2_codes(d, e, name: str):
+def d2_codes(d, e, name: str, user_codes: dict | None = None):
     """Коды выделов файла D2 и признак типологии: (коды, поле, "2025" | "2026").
 
     Типология 2025 г. (карты ЦЭПЛ): поле Class / Map_Class / ClassName с обозначениями или названиями классов;
-    код выдела — CEPL_BASE + RasterValue. Типология 2026 г.: числовой код типа (п. 6.1, D2)."""
+    код выдела — CEPL_BASE + RasterValue; классы вне встроенной типологии получают коди из справочника
+    zon.cepl (п. 8.9.6а). Типология 2026 г.: числовой код типа (п. 6.1, D2)."""
     mode = getattr(e, "typology", "auto") or "auto"
+    uc = {str(k).strip().lower(): v for k, v in (user_codes or {}).items()}
     if mode in ("auto", "2025"):
         for f in [f for f in (e.code_field,) if f and f in d.columns] + [c for c in d.columns if _norm_col(c) in CEPL_FIELDS]:
             keys = [_cepl_key(v) for v in d[f]]
             share = np.mean([k is not None for k in keys]) if len(keys) else 0.0
             if share >= 0.8 or (mode == "2025" and share > 0):
-                n_bad = sum(k is None for k in keys)
+                out = []
+                for v, k in zip(d[f], keys):
+                    if k is not None:
+                        out.append(CEPL_BASE + CEPL_TYPOLOGY[k][0])
+                    else:
+                        out.append(uc.get(re.sub(r"\s+", " ", str(v or "")).strip().lower()))
+                n_bad = sum(x is None for x in out)
                 if n_bad:
-                    log.warning("D2 (%s): классов вне типологии 2025 г.: %d (%s)", name, n_bad,
-                                ", ".join(sorted({str(v) for v, k in zip(d[f], keys) if k is None})[:10]))
-                return [CEPL_BASE + CEPL_TYPOLOGY[k][0] if k else None for k in keys], f, "2025"
+                    log.warning("D2 (%s): классов вне типологии 2025 г. и справочника zon.cepl: %d (%s)", name, n_bad,
+                                ", ".join(sorted({str(v) for x, v in zip(out, d[f]) if x is None})[:10]))
+                return out, f, "2025"
         if mode == "2025":
             raise VLDError(f"D2 ({name}): нет поля Class / ClassName с классами типологии 2025 г.; поля: {list(d.columns)}")
     cf = pick_field(d.columns, ["class_value", "eco_code", "code", "индекс", "код", "type_code", "gridcode"], e.code_field,
@@ -3997,7 +4087,7 @@ def read_ecosystems(ctx: Ctx):
         d = d.to_crs(METRIC_CRS)
         d["geometry"] = d.geometry.make_valid()
         d = d[d.geometry.notna() & ~d.geometry.is_empty].reset_index(drop=True)
-        codes, cf, typ = d2_codes(d, e, p.name)
+        codes, cf, typ = d2_codes(d, e, p.name, cepl_user_codes(getattr(ctx.cfg.zon, "cepl", None)))
         zf = e.zon_fix_field if e.zon_fix_field in d.columns else None
         part = g["gpd"].GeoDataFrame({"code": codes, "zon_fix": pd.to_numeric(d[zf], errors="coerce") if zf else np.nan,
                                       "src": i, "src_name": p.name, "typology": typ}, geometry=d.geometry.values, crs=METRIC_CRS)
@@ -4141,7 +4231,11 @@ def zon_indicator(ctx: Ctx):
     z = z.fillna(d.code.map(ext))
     cz_ = {**CEPL_ZON, **{str(k): v for k, v in (getattr(ctx.cfg.zon, "cepl", None) or {}).items()}}
     zc = {CEPL_BASE + CEPL_TYPOLOGY[k][0]: int(v) for k, v in cz_.items() if k in CEPL_TYPOLOGY and str(v).strip() in ("1", "2", "3")}
-    is_c = d.code.isin(list(CEPL_BY_CODE))
+    ucodes = cepl_user_codes(getattr(ctx.cfg.zon, "cepl", None))
+    zc.update({c: int(str(ctx.cfg.zon.cepl[nm]).strip()) for nm, c in ucodes.items()})
+    _CEPL_USER_CODES.clear()
+    _CEPL_USER_CODES.update(ucodes)
+    is_c = d.code.isin(list(CEPL_BY_CODE) + list(ucodes.values()))
     z[is_c] = d.code[is_c].map(zc)   # типология 2025 г.: таблица D3 не применяется (п. 8.9.6)
     unmatched = d[z.isna()]
     if ctx.cfg.zon.unmatched != "na":
@@ -4380,6 +4474,31 @@ def rare_ref_cat(r, scale: str, pr: bool):
     return v
 
 
+def rare_ring_score(cells: list, cats: list, rc: dict, rings: int, step: float, ctx: Ctx, g: pd.DataFrame) -> pd.Series | None:
+    """Окрестность редких находок с затуханием: взвешенный балл находки в k-м кольце H3 —
+    min(3; базовый балл категории + k × шаг); гексагон получает минимум по всем находкам
+    (k = 0 — собственный гексагон), итог округляется по Excel (п. 8.7.3а)."""
+    if rings <= 0 or not cells:
+        return None
+    out: dict = {}
+    gd = ctx.h3.grid_distance
+    for cell, cat in zip(cells, cats):
+        if cat is None or pd.isna(cat):
+            continue
+        base = rc.get(str(int(cat)), None)
+        if base is None:
+            continue
+        for h in ctx.h3.grid_disk(cell, rings):
+            if h not in ctx.gset:
+                continue
+            v = min(3.0, float(base) + gd(cell, h) * step)
+            out[h] = v if h not in out else min(out[h], v)
+    if not out:
+        return None
+    w = pd.Series([out.get(h, np.nan) for h in g.h3_id], index=g.index)
+    return pd.Series(np.where(w.notna(), excel_round(w), np.nan), index=g.index)
+
+
 def rare_indicator(ctx: Ctx):
     c = ctx.cfg.rare
     pts, rep = read_points(c.files, "редкие растения", ctx)
@@ -4474,6 +4593,10 @@ def rare_indicator(ctx: Ctx):
     raw = pd.to_numeric(raw, errors="coerce")
     rc = {"0": (c.recode or {}).get("1", 1), **(c.recode or {})}   # категория 0 — как 1 (параметры прежних версий)
     s = raw.map(lambda v: float(rc.get(str(int(v)), np.nan)) if pd.notna(v) else np.nan)
+    if c.method == "hex" and c.rings > 0:
+        s2 = rare_ring_score(pts.cell.tolist(), pts._cat.tolist(), rc, c.rings, c.step, ctx, g)
+        if s2 is not None:
+            s = s2
     surv = g.oopt_id.isin(surveyed)
     if c.absent == "3":
         s[surv & s.isna()] = 3.0
@@ -4483,6 +4606,50 @@ def rare_indicator(ctx: Ctx):
     _score_report(rep, s, g)
     ctx.report("v_rare", **rep)
     return pd.DataFrame({"h3_id": g.h3_id, "rare_raw": raw, "v_rare": s})
+
+
+def rarebird_indicator(ctx: Ctx):
+    """Редкие виды птиц: категория КК из находки или справочника охраняемых животных,
+    окрестность 5 колец с затуханием (п. 8.7.11; решение от 13.11.2026)."""
+    c = ctx.cfg.rarebird
+    pts, rep = read_points(c.files, "редкие птицы", ctx)
+    if pts is None:
+        return None
+    surveyed = ctx.fam(set(pts.oopt_id.dropna()))
+    cf = pick_field(pts.columns, ["ккм"] + CAT_NAMES, c.cat_field)
+    cat = [parse_rare_cat(v) for v in pts[cf]] if cf else [None] * len(pts)
+    miss = cf is None or all(x is None for x in cat)
+    if miss and not c.ref_files:
+        raise VLDError("редкие птицы: не найдено поле категории КК (ккм, категория) и не задан справочник охраняемых животных")
+    if miss or (cf is not None and any(x is None for x in cat)):
+        ref, rsrc = load_species_ref("protected_animals", c.ref_files, ctx)
+        ix = SpeciesIndex(ref)
+        m, has = ix.match_frame(pts, c.species_field)
+        if not has:
+            raise VLDError("редкие птицы: нет поля вида для сопоставления со справочником; поля: " + str(list(pts.columns)))
+        rep.update(reference=rsrc, matched=int(pd.notna(m).sum()))
+        for i, j in enumerate(m):
+            if j is None or cat[i] is not None:
+                continue
+            r = ix.ref.loc[j]
+            a = str(r.gor).strip()
+            cat[i] = _int_cat(a) or (6 if a.lower().startswith("пр") else None)
+    pts["_cat"] = cat
+    pts = pts[pts._cat.notna() & pd.notna(pts.oopt_id)].reset_index(drop=True)
+    pts["_cat"] = pts._cat.astype(int)
+    g = ctx.grid
+    rc = {"0": (c.recode or {}).get("1", 1), **(c.recode or {})}
+    s = rare_ring_score(pts.cell.tolist(), pts._cat.tolist(), rc, int(c.rings), c.step, ctx, g)
+    if s is None:
+        s = pd.Series(np.nan, index=g.index)
+    surv = g.oopt_id.isin(surveyed)
+    if c.absent == "3":
+        s[surv & s.isna()] = 3.0
+    s[~surv] = np.nan
+    rep.update(categories={str(int(k)): int(v) for k, v in pts._cat.value_counts().sort_index().items()})
+    _score_report(rep, s, g)
+    ctx.report("v_rarebird", **rep)
+    return pd.DataFrame({"h3_id": g.h3_id, "v_rarebird": s})
 
 
 def qbs_indicator(ctx: Ctx):
@@ -5558,6 +5725,8 @@ def compute_primary(base: pd.DataFrame, bounds, res: int, cfg, odict, prog):
         steps.append(("рыбы", lambda: fish_indicator(ctx)))
     if on("bird", cfg.bird.files):
         steps.append(("птицы", lambda: unit_indicator("v_bird", cfg.bird, ctx, "птицы", "bird_n")))
+    if on("rarebird", cfg.rarebird.files):
+        steps.append(("редкие птицы", lambda: rarebird_indicator(ctx)))
     if on("aqua", cfg.aqua.files):
         steps.append(("гидробионты", lambda: aqua_indicator(ctx)))
     if on("rare", cfg.rare.files):
@@ -7064,7 +7233,7 @@ def read_eco_contours(cfg: Config) -> pd.DataFrame:
         if d.crs is None:
             d = d.set_crs(GEO_CRS)
         d = d.to_crs(METRIC_CRS)
-        codes, cf, typ = d2_codes(d, e, p.name)
+        codes, cf, typ = d2_codes(d, e, p.name, cepl_user_codes(getattr(cfg.zon, "cepl", None)))
         if typ == "2025":
             t = g["gpd"].GeoDataFrame({"code": codes}, geometry=d.geometry.make_valid().values, crs=METRIC_CRS)
             t = t[t.code.notna()]
@@ -7481,7 +7650,7 @@ def selftest2(config: str, work: str, v4: str | None = None) -> dict:
     c5.project.oopt_select = ["BIT"]
     c5.project.out_dir = str(work_p / "p9_out")
     c5.output.format, c5.output.params_json = "none", False
-    for sec in ("ins", "mam", "anam", "fish", "bird", "aqua", "rare", "qbs", "inv"):
+    for sec in ("ins", "mam", "anam", "fish", "bird", "aqua", "rare", "rarebird", "qbs", "inv"):
         for f_ in fields(getattr(c5, sec)):
             if f_.name == "files" or f_.name == "ratings":
                 setattr(getattr(c5, sec), f_.name, [])
@@ -8534,16 +8703,19 @@ REF_TABLES = {
     "econ": ("Матрица контраста границ ECON (6 × 6)", "field", "frag", "econ"),
     "frag_signs": ("Знаки метрик фрагментации", "field", "frag", "signs"),
     "rare_recode": ("Редкие растения: категория → балл", "field", "rare", "recode"),
+    "rarebird_recode": ("Редкие птицы: категория → балл", "field", "rarebird", "recode"),
+    "protected_animals": ("Охраняемые животные (категории КК для редких птиц)", "files", "rarebird", "ref_files"),
     "fg_mam": ("ФГ млекопитающих «вид → ФГ» (D11)", "files", "mam", "ref_files"),
     "fg_anam": ("ФГ амфибий и рептилий «вид → ФГ» (D11)", "files", "anam", "ref_files"),
     "fg_fish": ("ФГ рыб «вид → ФГ» (D11)", "files", "fish", "ref_files"),
+    "fg_bird": ("ФГ птиц «вид → ФГ» (D11)", "files", "bird", "ref_files"),
     "protected_plants": ("Охраняемые растения и грибы", "files", "rare", "ref_files"),
     "invasive_plants": ("Чужеродные инвазивные растения", "files", "inv", "ref_files"),
     "alien_animals": ("Чужеродные инвазивные виды животных", "files", "alien", "ref_files"),
     "zones": ("Матрицы решений V × D, V × L, V × L × D", "file", "mappal", "zones_file"),
 }
 REF_DICT_COLS = {"zon_extra": ("код типа", "балл"), "zon_cepl": ("класс", "балл"), "biotop": ("код типа", "BIOTOP"), "frag_signs": ("метрика", "знак"),
-                 "rare_recode": ("категория", "балл")}
+                 "rare_recode": ("категория", "балл"), "rarebird_recode": ("категория", "балл")}
 
 
 def _econ_frame(econ: dict) -> pd.DataFrame:
@@ -8592,7 +8764,7 @@ def ref_table_frame(key: str, cfg: Config) -> tuple[pd.DataFrame, str]:
         c = getattr(cfg, sec)
         src = "встроенный" + (" и внешний: " + ", ".join(split_layer(f)[0].name for f in c.ref_files) if c.ref_files else "")
         return fg_reference_frame(key[3:], c.ref_files, c.ref_mode), src
-    if key in ("protected_plants", "invasive_plants", "alien_animals"):
+    if key in ("protected_plants", "invasive_plants", "alien_animals", "protected_animals"):
         files = getattr(getattr(cfg, sec), name)
         if files:
             return pd.concat([pd.DataFrame(read_any_table(f)).drop(columns="geometry", errors="ignore") for f in files],
@@ -8725,7 +8897,7 @@ def source_columns(path: str) -> list[str]:
 
 # индикаторы разделов вкладок 2 и 4 → поля агрегации (флажок «вкл.», п. 5.4)
 SECTION_COMPONENT = {"ins": ("agg_V", ["v_ins"]), "mam": ("agg_V", ["v_mam"]), "anam": ("agg_V", ["v_anam"]),
-                     "fish": ("agg_V", ["v_fish"]), "bird": ("agg_V", ["v_bird"]),
+                     "fish": ("agg_V", ["v_fish"]), "bird": ("agg_V", ["v_bird"]), "rarebird": ("agg_V", ["v_rarebird"]),
                      "aqua": ("agg_V", ["v_aqua", "v_phyt", "v_zpl", "v_zbn"]), "rare": ("agg_V", ["v_rare"]),
                      "cap": ("agg_V", ["v_cap"]), "zon": ("agg_V", ["v_zon"]), "qbs": ("agg_V", ["v_qbs"]),
                      "inv": ("agg_D", ["d_inv"]), "alien": ("agg_D", ["d_alien"]), "frag": ("agg_D", ["d_frag"])}
@@ -9208,6 +9380,14 @@ class App:
             sub = getattr(self.cfg, sec)
             for row, f in enumerate(fields(sub)):
                 self._field(s.body, row, sec, f)
+        # кнопка «исключить чужеродные виды из ФГ» (решение от 13.11.2026): погашена — от переноса чужеродных
+        # видов из Ценности в Нарушенность отказались; поведение задаётся alien.exclude_fg и d_alien
+        cb_al = ttk.Checkbutton(self.sections["alien"].body,
+                                text="исключить чужеродные виды из функциональных групп, перенести в Нарушенность",
+                                state="disabled")
+        cb_al.grid(row=len(fields(AlienCfg)), column=0, columnspan=2, sticky="w", pady=(8, 2))
+        Tooltip(cb_al, "Временно отключено (решение от 13.11.2026). Включить перенос — параметр «Исключать из ФГ» "
+                       "выше и показатель d_alien; обратный расчёт — сравнение в п. 17.2 п. 22 ТЗ.")
         for (sec, name), w in self.widgets.items():
             for v in ([w["var"]] if w.get("var") is not None else []) + list(w.get("vars", {}).values()):
                 v.trace_add("write", lambda *_, s_=sec: self._schedule(s_))
